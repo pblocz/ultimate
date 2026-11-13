@@ -40,7 +40,6 @@ import {
 import type { CompactSummaryProps, ToolCallView } from '@/sdk'
 import { AgentMark, AgentTitle, ConversationRef, useAgentTitle } from '../conversations/ui.tsx'
 import { openAgentSource, StandingDoc } from '../subagents/ui.tsx'
-import { useWorkspaceIndex } from '../workspaces/ui.tsx'
 import { accentOf } from './accent.tsx'
 import {
   answerTo,
@@ -61,7 +60,7 @@ import { imagesOf } from '../../lib/entries.ts'
 import { callerOf } from './caller.ts'
 import { MessagesDoc } from './refs.ts'
 import type { Message, Remote } from './refs.ts'
-import { MessageAnswers } from './points.tsx'
+import { AgentName, MessageAnswers } from './points.tsx'
 
 /** What an optional extension shows under a message to the user: questions' answer card. */
 const Answers = ({ message }: { message: Message }) => (
@@ -100,9 +99,6 @@ export function Address({
   mark?: boolean
   remote?: Pick<Remote, 'project' | 'machine'>
 }) {
-  const standing = useDocOf(1, StandingDoc)
-  const workspaces = useWorkspaceIndex()
-  const ultimate = useAgentTitle('ultimate')
   if (id === 'user') return <span>you</span>
   if (id === 'remote')
     return (
@@ -111,9 +107,18 @@ export function Address({
         <span className="truncate">{remote ? remoteLabel(remote) : 'another Ultimate'}</span>
       </span>
     )
-  const name =
-    Object.entries(standing ?? {}).find(([, value]) => value === id)?.[0] ??
-    (Object.values(workspaces.landerConversations).includes(id) ? 'lander' : undefined)
+  return (
+    <Provided input={id} point={AgentName}>
+      {(other) => <Named id={id} mark={mark} other={other} />}
+    </Provided>
+  )
+}
+
+/** A conversation as `@name` when it is a standing agent or another extension names it, else as a link. */
+function Named({ id, mark, other }: { id: number; mark: boolean; other: string | undefined }) {
+  const standing = useDocOf(1, StandingDoc)
+  const ultimate = useAgentTitle('ultimate')
+  const name = Object.entries(standing ?? {}).find(([, value]) => value === id)?.[0] ?? other
   if (!name) return <ConversationRef id={id} />
   if (mark && name === 'ultimate')
     return (

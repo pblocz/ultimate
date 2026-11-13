@@ -7,10 +7,14 @@ import {
   StatusLine,
   api,
   defineWebExtension,
+  ErrorReport,
   getConversation,
+  insertIntoComposer,
+  provide,
+  useStore,
+  useUltimate,
 } from '@/sdk'
 import type { CommandContribution } from '@/sdk'
-import { CompactAction, getRoots } from '../lineage/ui.tsx'
 import { PanelActions } from './panel-actions.tsx'
 
 /** The conversation in a centred column, with the sidebar and the right panel beside it. */
@@ -43,20 +47,15 @@ const commands: CommandContribution[] = [
     when: (context) => getConversation(context.conversationId).busy,
     run: (context) => api.abort(context.conversationId),
   },
+  // Lineage replaces these two for its roots.
   {
     id: 'agent.compact',
     title: 'Compact the context',
-    // A root compacts through lineage, which admits only a tally and gives it the root's summary focus.
-    run: (context) =>
-      context.conversationId !== undefined && getRoots()?.includes(context.conversationId)
-        ? api.action(CompactAction, { id: context.conversationId })
-        : api.compact(),
+    run: () => api.compact(),
   },
   {
     id: 'agent.composer',
     title: 'Focus the composer',
-    when: (context) =>
-      context.conversationId === undefined || !getRoots()?.includes(context.conversationId),
     run: (context) => context.focusComposer(),
   },
   {
@@ -67,7 +66,25 @@ const commands: CommandContribution[] = [
   },
 ]
 
+/**
+ * An error card's report goes into the selected conversation's draft, unsent, beside what the user typed there. No
+ * button without a selection. The coding workflow replaces it with @ultimate's draft.
+ */
+function useErrorReport() {
+  const selected = useStore((state) => state.requested)
+  const { focusComposer } = useUltimate()
+  if (selected === undefined) return undefined
+  return {
+    title: 'Add to the draft',
+    send: (report: string) => {
+      insertIntoComposer(selected, report)
+      requestAnimationFrame(focusComposer)
+    },
+  }
+}
+
 export default defineWebExtension({
+  provides: [provide(ErrorReport, useErrorReport)],
   // After the other items, just before the command palette button.
   slots: { 'titlebar.right': [{ component: PanelActions, order: 100 }] },
   surfaces: [

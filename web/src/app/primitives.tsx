@@ -6,9 +6,11 @@ import {
   PanelLeftOpenIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
+  PlusIcon,
 } from 'lucide-react'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useContext, useLayoutEffect, useRef, useState } from 'react'
 import type { PointerEvent, ReactNode, TouchEvent } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,12 +19,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { actions, layout, shellKeys } from '../sdk/actions.ts'
+import { actions, layout, newConversation, shellKeys } from '../sdk/actions.ts'
+import { ConversationIdContext } from '../sdk/conversation-scope.tsx'
+import { errorMessage } from '../sdk/format.ts'
 import {
   useConversation,
   useExtensions,
   usePanels,
   useRegionOpen,
+  useStore,
   useUiState,
 } from '../sdk/hooks.ts'
 import { panelBadges, slotItems } from '../sdk/registry.ts'
@@ -104,11 +109,50 @@ function StatusMore() {
  * `dock` fits a narrow side region such as a `Dock`.
  */
 export function Conversation({ variant = 'main' }: { variant?: 'main' | 'dock' }) {
+  const scoped = useContext(ConversationIdContext)
+  // Nothing selected once the shared state arrived: the stream's internal root is not a conversation to show.
+  const unselected = useStore(
+    (state) => state.shared !== undefined && state.requested === undefined,
+  )
+  if (scoped === undefined && unselected) return <NoConversation />
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <Transcript dock={variant === 'dock'} />
       <Composer dock={variant === 'dock'} />
       <Slot name="conversation.overlay" />
+    </div>
+  )
+}
+
+/** The empty new-chat screen: a conversation starts only when the user asks for one. */
+function NoConversation() {
+  const [error, setError] = useState<string>()
+  const [pending, setPending] = useState(false)
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center"
+      data-ui="no-conversation"
+    >
+      <p className="text-[13px] text-muted-foreground">No conversation is selected.</p>
+      <Button
+        disabled={pending}
+        onClick={() => {
+          setError(undefined)
+          setPending(true)
+          newConversation().then(
+            () => setPending(false),
+            (failure: unknown) => {
+              setPending(false)
+              setError(errorMessage(failure))
+            },
+          )
+        }}
+        size="sm"
+      >
+        <PlusIcon className="size-3.5" />
+        New conversation
+      </Button>
+      {error && <p className="font-mono text-[12px] text-error">{error}</p>}
     </div>
   )
 }

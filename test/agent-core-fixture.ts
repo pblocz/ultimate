@@ -73,6 +73,7 @@ const foundation = {
     'actions',
     'build',
     'conversation-host',
+    'conversation-configuration',
     'conversation-projection',
     'discovery',
     'events',
@@ -95,7 +96,7 @@ const foundation = {
     'vite-extensions',
     'watch-roots',
   ],
-  shared: ['channel-host', 'events', 'extension-api', 'protocol'],
+  shared: ['channel-host', 'conversation-configuration', 'events', 'extension-api', 'protocol'],
   lib: [
     'acting-as',
     'actions',
@@ -135,7 +136,9 @@ export const agentCoreFiles = [
 ]
 const repository = fileURLToPath(new URL('..', import.meta.url))
 
-export async function agentCoreFixture(options: { root?: string } = {}) {
+export async function agentCoreFixture(
+  options: { root?: string; models?: { id: string; reasoning?: boolean }[] } = {},
+) {
   const root = options.root ?? (await mkdtemp(join(tmpdir(), 'ultimate-agent-core-')))
   const source = join(root, 'source')
   const workspace = join(root, 'workspace')
@@ -167,7 +170,7 @@ export async function agentCoreFixture(options: { root?: string } = {}) {
     projectRoot: workspace,
     userHome,
     home,
-    faux: fauxProvider({ api: 'agent-core-faux', tokensPerSecond: 0 }),
+    faux: fauxProvider({ api: 'agent-core-faux', tokensPerSecond: 0, models: options.models }),
     report: (notice) => notices.push(notice.message),
   })
   const originalExtensions = join(repository, 'extensions') + '/'
@@ -233,7 +236,9 @@ export async function agentCoreFixture(options: { root?: string } = {}) {
         }),
       context,
     )
-    backend = await createConversationHost(prepared, opened)
+    backend = await createConversationHost(prepared, opened, {
+      configurationServices: extensions.configurationServices,
+    })
     await extensions.opened()
     opened.harness.resume()
     backend.openAdmission()

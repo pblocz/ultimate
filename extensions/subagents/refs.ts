@@ -93,6 +93,8 @@ export const RunsDoc = docRef<Record<string, Run>>('subagents.runs')
 
 /** `{ [name]: conversationId }` of the standing agents, on conversation 1. */
 export const StandingDoc = docRef<Record<string, number>>('ultimate.standing-agents')
+/** The agent definition a conversation selected, if any. */
+export const ProfileDoc = docRef<{ definition?: string }>('ultimate.agent-profile')
 
 /** `{ name }` → the conversation id of standing agent `name`, created or refreshed from its definition. */
 export const StandingAction = actionRef<{ name: string }, number>('subagents', 'standing')

@@ -228,7 +228,8 @@ export default {
           Literal(node: Node) {
             if (
               typeof node.value === 'string' &&
-              (/^(Branch from here|Clear context|New conversation)$/i.test(node.value) ||
+              // `New conversation` names the ordinary-conversation action again, so it is not retired.
+              (/^(Branch from here|Clear context)$/i.test(node.value) ||
                 (node.value === 'board' &&
                   (node.parent?.key?.name ?? node.parent?.key?.value) === 'surface'))
             )

@@ -6,6 +6,7 @@ import type { Context } from '@earendil-works/chord/context'
 import { defineDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '../../shared/extension-api.ts'
+import { profileDocument } from '../../shared/conversation-configuration.ts'
 import { RunsDoc, StandingDoc } from './refs.ts'
 import type { Run } from './refs.ts'
 import type { createChild } from './children.ts'
@@ -69,19 +70,8 @@ export const Runs = defineDoc<Record<string, Run>>({
   initial: () => ({}),
 })
 
-/**
- * The definition a conversation was configured from: children (including automation runs) and standing agents. An agent
- * made on the fly has none: `adhoc`, so nothing looks a definition up by its label.
- */
-export const Profile = defineDoc<{ definition?: string; adhoc?: true }>({
-  kind: 'ultimate.agent-profile',
-  checkpointWhen: () => false,
-  version: 1,
-  scope: 'conversation',
-  history: 'latest',
-  fork: 'initial',
-  initial: () => ({}),
-})
+/** The existing selected-definition record, also used by ordinary conversation configuration. */
+export const Profile = defineDoc(profileDocument)
 
 export type SubagentsService = {
   /** The standing agents that run in this home, by name and description; use it to list valid `@name` addresses. */

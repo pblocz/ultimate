@@ -7,12 +7,75 @@ function setup(respond: (url: string, init: RequestInit) => Response | Promise<R
   const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) =>
     respond(input as string, init!),
   )
-  const api = createApi(createStore(), { fetch })
-  return { api, fetch }
+  const store = createStore()
+  const api = createApi(store, { fetch })
+  return { api, fetch, store }
 }
 const ref = (extension: string, name: string) => actionRef<unknown, unknown>(extension, name)
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+
+describe('conversation target', () => {
+  it('keeps the selected chat after submit and restores it without selecting a primary agent', async () => {
+    const first = setup(() => json(202, { submissionId: 19 }))
+    first.store.show(42)
+    await first.api.submit('First chat')
+    expect(first.fetch.mock.calls[0][0]).toBe('/api/conversations/42/submit')
+    expect(first.store.getState().requested).toBe(42)
+
+    const restored = setup(() => json(202, { submissionId: 20 }))
+    restored.store.show(first.store.getState().requested)
+    await restored.api.submit('After reload')
+    expect(restored.fetch.mock.calls[0][0]).toBe('/api/conversations/42/submit')
+    expect(restored.store.getState().requested).toBe(42)
+    first.store.stop()
+    restored.store.stop()
+  })
+
+  it('uses an explicit target without changing the selected chat', async () => {
+    const { api, fetch, store } = setup(() => json(202, { submissionId: 21 }))
+    store.show(42)
+    await api.submit('Scoped chat', 'followUp', 77)
+    expect(fetch.mock.calls[0][0]).toBe('/api/conversations/77/submit')
+    expect(store.getState().requested).toBe(42)
+    store.stop()
+  })
+
+  it('refuses chat writes without a selection instead of targeting the storage root', async () => {
+    const { api, fetch } = setup(() => json(200, { ok: true }))
+    await expect(Promise.resolve().then(() => api.submit('No selected chat'))).rejects.toThrow(
+      'Select a conversation',
+    )
+    await expect(
+      Promise.resolve().then(() => api.configure({ thinkingLevel: 'high' })),
+    ).rejects.toThrow('Select a conversation')
+    await expect(Promise.resolve().then(() => api.abort())).rejects.toThrow('Select a conversation')
+    await expect(Promise.resolve().then(() => api.compact())).rejects.toThrow(
+      'Select a conversation',
+    )
+    await expect(Promise.resolve().then(() => api.cancelSubmission(19))).rejects.toThrow(
+      'Select a conversation',
+    )
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('sends persona and preset selections with creation and configuration', async () => {
+    const { api, fetch, store } = setup((url) =>
+      url === '/api/conversations' ? json(201, { id: 51 }) : json(200, { ok: true }),
+    )
+    expect(await api.createConversation({ definition: 'helper', preset: 'quick' })).toEqual({
+      id: 51,
+    })
+    await api.configure({ definition: null }, 51)
+    await api.configure({ preset: 'deliberate' }, 51)
+    expect(fetch.mock.calls.map(([url, init]) => [url, JSON.parse(init?.body as string)])).toEqual([
+      ['/api/conversations', { definition: 'helper', preset: 'quick' }],
+      ['/api/conversations/51/configure', { definition: null }],
+      ['/api/conversations/51/configure', { preset: 'deliberate' }],
+    ])
+    store.stop()
+  })
+})
 
 describe('extension actions', () => {
   it('posts args for the shown conversation and resolves with the result', async () => {

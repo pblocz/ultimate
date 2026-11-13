@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api, cn, errorMessage, formatAgo, Provided, useDocOf } from '@/sdk'
-import { useShell } from './state.tsx'
+import { useShell } from '../sidebar/state.tsx'
 import { store } from '@/sdk/client'
 import { MessagesDoc, conversationState, emptyMessages } from '../messages/ui.tsx'
 import {

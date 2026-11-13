@@ -84,8 +84,23 @@ export function createApi(store: Store, options: { fetch?: typeof fetch } = {}) 
     const state = store.getState()
     return state.view?.conversation.id ?? state.requested ?? ROOT
   }
-  const conversation = (id: number | undefined, action: string) =>
-    `/api/conversations/${id ?? shown()}/${action}`
+  /**
+   * The conversation a chat write goes to: the one named, else the user's selection. The stream shows the internal root
+   * when nothing is selected; a chat write never goes there by default.
+   */
+  const conversation = (id: number | undefined, action: string) => {
+    const target = id ?? store.getState().requested
+    if (target === undefined) throw new Error('Select a conversation')
+    return `/api/conversations/${target}/${action}`
+  }
+  /** A chat write, rejecting without a request when no conversation is selected. */
+  const write = <T>(id: number | undefined, action: string, body?: object) => {
+    try {
+      return post<T>(conversation(id, action), body)
+    } catch (error) {
+      return Promise.reject(error)
+    }
+  }
 
   return {
     submit: (
@@ -94,7 +109,7 @@ export function createApi(store: Store, options: { fetch?: typeof fetch } = {}) 
       id?: number,
       images?: SubmitRequest['images'],
     ) =>
-      post<SubmitResponse>(conversation(id, 'submit'), {
+      write<SubmitResponse>(id, 'submit', {
         text,
         whenBusy,
         images,
@@ -113,13 +128,13 @@ export function createApi(store: Store, options: { fetch?: typeof fetch } = {}) 
       if (!response.ok) throw new HttpError(response.status, data.error ?? 'Could not load history')
       return data as HistoryResponse
     },
-    abort: (id?: number) => post<EmptyResponse>(conversation(id, 'abort')),
+    abort: (id?: number) => write<EmptyResponse>(id, 'abort'),
     cancelSubmission: (submissionId: number, id?: number) =>
-      post<EmptyResponse>(conversation(id, `inbox/${submissionId}/cancel`)),
+      write<EmptyResponse>(id, `inbox/${submissionId}/cancel`),
     configure: (change: ConfigureRequest, id?: number) =>
-      post<EmptyResponse>(conversation(id, 'configure'), change),
+      write<EmptyResponse>(id, 'configure', change),
     compact: (instructions?: string, id?: number) =>
-      post<CompactResponse>(conversation(id, 'compact'), { instructions }),
+      write<CompactResponse>(id, 'compact', { instructions }),
     createConversation: (create: CreateConversationRequest = {}) =>
       post<CreateConversationResponse>('/api/conversations', create),
     restart: () => post<unknown>('/api/restart'),

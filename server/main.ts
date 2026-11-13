@@ -249,6 +249,7 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
         context,
       )
       service = await createConversationHost(host, harness, {
+        configurationServices: extensions.configurationServices,
         onConversations: (summaries) => events.emit('conversations', summaries),
         onTasks: (tasks) => events.emit('tasks', tasks),
         onRefreshError: () =>

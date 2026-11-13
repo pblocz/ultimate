@@ -52,7 +52,14 @@ import { talkToUltimate } from '../subagents/ui.tsx'
 import { Open, useGithubRepo } from '../workspaces/ui.tsx'
 import { ForgetAction, MemoryDoc, OpenEditorAction, TallyDoc } from './refs.ts'
 import type { MemoryItem } from './refs.ts'
-import { MEMORY_FOCUS, MEMORY_SURFACE, MemoryHeader, useRoots } from './ui.tsx'
+import {
+  CompactAction,
+  getRoots,
+  MEMORY_FOCUS,
+  MEMORY_SURFACE,
+  MemoryHeader,
+  useRoots,
+} from './ui.tsx'
 import { MemoryCall, NotifyCall, RememberCall } from './calls.tsx'
 import { GoBackAction, Rewound, RewoundDependent } from './rewind.tsx'
 
@@ -742,4 +749,25 @@ export default defineWebExtension({
   slots: { overlay: [Roots] },
   // A root runs no turns and gets no summaries: its tally speaks for it.
   provides: [provide(Unsummarized, (id) => useRoots()?.includes(id) ?? false)],
+  // These replace agent's commands of the same id (a later extension in discovery order wins an id): a root compacts
+  // through lineage, which admits only a tally and gives it the root's summary focus, and has no composer to focus.
+  commands: [
+    {
+      id: 'agent.compact',
+      title: 'Compact the context',
+      group: 'Ultimate',
+      run: (context) =>
+        context.conversationId !== undefined && getRoots()?.includes(context.conversationId)
+          ? api.action(CompactAction, { id: context.conversationId })
+          : api.compact(),
+    },
+    {
+      id: 'agent.composer',
+      title: 'Focus the composer',
+      group: 'Ultimate',
+      when: (context) =>
+        context.conversationId === undefined || !getRoots()?.includes(context.conversationId),
+      run: (context) => context.focusComposer(),
+    },
+  ],
 })

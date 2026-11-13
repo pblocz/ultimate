@@ -4,12 +4,22 @@
  */
 import { WandSparklesIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { api, events, useDocOf } from '@/sdk'
+import { api, definePoint, events, useDocOf } from '@/sdk'
 import type { UltimateActions } from '@/sdk'
 import { RunsDoc, StandingAction } from './refs.ts'
 import type { Run } from './refs.ts'
 
 export { DefinitionAction, DefinitionsAction, StandingAction, StandingDoc } from './refs.ts'
+
+/** A badge on a child's call card, by the child's id (workspaces shows its worktree). Nothing while nothing provides it. */
+export const ChildBadge = definePoint<number, ReactNode>('subagents.child-badge')
+/**
+ * The result of a `subagent` call's `land` or `discard` action (workspaces renders what landed). Undefined shows the
+ * plain output.
+ */
+export const ChildResult = definePoint<{ action: string; output: string }, ReactNode | undefined>(
+  'subagents.child-result',
+)
 
 /** What child `id` was started on, its model id and whether it was made on the fly; undefined for other conversations. */
 export function useRun(id: number | undefined): Run | undefined {

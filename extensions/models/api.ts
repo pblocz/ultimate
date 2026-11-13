@@ -5,7 +5,7 @@
 import { defineDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '../../shared/extension-api.ts'
-import { FamilyDoc } from './refs.ts'
+import { familyDocument } from '../../shared/conversation-configuration.ts'
 export { LoginChanged } from './refs.ts'
 
 /**
@@ -13,15 +13,7 @@ export { LoginChanged } from './refs.ts'
  * same commit (`definitionFamily` in lib/agents.ts), the picker when it picks a family or a model, the fallback when it
  * switches the model. A fork starts with its source's.
  */
-export const Family = defineDoc<{ name: string | null }>({
-  kind: FamilyDoc.kind,
-  checkpointWhen: () => false,
-  version: 1,
-  scope: 'conversation',
-  history: 'latest',
-  fork: 'current',
-  initial: () => ({ name: null }),
-})
+export const Family = defineDoc(familyDocument)
 export type PinService = {
   /** The model the definition conversation `id` runs as pins, read inside `tx`; undefined without one. */
   pin(tx: Tx, id: ConversationId): Promise<{ provider: string; modelId: string } | undefined>

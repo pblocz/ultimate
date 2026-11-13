@@ -25,6 +25,10 @@ export interface SubmitResponse {
 export interface ConfigureRequest {
   model?: ModelRef
   thinkingLevel?: ModelThinkingLevel
+  /** An agent definition name for an ordinary conversation; null clears it. */
+  definition?: string | null
+  /** A model preset (model family) name; null records a direct model choice. */
+  preset?: string | null
 }
 /**
  * A conversation's view as `/api/events` streams it: Pi's window over its newest entries in id order, head markers
@@ -63,6 +67,10 @@ export interface ConversationSummary {
 export interface CreateConversationRequest {
   cwd?: string
   title?: string
+  definition?: string | null
+  preset?: string | null
+  model?: ModelRef
+  thinkingLevel?: ModelThinkingLevel
 }
 export interface CreateConversationResponse {
   id: number

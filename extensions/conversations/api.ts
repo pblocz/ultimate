@@ -98,6 +98,8 @@ export type WorktreeService = {
   warning(cwd: string): Promise<string>
   /** Prepare a child's worktree and its Git instructions inside the child-creation transaction. */
   prepare(tx: Tx, id: ConversationId, input: { cwd: string; instructions: string }): Promise<void>
+  /** Retain worktree-owned instructions when a selected profile refreshes inside the input transaction. */
+  instructions(tx: Tx, id: ConversationId, text: string): Promise<string>
   /** An existing worktree, or undefined when the conversation uses the shared workspace. */
   get(id: ConversationId, caller: Context): Promise<ConversationWorktree | undefined>
   /** Verify and land the child's work through the existing worktree operation. */

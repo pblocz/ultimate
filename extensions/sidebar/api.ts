@@ -1,2 +1,2 @@
-/** Sidebar: the conversation tree, the standing agents and the title bar's @ultimate button. Core tier, top layer, no service. */
+/** Sidebar: the ordinary conversation list with New conversation, and points for other sidebar sections. Core tier, top layer, no service. */
 export const tier = 'core'

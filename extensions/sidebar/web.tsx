@@ -1,13 +1,9 @@
-import { defineWebExtension } from '@/sdk'
-import { Conversations, Seen } from './sidebar.tsx'
-import { UltimateButton, UltimateWordmark } from './ultimate.tsx'
+import { defineWebExtension, provide } from '@/sdk'
+import { OpenLatest, OrdinaryConversations, useChatIds } from './ordinary.tsx'
+import { Unlisted } from './ui.tsx'
 
 export default defineWebExtension({
-  slots: {
-    sidebar: Conversations,
-    // Phones only, where the sidebar with @ultimate's row is hidden; last in the title bar's left side.
-    'titlebar.brand': [UltimateWordmark],
-    'titlebar.left': [{ component: UltimateButton, order: 100 }],
-    overlay: [Seen],
-  },
+  slots: { sidebar: [OrdinaryConversations], overlay: [OpenLatest] },
+  // Other sidebar sections (the coding workflow's project tree) leave the ordinary conversations to this list.
+  provides: [provide(Unlisted, useChatIds)],
 })

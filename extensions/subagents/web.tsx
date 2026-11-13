@@ -1,11 +1,4 @@
-import {
-  GitBranchIcon,
-  GitMergeIcon,
-  NetworkIcon,
-  SquareArrowOutUpRightIcon,
-  Trash2Icon,
-} from 'lucide-react'
-import { useEffect } from 'react'
+import { NetworkIcon, SquareArrowOutUpRightIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { MentionText, Message, MessageResponse } from '@/components/ai/message'
 import { Shimmer } from '@/components/ai/shimmer'
@@ -19,70 +12,29 @@ import {
 } from '@/components/ai/tool'
 import { Button } from '@/components/ui/button'
 import {
-  api,
   cn,
   defineWebExtension,
-  ErrorReport,
-  insertIntoComposer,
-  provide,
   Provided,
   useConversation,
   useConversationSummary,
-  useDocOf,
-  useStore,
   useToolDuration,
-  useUiState,
   useUltimate,
 } from '@/sdk'
 import type { ToolCallView } from '@/sdk'
 import { ConversationTask } from '../conversations/ui.tsx'
-import { stateLabel, useWorkspaces } from '../workspaces/ui.tsx'
-import type { Workspace as Isolate, LandResult } from '../workspaces/types.ts'
 import { agentsPanel } from '../models/ui.tsx'
 import { DefinitionDialog } from './definitions.tsx'
+import { PersonaButton } from './persona.tsx'
 import { AgentsOverview } from './overview.tsx'
 import { Tag } from './parts.tsx'
 import { AgentInbox, AgentInput, AgentMessages } from './messages.tsx'
-import { openAgentSource, RunName, talkToUltimate } from './ui.tsx'
-import { StandingAction, StandingDoc } from './refs.ts'
-import { landing } from './landing.ts'
+import { ChildBadge, ChildResult, openAgentSource, RunName } from './ui.tsx'
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
 
 function BusyDot({ className }: { className?: string }) {
   return (
     <span className={cn('size-1.5 shrink-0 animate-pulse-dot rounded-full bg-brand', className)} />
-  )
-}
-
-function StateTag({ isolate }: { isolate: Isolate }) {
-  if (isolate.state === 'ready') return null
-  return (
-    <Tag
-      className={cn(
-        'font-mono',
-        isolate.state === 'failed' ? 'border-error/40 text-error' : 'text-muted-foreground/70',
-      )}
-    >
-      <span title={isolate.landed ? `Last landed ${isolate.landed.slice(0, 7)}` : undefined}>
-        {stateLabel(isolate)}
-      </span>
-    </Tag>
-  )
-}
-
-/** The call card's compact workspace: branch and state from the child's summary. */
-function IsolateBadge({ childId }: { childId: number }) {
-  const isolate = useWorkspaces()[String(childId)]
-  if (!isolate) return null
-  return (
-    <span
-      className="flex items-center gap-1 font-mono"
-      title={`${isolate.branch}\n${isolate.path}`}
-    >
-      <GitBranchIcon className="size-3 shrink-0" />
-      <StateTag isolate={isolate} />
-    </span>
   )
 }
 
@@ -130,7 +82,11 @@ function SubagentCall({ call }: { call: ToolCallView }) {
               <Provided input={childId} point={ConversationTask}>
                 {(task) => task?.chip}
               </Provided>
-              {childId !== undefined && <IsolateBadge childId={childId} />}
+              {childId !== undefined && (
+                <Provided input={childId} point={ChildBadge}>
+                  {(badge) => badge}
+                </Provided>
+              )}
               {background && <Tag>bg</Tag>}
               {yielded && <Tag>wait yielded</Tag>}
               {working && (
@@ -186,7 +142,9 @@ function SubagentCall({ call }: { call: ToolCallView }) {
         {call.status === 'done' && action === 'list' ? (
           <ChildList output={call.output} />
         ) : call.status === 'done' && (action === 'land' || action === 'discard') ? (
-          <Landed output={call.output} />
+          <Provided input={{ action, output: call.output }} point={ChildResult}>
+            {(result) => result ?? <ToolOutput output={call.output} />}
+          </Provided>
         ) : call.status === 'done' && call.output ? (
           <ToolSection
             label={yielded ? 'Wait status' : background && action !== 'wait' ? 'Result' : 'Answer'}
@@ -200,89 +158,6 @@ function SubagentCall({ call }: { call: ToolCallView }) {
         <ToolDiagnostics diagnostics={call.diagnostics} />
       </ToolContent>
     </Tool>
-  )
-}
-
-/** The `land` and `discard` actions' JSON result: what landed, at which tip, touching which paths. */
-function Landed({ output }: { output: string }) {
-  let result: LandResult
-  try {
-    result = JSON.parse(output)
-  } catch {
-    return <ToolOutput output={output} />
-  }
-  if (!result.landed)
-    return (
-      <ToolSection>
-        <p className="flex items-center gap-1.5 text-muted-foreground">
-          <Trash2Icon className="size-3 shrink-0" />
-          {result.text}
-        </p>
-      </ToolSection>
-    )
-  const commits = result.commits ?? []
-  const files: { path: string; added?: number; removed?: number }[] =
-    result.files ?? result.paths?.map((path) => ({ path })) ?? []
-  const added = files.reduce((sum, file) => sum + (file.added ?? 0), 0)
-  const removed = files.reduce((sum, file) => sum + (file.removed ?? 0), 0)
-  return (
-    <>
-      <ToolSection className="border-l-2 border-l-success/70">
-        <p className="flex items-center gap-1.5 text-success">
-          <GitMergeIcon className="size-3 shrink-0" />
-          {commits.length
-            ? `Landed ${result.landed.slice(0, 7)} · ${commits.length} commit${commits.length === 1 ? '' : 's'}`
-            : 'Nothing new to land'}
-        </p>
-        {result.needsRestart && (
-          <p className="text-warning">Needs restart to apply core or package changes.</p>
-        )}
-      </ToolSection>
-      {commits.length > 0 && (
-        <ToolSection label="Commits">
-          <ul className="space-y-0.5">
-            {commits.map((commit) => (
-              <li className="truncate" key={commit} title={commit}>
-                <span className="text-muted-foreground">{commit.split(' ')[0]}</span>{' '}
-                {commit.slice(commit.indexOf(' ') + 1)}
-              </li>
-            ))}
-          </ul>
-        </ToolSection>
-      )}
-      {files.length > 0 && (
-        <ToolSection>
-          <div className="flex items-center gap-2 section-label">
-            {files.length} changed file{files.length === 1 ? '' : 's'}
-            {result.files && (
-              <span>
-                <span className="text-diff-add">+{added}</span>{' '}
-                <span className="text-diff-del">−{removed}</span>
-              </span>
-            )}
-          </div>
-          <ul className="space-y-0.5">
-            {files.map((file) => {
-              const slash = file.path.lastIndexOf('/') + 1
-              return (
-                <li className="flex min-w-0 items-center gap-2" key={file.path} title={file.path}>
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="text-muted-foreground">{file.path.slice(0, slash)}</span>
-                    {file.path.slice(slash)}
-                  </span>
-                  {'added' in file && (
-                    <span className="shrink-0 tabular-nums">
-                      <span className="text-diff-add">+{file.added}</span>{' '}
-                      <span className="text-diff-del">−{file.removed}</span>
-                    </span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        </ToolSection>
-      )}
-    </>
   )
 }
 
@@ -316,43 +191,6 @@ function ChildList({ output }: { output: string }) {
   )
 }
 
-/** An error card's report goes into @ultimate's draft, unsent, beside whatever the user had typed there. */
-function useErrorReport() {
-  const { switchConversation, showSurface, focusComposer } = useUltimate()
-  return {
-    title: 'Debug with @ultimate',
-    send: (report: string) =>
-      void api
-        .action(StandingAction, { name: 'ultimate' })
-        .then((id) => {
-          insertIntoComposer(id, report)
-          showSurface('agent')
-          switchConversation(id)
-          requestAnimationFrame(focusComposer)
-        })
-        .catch((error: unknown) => console.error('Could not open @ultimate', error)),
-  }
-}
-
-/** With no conversation chosen, show @ultimate's (see `landing`). */
-function LandOnUltimate() {
-  const loaded = useStore((state) => state.shared !== undefined)
-  const [chosen] = useUiState<number | null>('shell.conversation', null)
-  const standing = useDocOf(1, StandingDoc)
-  const { switchConversation } = useUltimate()
-  const target = landing(loaded, chosen ?? undefined, standing)
-  useEffect(() => {
-    if (target === undefined) return
-    if (target !== 'create') return switchConversation(target, { replace: true })
-    // A fresh home (a preview) has no @ultimate yet: start it, as its sidebar row does.
-    api
-      .action(StandingAction, { name: 'ultimate' })
-      .then((id) => switchConversation(id, { replace: true }))
-      .catch((error: unknown) => console.error('Could not open @ultimate', error))
-  }, [target, switchConversation])
-  return null
-}
-
 export default defineWebExtension({
   tools: { subagent: SubagentCall },
   panels: [
@@ -360,15 +198,12 @@ export default defineWebExtension({
   ],
   entries: { 'subagents.instruction': AgentInput, 'subagents.report': AgentInput },
   inbox: AgentInbox,
-  provides: [provide(ErrorReport, useErrorReport)],
-  slots: { overlay: [DefinitionDialog, LandOnUltimate], 'header.right': [AgentMessages] },
+  slots: {
+    overlay: [DefinitionDialog],
+    'header.right': [AgentMessages],
+    'composer.toolbar': [PersonaButton],
+  },
   commands: [
-    {
-      id: 'subagents.ultimate',
-      title: 'Talk to @ultimate',
-      keys: 'mod+0',
-      run: (context) => talkToUltimate(context),
-    },
     {
       id: 'subagents.open',
       title: 'Show agent definitions',

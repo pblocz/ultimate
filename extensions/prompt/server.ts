@@ -9,7 +9,6 @@ import {
   defineExtension,
   GenerationTask,
   hook,
-  ROOT_CONVERSATION_ID,
   section,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
@@ -18,14 +17,15 @@ import type { ConversationSummary } from '../../shared/protocol.ts'
 import { agentRoots, discoverAgents } from '../../lib/agents.ts'
 import { git } from '../../lib/git.ts'
 import { shortTitle } from '../../lib/title.ts'
-import { Standing } from '../subagents/api.ts'
+import { Profile } from '../subagents/api.ts'
+import { WorktreeSupport } from '../conversations/api.ts'
 import type { BuildNote, Landing } from './refs.ts'
 
 export const order = -100
 
 /**
  * The build a conversation's last run started on and the clone's commit then (`head`); a fork starts from its parent's.
- * For the primary agent also the hashes of the instruction files it last saw (`files`, path → sha256 prefix).
+ * For a selected standalone profile also the hashes of the instruction files it last saw (`files`, path → sha256 prefix).
  */
 const SeenBuild = defineDoc<{ id?: string; head?: string; files?: Record<string, string> }>({
   kind: 'prompt.build',
@@ -138,19 +138,18 @@ function shown(host: ExtensionHost, path: string) {
   return path.startsWith(host.userHome) ? `~${path.slice(host.userHome.length)}` : path
 }
 
-/**
- * For the primary agent (@ultimate): re-apply its definition's instructions when they
- * differ from the conversation's, and name the instruction files that changed since its last run. Other agents keep
- * the instructions they started with.
- */
+/** Refresh a selected standalone profile's instruction body. Children and workflow branches keep their snapshots. */
 async function instructionChanges(
   host: ExtensionHost,
   tx: Tx,
   conversationId: ConversationId,
   seen: { files?: Record<string, string> },
 ) {
-  const name = 'ultimate'
-  if ((await tx.doc(Standing, ROOT_CONVERSATION_ID))[name] !== conversationId)
+  const conversation = await tx.conversation(conversationId)
+  if (conversation?.owner || conversation?.parent) return { instructions: [], docs: [] }
+  const name = (await tx.doc(Profile, conversationId)).definition
+  const metadata = await tx.doc(host.metadata, conversationId)
+  if (!name || (metadata.label !== 'chat' && metadata.label !== 'agent'))
     return { instructions: [], docs: [] }
   const { definitions } = await discoverAgents(
     host.ultimateRoot,
@@ -159,11 +158,16 @@ async function instructionChanges(
     host.modelRuntime,
   )
   const definition = definitions.find((candidate) => candidate.name === name)
-  // Messages deliveries refresh a standing agent; a typed input did not, so an updated definition waited for a message.
-  const reapplied =
-    definition !== undefined &&
-    (await tx.doc(AgentDoc, conversationId)).instructions !== definition.instructions
-  if (reapplied) await configure(tx, conversationId, { instructions: definition.instructions })
+  if (!definition) {
+    host.notice(`Agent definition ${name} is unavailable; keeping the selected configuration`)
+    return { instructions: [], docs: [] }
+  }
+  // A typed input refreshes only instructions, not the profile's model or configured tools.
+  const text =
+    (await host.want(WorktreeSupport)?.instructions(tx, conversationId, definition.instructions)) ??
+    definition.instructions
+  const reapplied = (await tx.doc(AgentDoc, conversationId)).instructions !== text
+  if (reapplied) await configure(tx, conversationId, { instructions: text })
   // Keyed by absolute path, so the project's and the clone's AGENTS.md stay apart (and are one file when the clone is
   // the project).
   const files: Record<string, string> = {}
@@ -174,7 +178,7 @@ async function instructionChanges(
   }))
     files[file.path] = digest(file.content)
   // The file was just parsed; one removed since then hashes as empty and counts as changed.
-  const own = definition ? [definition.path, ...(definition.overlays ?? [])] : []
+  const own = [definition.path, ...(definition.overlays ?? [])]
   for (const path of own) files[path] = digest(await readFile(path, 'utf8').catch(() => ''))
   const previous = seen.files
   seen.files = files
@@ -266,8 +270,8 @@ export default function prompt(host: ExtensionHost) {
     sections: [
       section(
         'identity',
-        (input) =>
-          `You are Ultimate, a coding agent running in a web UI on the user's machine. The person in this conversation steers; you build, verify, and report. You are meant to be specialized for the project: build the tools, panels, agents, and skills that help with it into ${input.env?.cwd ?? input.agent.cwd ?? host.projectRoot}/.ultimate/ so everyone working on the project gets them, and personal ones into ~/.ultimate/.`,
+        () =>
+          'You are an assistant running in a durable agent runtime. Your selected agent definition supplies your role and instructions.',
       ),
       section(
         'principles',

@@ -33,7 +33,7 @@ function textOf(content: unknown): string {
         .flatMap((p) => (p.type === 'text' ? [p.text!] : []))
         .join('')
 }
-async function fixture(onRequest?: (text: string, home: string) => Promise<void>) {
+async function fixture(onRequest?: (text: string, home: string) => Promise<void>, dream = true) {
   const home = await temp('ultimate-agent-')
   homes.push(home)
   const root = await sourceCopy(home)
@@ -51,7 +51,9 @@ async function fixture(onRequest?: (text: string, home: string) => Promise<void>
   // @ultimate's definition names web_search and web_fetch, which come with the default-off parallel.
   await writeFile(
     join(home, '.ultimate/settings.json'),
-    JSON.stringify({ extensions: { enable: ['parallel'] } }),
+    JSON.stringify({
+      extensions: { enable: ['parallel'], ...(dream ? {} : { disable: ['dream'] }) },
+    }),
   )
   const requests: string[] = []
   const open = async () => {
@@ -115,6 +117,31 @@ async function ask(server: Server, id: ConversationId, text: string) {
   const conversation = (await server.harness.conversation(id, context))!
   await (await conversation.submit({ type: 'input', content: text }, context)).wait(context)
 }
+
+it.concurrent('refreshes primary instructions without resetting a chosen model or tool subset', async () => {
+  // Dream's default automation setup calls standing() and explicitly reapplies the profile. Test only the input hook.
+  const f = await fixture(undefined, false)
+  const id = await f.subagents.standing('ultimate', context)
+  const conversation = (await f.server.harness.conversation(id, context))!
+  const original = await conversation.agent(context)
+  await conversation.configure(
+    {
+      model: { provider: 'faux', modelId: 'faux-think' },
+      thinkingLevel: 'high',
+      tools: original.tools.filter((tool) => tool.name === 'read'),
+    },
+    context,
+  )
+  expect((await conversation.agent(context)).tools.map((tool) => tool.name)).toEqual(['read'])
+  const path = join(f.root, 'extensions/coding-workflow/agents/ultimate.md')
+  await writeFile(path, (await readFile(path, 'utf8')) + '\nUpdated instruction body.\n')
+  await ask(f.server, id, 'Use the updated instructions')
+  const refreshed = await conversation.agent(context)
+  expect(refreshed.instructions).toContain('Updated instruction body.')
+  expect(refreshed.model).toEqual({ provider: 'faux', modelId: 'faux-think' })
+  expect(refreshed.thinkingLevel).toBe('high')
+  expect(refreshed.tools.map((tool) => tool.name)).toEqual(['read'])
+})
 
 it.concurrent('ships a resident Ultimate definition with valid tools; standing addresses create recipients and name both sides', async () => {
   const f = await fixture()

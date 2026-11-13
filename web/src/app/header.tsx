@@ -77,15 +77,25 @@ const nameOf = (conversation: ConversationSummary) =>
 /** Where the shown conversation sits: its ancestors (beyond a phone), a busy dot, and its title. */
 function Trail() {
   const { busy } = useConversation()
-  // The requested conversation while its snapshot loads, so a switch keeps naming where it goes.
-  const id = useStore((state) => state.view?.conversation.id ?? state.requested)
+  // The requested conversation while its snapshot loads, so a switch keeps naming where it goes. With nothing selected
+  // the stream shows the internal root, which is not named as a conversation.
+  const id = useStore((state) =>
+    state.requested === undefined ? undefined : (state.view?.conversation.id ?? state.requested),
+  )
+  const loaded = useStore((state) => state.shared !== undefined)
   const conversations = useConversations()
   const summary = conversations.find((conversation) => conversation.id === id)
   const trail = ancestors(id, conversations)
   const root = id === ROOT
   // A conversation just started is named once its summary arrives, not given a placeholder before that.
   const title =
-    id === undefined ? 'connecting…' : summary ? (summary.title ?? 'Untitled conversation') : ''
+    id === undefined
+      ? loaded
+        ? 'No conversation'
+        : 'connecting…'
+      : summary
+        ? (summary.title ?? 'Untitled conversation')
+        : ''
   return (
     <>
       {trail.map((conversation) => (
@@ -101,7 +111,9 @@ function Trail() {
           <span className="-mx-1 shrink-0 text-muted-foreground/40 max-md:hidden">/</span>
         </Fragment>
       ))}
-      {busy && <span className="size-1.5 shrink-0 animate-pulse-dot rounded-full bg-brand" />}
+      {busy && id !== undefined && (
+        <span className="size-1.5 shrink-0 animate-pulse-dot rounded-full bg-brand" />
+      )}
       {root ? (
         <span className="font-mono text-[12px] text-foreground/85">main</span>
       ) : (

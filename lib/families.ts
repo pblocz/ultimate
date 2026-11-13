@@ -145,7 +145,7 @@ export const refName = (ref: ModelRef) => `${ref.provider}/${ref.modelId}`
 /** "fast" → "Fast", "my-local" → "My local"; the default family is shown as "Ultimate". */
 export const familyTitle = (name: string) =>
   name === DEFAULT_FAMILY
-    ? 'Ultimate'
+    ? 'Default'
     : name.charAt(0).toUpperCase() + name.slice(1).replaceAll('-', ' ')
 
 /** The CSS color of a family color name; an unknown name is slate. */

@@ -20,6 +20,7 @@ import type {
 import type { ViteDevServer } from 'vite-plus'
 import type { ConversationSummary, ExtensionInfo, SystemInfo } from '../shared/protocol.ts'
 import type { PreparedHost } from './harness.ts'
+import type { ConfigurationServices } from './conversation-configuration.ts'
 import { Metadata } from './metadata.ts'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { AgentDoc, LiveDoc } from '@earendil-works/pi-durable'
@@ -1118,6 +1119,15 @@ export async function loadExtensions(
     invoke,
     doc: findDoc,
     catalogue: () => apis.catalogue(),
+    // Use the existing provider table; a public conversation operation takes a fresh view after facet reloads.
+    configurationServices(this: void): ConfigurationServices {
+      const isolation = providers.get('conversations.worktrees')
+        ?.value as ConfigurationServices['isolation']
+      const conversations = providers.get('conversations')?.value as
+        | { setAutomaticSummaries: ConfigurationServices['summaries'] }
+        | undefined
+      return { isolation, summaries: conversations?.setAutomaticSummaries }
+    },
     trace: trace.reader,
     prepared,
     preparedToLoad,

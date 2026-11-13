@@ -60,8 +60,10 @@ function ModelButton() {
         {loading
           ? 'model…'
           : family
-            ? `${familyTitle(family.name)} (${ref!.modelId})`
-            : (ref?.modelId ?? 'no model')}
+            ? `${familyTitle(family.name)} (${ref!.provider}/${ref!.modelId})`
+            : ref
+              ? `${ref.provider}/${ref.modelId}`
+              : 'no model'}
       </span>
       <ChevronDownIcon className="size-3 shrink-0 opacity-60 @max-md:hidden" />
     </button>

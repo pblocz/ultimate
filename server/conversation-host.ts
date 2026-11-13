@@ -1,5 +1,7 @@
 import { clampThinkingLevel, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type {
+  Agent,
+  AgentChange,
   AgentState,
   ConversationId,
   Cursor,
@@ -7,8 +9,13 @@ import type {
   SubmissionId,
   SubmissionRecord,
   TaskGraph,
+  Tx,
 } from '@earendil-works/pi-durable'
-import { LiveDoc } from '@earendil-works/pi-durable'
+import {
+  configure as configureAgent,
+  LiveDoc,
+  ROOT_CONVERSATION_ID,
+} from '@earendil-works/pi-durable'
 import { ChannelError } from '../shared/channel-host.ts'
 import type {
   ChannelHost,
@@ -17,6 +24,7 @@ import type {
   ConversationDetails,
   ConversationId as ChannelConversationId,
   ConversationSummary,
+  ConfigureConversationRequest,
   CreateConversationRequest,
   HistoryRequest,
   InputImage,
@@ -24,13 +32,17 @@ import type {
   SubmissionReceipt,
   SubmissionState,
   SubmitRequest,
-  ThinkingLevel,
 } from '../shared/channel-host.ts'
 import { maxImageBytes, maxImages, imageMimeTypes } from '../shared/protocol.ts'
 import { UserInputEvent } from '../shared/events.ts'
 import type { Device } from '../shared/events.ts'
 import { emit, EVENT_LOG_LABEL } from './events.ts'
 import { hostDefault } from '../lib/agents.ts'
+import { readFamilies } from '../lib/families-settings.ts'
+import { refOf } from '../lib/families.ts'
+import { Family, Profile } from '../shared/conversation-configuration.ts'
+import { prepareDefinition, applyDefinition } from './conversation-configuration.ts'
+import type { ConfigurationServices } from './conversation-configuration.ts'
 import { expandSkillCommand } from './skills.ts'
 import { onCommit } from '../lib/commits.ts'
 import { conversationIndex } from './project.ts'
@@ -69,6 +81,7 @@ export class InputLimitError extends ChannelError {
 }
 
 type ConversationHostOptions = {
+  configurationServices?: () => ConfigurationServices
   onConversations?: (summaries: ConversationSummary[]) => void
   onTasks?: (tasks: TaskGraph) => void
   onRefreshError?: (error: unknown) => void
@@ -312,6 +325,108 @@ export async function createConversationHost(
     }
   }
 
+  async function readConfiguration(
+    id: ConversationId,
+    agent: Pick<AgentState, 'model' | 'thinkingLevel'>,
+  ) {
+    const [profile, family] = await Promise.all([
+      harness.snapshot(Profile, id, hostContext),
+      harness.snapshot(Family, id, hostContext),
+    ])
+    return {
+      ...configuration(agent),
+      ...(profile?.definition && { definition: profile.definition }),
+      ...(family?.name && { preset: family.name }),
+    }
+  }
+
+  async function prepareChange(base: Agent, change: ConfigureConversationRequest) {
+    if (!change || typeof change !== 'object' || Array.isArray(change))
+      throw new ChannelError('invalid_input', 'Invalid configuration')
+    if (
+      change.preset !== undefined &&
+      change.preset !== null &&
+      (typeof change.preset !== 'string' || !change.preset.trim())
+    )
+      throw new ChannelError('invalid_input', 'Expected preset name')
+    if (change.preset && change.model !== undefined)
+      throw new ChannelError('invalid_input', 'Choose a preset or a direct model, not both')
+    let model = change.model
+    let thinking = change.thinkingLevel
+    if (change.preset) {
+      const { families } = await readFamilies(host.userHome, host.projectRoot)
+      if (!Object.hasOwn(families, change.preset))
+        throw new ChannelError('invalid_input', `Unknown model preset: ${change.preset}`)
+      const spec = families[change.preset]
+      const fallback = change.preset === 'default' ? await hostDefault(host) : undefined
+      model = refOf(spec.model) ?? fallback?.model
+      thinking ??= spec.thinking ?? fallback?.thinkingLevel
+      if (!model) throw new ChannelError('invalid_input', 'Model preset has no available model')
+    }
+    if (model !== undefined) {
+      if (!model || typeof model !== 'object' || Array.isArray(model))
+        throw new ChannelError('invalid_input', 'Invalid model')
+      const { provider, modelId } = model
+      if (typeof provider !== 'string' || !provider.trim())
+        throw new ChannelError('invalid_input', 'Expected model.provider')
+      if (typeof modelId !== 'string' || !modelId.trim())
+        throw new ChannelError('invalid_input', 'Expected model.modelId')
+      if (
+        !(await host.models()).some(
+          (candidate) =>
+            candidate.available && candidate.provider === provider && candidate.id === modelId,
+        )
+      )
+        throw new ChannelError('invalid_input', 'Model is not available')
+    }
+    const profile =
+      change.definition === undefined
+        ? undefined
+        : await prepareDefinition(host, base, change.definition, { model, thinking })
+    let fields: AgentChange = { ...profile?.change, ...(model && { model }) }
+    if (thinking !== undefined || model) {
+      const ref = fields.model ?? base.model
+      const found = ref && host.model(ref)
+      if (!found) throw new ChannelError('invalid_input', 'No model to set a thinking level for')
+      const level =
+        thinking === undefined
+          ? clampThinkingLevel(found, base.thinkingLevel)
+          : getSupportedThinkingLevels(found).find((candidate) => candidate === thinking)
+      if (!level)
+        throw new ChannelError(
+          'invalid_input',
+          `${found.provider}/${found.id} does not support thinking level ${JSON.stringify(thinking)}`,
+        )
+      fields = { ...fields, thinkingLevel: level }
+    }
+    const family = change.preset !== undefined ? change.preset : model ? null : profile?.family
+    const services = options.configurationServices?.() ?? {}
+    if (profile?.isolate === 'worktree' && !services.isolation)
+      throw new ChannelError('unavailable', 'Worktree isolation is not available')
+    if (profile?.definition?.summaries === false && !services.summaries)
+      throw new ChannelError('unavailable', 'Conversation summaries support is not available')
+    return { fields, profile, family, services }
+  }
+
+  async function applyChange(
+    tx: Tx,
+    id: ConversationId,
+    prepared: Awaited<ReturnType<typeof prepareChange>>,
+    cwd: string,
+  ) {
+    if (prepared.profile) await applyDefinition(tx, id, prepared.profile)
+    await configureAgent(tx, id, prepared.fields)
+    if (prepared.family !== undefined) (await tx.doc(Family, id)).name = prepared.family
+    if (prepared.profile && prepared.services.summaries)
+      await prepared.services.summaries(tx, id, prepared.profile.definition?.summaries !== false)
+    if (prepared.profile?.isolate === 'worktree')
+      await prepared.services.isolation!.prepare(tx, id, {
+        cwd,
+        instructions:
+          typeof prepared.fields.instructions === 'string' ? prepared.fields.instructions : '',
+      })
+  }
+
   function validateSource(value: InputSource | undefined): InputSource | undefined {
     if (value === undefined) return undefined
     if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -394,7 +509,10 @@ export async function createConversationHost(
       conversation.entries({}, 1, undefined, hostContext),
     ])
     const latestEntryId = entries.items[0]?.id
-    return projectConversationOutput(summary, agent, live ?? {}, latestEntryId)
+    return {
+      ...projectConversationOutput(summary, agent, live ?? {}, latestEntryId),
+      configuration: await readConfiguration(id, agent),
+    }
   }
 
   function watch(
@@ -585,21 +703,26 @@ export async function createConversationHost(
           if (input.cwd !== undefined && (typeof input.cwd !== 'string' || !input.cwd.trim()))
             throw new ChannelError('invalid_input', 'Expected cwd')
           const cwd = input.cwd ?? host.projectRoot
-          const agent = await hostDefault(host)
+          const root = await requireConversation(ROOT_CONVERSATION_ID)
+          const base = { ...(await root.agent(hostContext)), ...(await hostDefault(host)), cwd }
+          const prepared = await prepareChange(base, input)
           admit()
-          const created = await harness.createConversation(
-            {
-              ownership: { kind: 'ownerless' },
-              agent: { cwd, ...agent },
-            },
-            hostContext,
-          )
-          if (input.title)
-            await created.commit(async (tx) => {
-              ;(await tx.doc(Metadata, created.id)).title = input.title
-            }, hostContext)
-          await refreshConversations(new Set([created.id]))
-          return { id: created.id }
+          const id = await harness.commit(async (tx) => {
+            const created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+            await configureAgent(tx, created.id, {
+              cwd,
+              model: base.model,
+              thinkingLevel: base.thinkingLevel,
+            })
+            await applyChange(tx, created.id, prepared, cwd)
+            Object.assign(await tx.doc(Metadata, created.id), {
+              label: 'chat',
+              ...(input.title && { title: input.title }),
+            })
+            return created.id
+          }, hostContext)
+          await refreshConversations(new Set([id]))
+          return { id }
         }),
       get: (id: ChannelConversationId) =>
         operation('get', async () => {
@@ -609,60 +732,46 @@ export async function createConversationHost(
             readSummary(conversationId),
             conversation.agent(hostContext),
           ])
-          return { summary, configuration: configuration(agent) } satisfies ConversationDetails
+          return {
+            summary,
+            configuration: await readConfiguration(conversationId, agent),
+          } satisfies ConversationDetails
         }),
       configure: (id, change) =>
         mutation('configure', async (admit) => {
           const conversationId = ensureId(id)
           const conversation = await requireConversation(conversationId)
-          if (!change || typeof change !== 'object' || Array.isArray(change))
-            throw new ChannelError('invalid_input', 'Invalid configuration')
-          const configure: {
-            model?: { provider: string; modelId: string }
-            thinkingLevel?: ThinkingLevel
-          } = {}
-          if (change.model !== undefined) {
-            if (!change.model || typeof change.model !== 'object' || Array.isArray(change.model))
-              throw new ChannelError('invalid_input', 'Invalid model')
-            const { provider, modelId } = change.model
-            if (typeof provider !== 'string' || !provider.trim())
-              throw new ChannelError('invalid_input', 'Expected model.provider')
-            if (typeof modelId !== 'string' || !modelId.trim())
-              throw new ChannelError('invalid_input', 'Expected model.modelId')
-            if (
-              !(await host.models()).some(
-                (candidate) =>
-                  candidate.available &&
-                  candidate.provider === provider &&
-                  candidate.id === modelId,
-              )
-            )
-              throw new ChannelError('invalid_input', 'Model is not available')
-            configure.model = { provider, modelId }
+          const current = await conversation.agent(hostContext)
+          // Tool selection starts from the runtime base, not the previous profile's reduced inventory.
+          const root = await requireConversation(ROOT_CONVERSATION_ID)
+          const base = {
+            ...(await root.agent(hostContext)),
+            model: current.model,
+            thinkingLevel: current.thinkingLevel,
           }
-          if (change.thinkingLevel !== undefined || configure.model) {
-            const agent = await conversation.agent(hostContext)
-            const ref = configure.model ?? agent.model
-            const model = ref && host.model(ref)
-            if (!model)
-              throw new ChannelError('invalid_input', 'No model to set a thinking level for')
-            if (change.thinkingLevel === undefined)
-              configure.thinkingLevel = clampThinkingLevel(model, agent.thinkingLevel)
-            else {
-              const level = getSupportedThinkingLevels(model).find(
-                (candidate) => candidate === change.thinkingLevel,
-              )
-              if (!level)
-                throw new ChannelError(
-                  'invalid_input',
-                  `${model.provider}/${model.id} does not support thinking level ${JSON.stringify(change.thinkingLevel)}`,
-                )
-              configure.thinkingLevel = level
-            }
-          }
+          const prepared = await prepareChange(base, change)
+          if (
+            prepared.profile &&
+            (await prepared.services.isolation?.get(conversationId, hostContext))
+          )
+            throw new ChannelError('conflict', 'Change an isolated profile in a new conversation')
           admit()
-          await conversation.configure(configure, hostContext)
-          return configuration(await conversation.agent(hostContext))
+          await harness.commit(async (tx) => {
+            if (prepared.profile) {
+              if ((await tx.doc(Metadata, conversationId)).label !== 'chat')
+                throw new ChannelError(
+                  'conflict',
+                  'Profile selection requires an ordinary conversation',
+                )
+              if ((await tx.doc(LiveDoc, conversationId)).run)
+                throw new ChannelError(
+                  'conflict',
+                  'Wait for the current turn before changing its profile',
+                )
+            }
+            await applyChange(tx, conversationId, prepared, current.cwd ?? host.projectRoot)
+          }, hostContext)
+          return readConfiguration(conversationId, await conversation.agent(hostContext))
         }),
       submit: (id, input: SubmitRequest) => submitInput(id, input),
       submission: (id, submissionId) =>

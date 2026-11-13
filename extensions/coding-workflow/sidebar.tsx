@@ -51,9 +51,9 @@ import { StandingDoc, talkToUltimate } from '../subagents/ui.tsx'
 import type { KeptWork } from '../conversations/types.ts'
 import { LanderState } from './lander.tsx'
 import { StandingPhase, WaitingOnUser } from './ultimate.tsx'
-import { useShell, useSidebarState } from './state.tsx'
+import { useShell, useSidebarState } from '../sidebar/state.tsx'
 import { topLevelRows } from './listed.ts'
-import { UnderUltimate, Unlisted } from './ui.tsx'
+import { UnderUltimate, Unlisted } from '../sidebar/ui.tsx'
 
 /**
  * The project: its path from home (or `<project> #<worktree>`) heading its root's Memory row. Clicking the path opens

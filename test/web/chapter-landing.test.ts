@@ -1,20 +1,38 @@
 import { expect, it } from 'vitest'
 import { onboarded } from '../../extensions/onboarding/onboarded.ts'
-import { landing } from '../../extensions/subagents/landing.ts'
+import { landing } from '../../extensions/sidebar/chats.ts'
+import type { ConversationSummary } from '../../shared/protocol.ts'
 
-// A new chapter opens with empty UI state and a root without history: the page showed root #1's Start here card,
-// and its Set up button started onboarding in a project that was set up long ago.
-it('opens @ultimate when no conversation is chosen, as on the first page of a new chapter', () => {
-  expect(landing(true, undefined, { ultimate: 42 })).toBe(42)
-  expect(landing(false, undefined, { ultimate: 42 })).toBeUndefined()
-  expect(landing(true, undefined, undefined)).toBeUndefined()
-  expect(landing(true, 1, { ultimate: 42 })).toBeUndefined()
+const chat = (id: number, inputAt?: number): ConversationSummary => ({
+  id,
+  label: 'chat',
+  busy: false,
+  ...(inputAt !== undefined && { inputAt }),
 })
 
-// A fresh preview has no @ultimate conversation until something starts it: the page stayed on History #1.
-it('starts @ultimate when a fresh home has none yet', () => {
-  expect(landing(true, undefined, {})).toBe('create')
-  expect(landing(true, undefined, null)).toBe('create')
+// Phase 3 replaces the @ultimate landing: with no selection, the page opens the latest ordinary chat, else the empty
+// new-chat screen. A page load never creates or selects a primary agent or the internal root.
+it('opens the latest ordinary conversation when none is chosen, once the shared state arrived', () => {
+  const conversations = [
+    { id: 1, busy: false },
+    { id: 7, label: 'agent', title: '@ultimate', busy: false, inputAt: 900 },
+    chat(9, 100),
+    chat(12, 300),
+    { ...chat(14, 800), parentConversationId: 12 },
+  ]
+  expect(landing(true, undefined, conversations)).toBe(12)
+  expect(landing(false, undefined, conversations)).toBeUndefined()
+  expect(landing(true, 9, conversations)).toBeUndefined()
+})
+
+it('stays on the empty new-chat screen without ordinary conversations', () => {
+  expect(landing(true, undefined, [])).toBeUndefined()
+  expect(
+    landing(true, undefined, [
+      { id: 1, busy: false },
+      { id: 7, label: 'agent', busy: false },
+    ]),
+  ).toBeUndefined()
 })
 
 it("treats a new chapter's root with carried memories as onboarded", () => {

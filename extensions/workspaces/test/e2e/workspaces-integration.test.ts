@@ -33,7 +33,8 @@ import {
   concludeIn,
   subject,
 } from '../../../conversations/server.ts'
-import { ConversationsApi } from '../../../conversations/api.ts'
+import { ConversationsApi, WorktreeSupport } from '../../../conversations/api.ts'
+import { createConversationHost } from '../../../../server/conversation-host.ts'
 import type { ConversationsService } from '../../../conversations/api.ts'
 import { setAutomaticSummaries, Summaries } from '../../../conversations/summary.ts'
 import { setStanding } from '../../../conversations/server.ts'
@@ -679,6 +680,52 @@ it('isolated restart refuses before landing and accepts a clean running clone at
   expect(JSON.stringify(await f.call(id, 'restart'))).toContain('land your workspace into')
   expect(f.restart).toHaveBeenCalledOnce()
 })
+it.concurrent('applies an ordinary conversation definition through the existing worktree provider', async () => {
+  const f = await fixture()
+  const backend = await createConversationHost(f.prepared, f.opened, {
+    configurationServices: () => ({
+      isolation: f.host.want(WorktreeSupport),
+      summaries: setAutomaticSummaries,
+    }),
+  })
+  backend.openAdmission()
+  try {
+    const created = await backend.channelHost.conversations.create({ definition: 'worker' })
+    const id = created.id as ConversationId
+    await until(async () => (await f.service.get(id, context))?.state === 'ready')
+    const workspace = (await f.service.get(id, context))!
+    const agent = await (await f.opened.harness.conversation(id, context))!.agent(context)
+    expect(agent.cwd).toBe(workspace.path)
+    expect(agent.instructions).toContain(`Work only in ${workspace.path}`)
+    expect(await readFile(join(agent.cwd!, 'base.txt'), 'utf8')).toBe('base')
+    const shared = await backend.channelHost.conversations.create({})
+    const support = f.host.want(WorktreeSupport)!
+    const refreshed = await f.opened.harness.commit(
+      async (tx) => ({
+        isolated: await support.instructions(tx, id, 'Updated ordinary worker instructions.'),
+        shared: await support.instructions(
+          tx,
+          shared.id as ConversationId,
+          'Updated ordinary worker instructions.',
+        ),
+      }),
+      context,
+    )
+    expect(refreshed.isolated).toBe(
+      `Updated ordinary worker instructions.\nWork only in ${workspace.path} on ${workspace.branch}, cut from ${workspace.base}. Commit your work on this branch with clear messages. Never push and never touch other checkouts.`,
+    )
+    expect(refreshed.shared).toBe('Updated ordinary worker instructions.')
+    expect((await backend.channelHost.conversations.get(id)).configuration.definition).toBe(
+      'worker',
+    )
+    expect(
+      (await backend.channelHost.conversations.get(id)).summary.parentConversationId,
+    ).toBeUndefined()
+  } finally {
+    await backend.close()
+  }
+})
+
 it.concurrent.each([
   { name: 'named worktree default', args: { agent: 'worker' }, isolated: true },
   {

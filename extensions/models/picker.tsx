@@ -28,7 +28,6 @@ import {
   thinkingOf,
   useFamilies,
 } from './families.tsx'
-import { SetFamilyAction } from './refs.ts'
 import type { FamilyView } from './refs.ts'
 import {
   authLabel,
@@ -171,7 +170,7 @@ export function ModelPicker() {
     )
   }
 
-  /** A family's model and thinking level for this conversation; a model without a login opens its login first. */
+  /** A preset's model and thinking level for this conversation; a model without a login opens its login first. */
   function chooseFamily(family: FamilyView) {
     const name = runsOn(family)!
     const [provider, modelId] = [name.slice(0, name.indexOf('/')), modelIdOf(name)]
@@ -179,17 +178,14 @@ export function ModelPicker() {
     if (loading) return
     if (model && !model.available) return choose(model)
     setError(undefined)
-    const level = thinkingOf(family)
-    api
-      .configure({ model: { provider, modelId }, ...(level ? { thinkingLevel: level } : {}) }, id)
-      .then(() => api.action(SetFamilyAction, { family: family.name }, { conversationId: id }))
-      .then(
-        () => {
-          notePick()
-          setOpen(false)
-        },
-        (failure: unknown) => setError(errorMessage(failure)),
-      )
+    // The server resolves the preset and records it with the model in one transaction.
+    api.configure({ preset: family.name }, id).then(
+      () => {
+        notePick()
+        setOpen(false)
+      },
+      (failure: unknown) => setError(errorMessage(failure)),
+    )
   }
 
   return (
@@ -237,7 +233,7 @@ export function ModelPicker() {
               No model matches. Log in to a provider to see its models.
             </CommandEmpty>
             {shownFamilies.length > 0 && (
-              <CommandGroup heading="Families">
+              <CommandGroup heading="Model presets">
                 {shownFamilies.map((family) => (
                   <CommandItem
                     className="gap-2 py-1 font-mono text-[12px]"

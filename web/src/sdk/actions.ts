@@ -1,4 +1,4 @@
-import { registry, replaceNextSelection, store, uiState } from './client.ts'
+import { api, registry, replaceNextSelection, store, uiState } from './client.ts'
 import { errorMessage } from './format.ts'
 import {
   HOME,
@@ -155,11 +155,21 @@ export function runCommand(id: string, context: UltimateContext = currentContext
 
 /** The shell's context; `scoped` is the `ConversationScope` a shortcut was typed in, which it acts on instead. */
 export function currentContext(scoped?: number): UltimateContext {
+  const { requested, view } = store.getState()
   return {
     ...actions,
-    conversationId: scoped ?? store.getState().view?.conversation.id,
+    // The stream shows the internal root when nothing is selected; commands then act on no conversation.
+    conversationId: scoped ?? (requested === undefined ? undefined : view?.conversation.id),
     surface: store.getState().ui.surface?.id ?? HOME,
   }
+}
+
+/** Start an empty ordinary conversation and show it. Only an explicit user action calls this, never a page load. */
+export async function newConversation() {
+  const { id } = await api.createConversation()
+  actions.showSurface(HOME)
+  actions.switchConversation(id)
+  return id
 }
 
 const reported = new Set<string>()
@@ -176,6 +186,11 @@ export function applies(command: CommandItem, context: UltimateContext = current
 
 /** The shell's own commands: the palette and its regions. Feature commands come from their extensions. */
 const core: CommandContribution[] = [
+  {
+    id: 'ultimate.new',
+    title: 'New conversation',
+    run: () => newConversation(),
+  },
   {
     id: 'ultimate.palette',
     title: 'Command palette',

@@ -2,11 +2,14 @@ import type { ReactNode } from 'react'
 import { ChevronRightIcon, GitMergeIcon } from 'lucide-react'
 import { MentionText } from '@/components/ai/message'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { cn, column, defineWebExtension, useConversation, useTranscript } from '@/sdk'
+import { cn, column, defineWebExtension, provide, useConversation, useTranscript } from '@/sdk'
 import { useWorkspaceIndex } from './data.tsx'
 import { CommitCount, LandingCard, useGithubRepo } from './landing.tsx'
 import { LanderLogEntry, LanderReport, WorkspaceCall } from './log.tsx'
 import { compareUrl } from '../../lib/compare.ts'
+import { AgentName } from '../messages/points.tsx'
+import { ChildBadge, ChildResult } from '../subagents/ui.tsx'
+import { IsolateBadge, Landed } from './child.tsx'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
 /** The lander's note in the root: the landing's card, from the note's own data, with the state it froze. */
@@ -127,8 +130,22 @@ function LanderComposer({ core, dock }: { core: ReactNode; dock?: boolean }) {
   )
 }
 
+/** The lander's `@lander` name in message cards; landers from before their label are found in the index. */
+function useLanderName(id: number) {
+  return Object.values(useWorkspaceIndex().landerConversations).includes(id) ? 'lander' : undefined
+}
+
+function useChildResult({ action, output }: { action: string; output: string }) {
+  return action === 'land' || action === 'discard' ? <Landed output={output} /> : undefined
+}
+
 export default defineWebExtension({
   composer: LanderComposer,
+  provides: [
+    provide(ChildBadge, (id: number) => <IsolateBadge childId={id} />),
+    provide(ChildResult, useChildResult),
+    provide(AgentName, useLanderName),
+  ],
   tools: { workspace: WorkspaceCall },
   entries: {
     'lineage.note': ({ entry, core }) =>

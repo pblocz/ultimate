@@ -13,7 +13,7 @@ import type { JsonValue } from '@earendil-works/chord/json'
 import { admit, deviceOf } from './request-security.ts'
 import type { Access } from './request-security.ts'
 import { ChannelError } from '../shared/channel-host.ts'
-import type { SubmitRequest } from '../shared/channel-host.ts'
+import type { CreateConversationRequest, SubmitRequest } from '../shared/channel-host.ts'
 import { InputLimitError } from './conversation-host.ts'
 import type { ConversationBackend } from './conversation-host.ts'
 
@@ -436,6 +436,16 @@ export async function createApi(
           const { id } = await conversations.create({
             ...(data.cwd !== undefined && { cwd: text(data.cwd, 'cwd') }),
             ...(data.title !== undefined && { title: text(data.title, 'title') }),
+            // The shared host validates the selection before it creates anything; undefined fields are absent.
+            ...({
+              definition: data.definition,
+              preset: data.preset,
+              model: data.model,
+              thinkingLevel: data.thinkingLevel,
+            } as Pick<
+              CreateConversationRequest,
+              'definition' | 'preset' | 'model' | 'thinkingLevel'
+            >),
           })
           json(201, { id })
           return true

@@ -35,6 +35,8 @@ export interface ModelReference {
 export interface ConversationConfiguration {
   model?: ModelReference
   thinkingLevel?: ThinkingLevel
+  definition?: string
+  preset?: string
 }
 export interface ConversationDetails {
   summary: ConversationSummary
@@ -43,6 +45,10 @@ export interface ConversationDetails {
 export interface CreateConversationRequest {
   title?: string
   cwd?: string
+  definition?: string | null
+  preset?: string | null
+  model?: ModelReference
+  thinkingLevel?: ThinkingLevel
 }
 export interface CreateConversationResponse {
   id: ConversationId
@@ -50,6 +56,8 @@ export interface CreateConversationResponse {
 export interface ConfigureConversationRequest {
   model?: ModelReference
   thinkingLevel?: ThinkingLevel
+  definition?: string | null
+  preset?: string | null
 }
 export interface ModelCostRates {
   input: number

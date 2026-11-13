@@ -5,6 +5,7 @@ import {
   hook,
   LiveDoc,
   ROOT_CONVERSATION_ID,
+  section,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, GenerationResult, TaskId } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
@@ -148,6 +149,14 @@ export default function codingWorkflow(host: ExtensionHost) {
     name: 'coding-workflow',
     tasks: [route(host), notice(host)],
     tools: [branchTool(host)],
+    sections: [
+      // Agents that can start coding branches get the coding workflow text; a fork keeps its source's tools.
+      section('coding_workflow', (input) =>
+        input.agent.tools.some((tool) => tool.name === 'branch')
+          ? `For coding work, build, verify, and report. Put project-specific tools, panels, agents, and skills in ${input.env?.cwd ?? input.agent.cwd ?? host.projectRoot}/.ultimate/, and personal ones in ~/.ultimate/.`
+          : undefined,
+      ),
+    ],
     hooks: [
       hook(GenerationTask, {
         onYield: async (_answer, api, ctx) => {

@@ -18,7 +18,7 @@ import type { Landing } from './landings.ts'
 import { RowMenu, saveTitle } from './rows.tsx'
 import { Section } from './section.tsx'
 import { SummaryHistory } from './summaries.tsx'
-import { useShell } from './state.tsx'
+import { useShell } from '../sidebar/state.tsx'
 import { workOf } from './work.ts'
 import type { Work } from './work.ts'
 

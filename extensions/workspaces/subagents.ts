@@ -1,8 +1,13 @@
-import { configure } from '@earendil-works/pi-durable'
+import { configure, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { exec } from '../../lib/exec.ts'
 import { git } from '../../lib/git.ts'
 import type { WorktreeService } from '../conversations/api.ts'
 import type { WorkspaceService } from './api.ts'
+import { Workspaces } from './workspaces.ts'
+import type { Workspace } from './types.ts'
+
+const instructionsFor = (workspace: Workspace, instructions: string) =>
+  `${instructions}\nWork only in ${workspace.path} on ${workspace.branch}, cut from ${workspace.base}. Commit your work on this branch with clear messages. Never push and never touch other checkouts.`
 
 /** The optional Git operations of child agents, using the same worktree service as the workspace tools. */
 export function subagentWorktrees(
@@ -18,8 +23,12 @@ export function subagentWorktrees(
     prepare: async (tx, id, { cwd, instructions }) => {
       const workspace = await workspaces.create(tx, id, cwd)
       await configure(tx, id, {
-        instructions: `${instructions}\nWork only in ${workspace.path} on ${workspace.branch}, cut from ${workspace.base}. Commit your work on this branch with clear messages. Never push and never touch other checkouts.`,
+        instructions: instructionsFor(workspace, instructions),
       })
+    },
+    instructions: async (tx, id, text) => {
+      const workspace = (await tx.doc(Workspaces, ROOT_CONVERSATION_ID)).items[String(id)]
+      return workspace ? instructionsFor(workspace, text) : text
     },
     get: (id, caller) => workspaces.get(id, caller),
     land: (id, caller) => workspaces.land(id, caller),
