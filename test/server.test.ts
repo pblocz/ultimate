@@ -694,6 +694,46 @@ export default host => { host.resource('cleanup.process',()=>{
       ],
     })
   })
+  it('expands a skill command in submitted image content and preserves unknown commands', async () => {
+    const { server, options } = await fixture()
+    const directory = join(options.userHome, '.ultimate/skills/ship')
+    const path = join(directory, 'SKILL.md')
+    await mkdir(directory, { recursive: true })
+    await writeFile(path, '---\nname: ship\ndescription: Ship changes\n---\nShip carefully.\n')
+    const image = { data: 'aGVsbG8=', mimeType: 'image/png' }
+    server.host.faux!.setResponses([fauxAssistantMessage('Seen.'), fauxAssistantMessage('Seen.')])
+    expect(
+      (
+        await post(server, '/api/conversations/1/submit', {
+          text: '/skill:ship now',
+          images: [image],
+        })
+      ).status,
+    ).toBe(202)
+    await server.harness.waitForIdle(context)
+    expect(
+      (await server.root.entries({}, 100, undefined, context)).items.find(
+        (entry) => entry.kind === 'pi.user',
+      )?.model?.[0],
+    ).toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: `<skill name="ship" location="${path}">\nReferences are relative to ${directory}.\n\nShip carefully.\n</skill>\n\nnow`,
+        },
+        { type: 'image', ...image },
+      ],
+    })
+    expect(
+      (await post(server, '/api/conversations/1/submit', { text: '/skill:missing now' })).status,
+    ).toBe(202)
+    await server.harness.waitForIdle(context)
+    expect(
+      (await server.root.entries({}, 100, undefined, context)).items.find(
+        (entry) => entry.kind === 'pi.user',
+      )?.model?.[0],
+    ).toMatchObject({ content: '/skill:missing now' })
+  })
   it('queues images as steer and follow-up content while busy', async () => {
     const { server } = await fixture()
     const image = { data: 'aGVsbG8=', mimeType: 'image/png' }

@@ -1,19 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { onCommit } from '../lib/commits.ts'
-import type {
-  ConversationId,
-  Cursor,
-  DocumentWatch,
-  EntryId,
-  JsonObject,
-  SubmissionId,
-  TaskGraph,
-} from '@earendil-works/pi-durable'
-import type { ServerEvents, ConversationSummary, ConfigureRequest } from '../shared/protocol.ts'
-import { UI_REVISION, imageMimeTypes, maxImageBytes, maxImages } from '../shared/protocol.ts'
+import type { ConversationId, DocumentWatch, EntryId, JsonObject } from '@earendil-works/pi-durable'
+import type { ServerEvents } from '../shared/protocol.ts'
+import { UI_REVISION } from '../shared/protocol.ts'
 import { listModels } from './models.ts'
-import { hostDefault } from '../lib/agents.ts'
-import { expandSkillCommand } from './skills.ts'
 import type { Extensions } from './extensions.ts'
 import { context } from './harness.ts'
 import type { OpenHost, PreparedHost } from './harness.ts'
@@ -21,14 +10,12 @@ import type { createSystem } from './system.ts'
 import { requestSwap } from './supervisor-protocol.ts'
 import { UiState } from './ui-state.ts'
 import type { JsonValue } from '@earendil-works/chord/json'
-import { clampThinkingLevel, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
-import { Metadata } from './metadata.ts'
-import { EVENT_LOG_LABEL, emit } from './events.ts'
-import { UserInputEvent } from '../shared/events.ts'
 import { admit, deviceOf } from './request-security.ts'
 import type { Access } from './request-security.ts'
-import { conversationIndex } from './project.ts'
-import { shortTitle } from '../lib/title.ts'
+import { ChannelError } from '../shared/channel-host.ts'
+import type { SubmitRequest } from '../shared/channel-host.ts'
+import { InputLimitError } from './conversation-host.ts'
+import type { ConversationBackend } from './conversation-host.ts'
 
 class HttpError extends Error {
   status: number
@@ -84,11 +71,26 @@ function reply(response: ServerResponse, status: number, data: unknown) {
   response.end(JSON.stringify(data))
 }
 function failed(response: ServerResponse, error: unknown) {
-  if (!response.headersSent)
-    reply(response, error instanceof HttpError ? error.status : 500, {
-      error: error instanceof HttpError ? error.message : 'Request failed',
+  if (!response.headersSent) {
+    const status =
+      error instanceof HttpError
+        ? error.status
+        : error instanceof ChannelError
+          ? {
+              invalid_input: 400,
+              not_found: 404,
+              conflict: 409,
+              unavailable: 503,
+              internal: 500,
+            }[error.code]
+          : 500
+    reply(response, status, {
+      error:
+        error instanceof HttpError || error instanceof ChannelError
+          ? error.message
+          : 'Request failed',
     })
-  else response.destroy()
+  } else response.destroy()
 }
 /**
  * Start a server-sent event stream; `end` stops its heartbeat and closes it. An event of a subscription carries its id
@@ -169,138 +171,11 @@ export async function createApi(
   system: Awaited<ReturnType<typeof createSystem>>,
   extensions: Extensions,
   access: Access,
+  backend: ConversationBackend,
 ) {
   const { harness, root } = opened
   const streams = new Set<() => Promise<void>>()
   const connections = new Map<string, Connection>()
-  // The live task graph, kept current synchronously as commits are adopted; its changes are sent at most every 100 ms.
-  let onGraph = () => {}
-  // A change can arrive before the observation resolves; it is newer than the observation's value.
-  const latest: { tasks?: TaskGraph } = {}
-  const graph = await harness.observeTaskGraph(
-    {
-      advance: (call) => {
-        if (call.kind !== 'value') return
-        latest.tasks = call.value
-        onGraph()
-      },
-      end: () => {},
-    },
-    context,
-  )
-  latest.tasks ??= graph.value
-  const tasks = () => latest.tasks!
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let closed = false
-  let summaries: ConversationSummary[] = []
-  const projectIndex = conversationIndex(host.home)
-  const indexListener: Parameters<typeof events.listeners.add>[0] = (name, data) => {
-    if (name === 'conversations') projectIndex.update(data as ConversationSummary[])
-  }
-  events.listeners.add(indexListener)
-  let refreshing = Promise.resolve()
-  async function refreshConversations(ids?: Set<ConversationId>) {
-    const records = await harness.commit(async (tx) => {
-      if (ids)
-        return (await Promise.all([...ids].map((id) => tx.conversation(id)))).filter(
-          (record) => record !== undefined,
-        )
-      const scanned = []
-      let cursor: Cursor | undefined
-      do {
-        const page = await tx.scanConversations({}, 256, cursor)
-        scanned.push(...page.items)
-        cursor = page.next
-      } while (cursor !== undefined)
-      return scanned
-    }, context)
-    const refreshed: Omit<ConversationSummary, 'busy'>[] = []
-    for (const record of records) {
-      const conversation = await harness.conversation(record.id, context)
-      if (!conversation) continue
-      const agent = await conversation.agent(context)
-      const metadata = await harness.snapshot(Metadata, record.id, context)
-      // Every list the user sees (sidebar, search, @ultimate, the cloud front page) comes from these summaries.
-      if (metadata?.label === EVENT_LOG_LABEL) continue
-      // Older subagents were titled with their whole prompt; every switch resends this list, so long titles are cut.
-      const full = metadata?.title ?? metadata?.inputTitle
-      const title = full && full.length > 200 ? shortTitle(full, 200) : full
-      refreshed.push({
-        id: record.id,
-        ...(record.owner ? { parentConversationId: record.owner.conversationId } : {}),
-        ...(!record.owner && record.parent ? { branchOf: record.parent } : {}),
-        ...(record.owner ? { ownerTaskId: record.owner.taskId } : {}),
-        ...(metadata?.label ? { label: metadata.label } : {}),
-        ...(title ? { title } : {}),
-        cwd: agent.cwd,
-        ...(metadata?.inputAt === undefined ? {} : { inputAt: metadata.inputAt }),
-        ...(metadata?.answerAt === undefined ? {} : { answerAt: metadata.answerAt }),
-      })
-    }
-    // Merged into the current list with busy from the current graph, so updates made during the awaits above survive.
-    const next = ids ? [...summaries] : []
-    for (const fresh of refreshed) {
-      const summary = {
-        ...fresh,
-        busy: Object.values(tasks().tasks).some(
-          (task) => task.conversationId === fresh.id && !task.background,
-        ),
-      }
-      const index = next.findIndex((item) => item.id === summary.id)
-      if (index < 0) next.push(summary)
-      else next[index] = summary
-    }
-    if (JSON.stringify(next) !== JSON.stringify(summaries)) {
-      summaries = next
-      events.emit('conversations', summaries)
-    }
-  }
-  await refreshConversations()
-  projectIndex.update(summaries)
-  let lastGraph = JSON.stringify(tasks())
-  onGraph = () => {
-    if (closed || timer) return
-    timer = setTimeout(() => {
-      timer = undefined
-      const graphJson = JSON.stringify(tasks())
-      if (graphJson !== lastGraph) {
-        lastGraph = graphJson
-        events.emit('tasks', tasks())
-        const next = summaries.map((summary) => ({
-          ...summary,
-          busy: Object.values(tasks().tasks).some(
-            (task) => task.conversationId === summary.id && !task.background,
-          ),
-        }))
-        if (JSON.stringify(next) !== JSON.stringify(summaries)) {
-          summaries = next
-          events.emit('conversations', summaries)
-        }
-      }
-    }, 100)
-  }
-  const unsubscribe = onCommit(harness, (publication) => {
-    if (closed) return
-    const ids = new Set<ConversationId>()
-    for (const change of publication.changes) {
-      if (change.type === 'conversation') ids.add(change.value.id)
-      if (
-        change.type === 'document' &&
-        change.conversationId &&
-        (change.record.kind === 'ultimate.metadata' ||
-          (change.record.kind === 'pi.agent' &&
-            (change.kind === 'retire' ||
-              change.ops.some((op) => op[0] === 'r' || op[1][0] === 'cwd'))))
-      )
-        ids.add(change.conversationId)
-    }
-    if (!ids.size) return
-    refreshing = refreshing
-      .then(() => refreshConversations(ids))
-      .catch(() =>
-        events.emit('notice', { level: 'error', message: 'Could not refresh conversation list' }),
-      )
-  })
   /** Open the tab's stream: its id, then the state every tab shares, then whatever it subscribes. */
   async function stream(request: IncomingMessage, response: ServerResponse) {
     const ui = await harness.watchDoc(UiState, root.id, context)
@@ -316,12 +191,12 @@ export async function createApi(
     const { send } = sse
     send('stream', { id })
     send('system', system.current())
-    send('conversations', summaries)
+    send('conversations', backend.conversations())
     send('ui', { value: ui!.value })
     ui!.start(async (call) => {
       if (call.kind === 'value') send('uiOps', { ops: call.ops })
     })
-    send('tasks', tasks())
+    send('tasks', backend.taskGraph())
     events.listeners.add(send)
     const stop = async () => {
       if (connection.ended) return
@@ -410,6 +285,12 @@ export async function createApi(
       })
     }
   }
+  /** A conversation ID from a route; one that cannot exist is unknown, as before. */
+  function routeId(value: string) {
+    const id = Number(value)
+    if (!Number.isSafeInteger(id) || id < 1) throw new HttpError(404, 'Unknown conversation')
+    return id
+  }
   function conversationParam(value: unknown) {
     const id = value === undefined ? root.id : Number(value)
     if (!Number.isSafeInteger(id) || id < 1) throw new HttpError(400, 'Invalid conversation id')
@@ -417,7 +298,7 @@ export async function createApi(
   }
   return {
     conversations() {
-      return summaries
+      return backend.conversations()
     },
     /** Open browser tabs: each holds one event stream. */
     pages: () => connections.size,
@@ -477,15 +358,20 @@ export async function createApi(
             after < 0
           )
             throw new HttpError(400, 'Invalid history cursor or conversation id')
-          const conversation = await harness.conversation(id as ConversationId, context)
-          if (!conversation) throw new HttpError(404, 'Unknown conversation')
           const size = after ? 512 : 64
-          const page = await conversation.entries(
-            { maxEntryId: (before - 1) as EntryId, ...(after && { minEntryId: after as EntryId }) },
-            size + 1,
-            undefined,
-            context,
-          )
+          const page = await backend.read(async () => {
+            const conversation = await harness.conversation(id as ConversationId, context)
+            if (!conversation) throw new HttpError(404, 'Unknown conversation')
+            return conversation.entries(
+              {
+                maxEntryId: (before - 1) as EntryId,
+                ...(after && { minEntryId: after as EntryId }),
+              },
+              size + 1,
+              undefined,
+              context,
+            )
+          })
           const entries = page.items.slice(0, size)
           json(200, {
             entries,
@@ -545,41 +431,27 @@ export async function createApi(
           if (!response.writableEnded) json(500, { ok: false, error })
           return true
         }
+        const conversations = backend.channelHost.conversations
         if (url.pathname === '/api/conversations') {
-          const cwd = data.cwd === undefined ? host.projectRoot : text(data.cwd, 'cwd')
-          const title = data.title === undefined ? undefined : text(data.title, 'title')
-          const created = await harness.createConversation(
-            {
-              ownership: { kind: 'ownerless' },
-              agent: { cwd, ...(await hostDefault(host)) },
-            },
-            context,
-          )
-          if (title)
-            await created.commit(async (tx) => {
-              ;(await tx.doc(Metadata, created.id)).title = title
-            }, context)
-          await refreshing
-          json(201, { id: created.id })
+          const { id } = await conversations.create({
+            ...(data.cwd !== undefined && { cwd: text(data.cwd, 'cwd') }),
+            ...(data.title !== undefined && { title: text(data.title, 'title') }),
+          })
+          json(201, { id })
           return true
         }
         const cancel = /^\/api\/conversations\/(\d+)\/inbox\/(\d+)\/cancel$/.exec(url.pathname)
         if (cancel) {
-          const submission = await harness.submission(Number(cancel[2]) as SubmissionId, context)
-          if (
-            !submission ||
-            (await submission.status(context)).conversationId !== Number(cancel[1])
-          )
-            throw new HttpError(404, 'Unknown queued input')
-          const outcome = await submission.abort(context)
-          if (outcome !== 'aborted') {
-            const settled = await submission.status(context)
+          try {
+            await conversations.cancelQueuedInput(routeId(cancel[1]), Number(cancel[2]))
+          } catch (error) {
+            // Route IDs that name no input, as before, whatever the reason.
             if (
-              settled.status !== 'unanswered' ||
-              settled.reason !== 'aborted' ||
-              settled.entry !== undefined
+              error instanceof ChannelError &&
+              (error.code === 'not_found' || error.code === 'invalid_input')
             )
-              throw new HttpError(409, 'Input is already being processed or has finished')
+              throw new HttpError(404, 'Unknown queued input')
+            throw error
           }
           json(200, { ok: true })
           return true
@@ -588,153 +460,37 @@ export async function createApi(
           url.pathname,
         )
         if (match) {
-          const conversation = await harness.conversation(
-            Number(match[1]) as ConversationId,
-            context,
-          )
-          if (!conversation) throw new HttpError(404, 'Unknown conversation')
+          const id = routeId(match[1])
           switch (match[2]) {
-            case 'submit': {
-              if (
-                data.whenBusy !== undefined &&
-                data.whenBusy !== 'steer' &&
-                data.whenBusy !== 'followUp'
-              )
-                throw new HttpError(400, 'Invalid whenBusy')
-              if (typeof data.text !== 'string') throw new HttpError(400, 'Expected text')
-              const length = data.text.length
-              const images = data.images === undefined ? [] : data.images
-              if (!Array.isArray(images)) throw new HttpError(400, 'Expected images array')
-              if (images.length > maxImages) throw new HttpError(413, `At most ${maxImages} images`)
-              const blocks = images.map((image: unknown) => {
-                if (!image || typeof image !== 'object') throw new HttpError(400, 'Invalid image')
-                const { data: encoded, mimeType } = image as Record<string, unknown>
-                if (
-                  typeof mimeType !== 'string' ||
-                  !imageMimeTypes.includes(mimeType) ||
-                  typeof encoded !== 'string' ||
-                  !encoded ||
-                  encoded.length % 4 !== 0 ||
-                  !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)
+            case 'submit':
+              try {
+                // The web names its device itself; a browser cannot claim a channel source.
+                const { submissionId } = await backend.submit(
+                  id,
+                  {
+                    text: data.text,
+                    images: data.images,
+                    whenBusy: data.whenBusy,
+                    requestId: data.requestId,
+                  } as SubmitRequest,
+                  deviceOf(request.headers),
                 )
-                  throw new HttpError(400, 'Expected supported image MIME type and base64 data')
-                if (Buffer.byteLength(encoded, 'base64') > maxImageBytes)
-                  throw new HttpError(413, 'Image exceeds 2 MiB')
-                if (Buffer.from(encoded, 'base64').toString('base64') !== encoded)
-                  throw new HttpError(400, 'Invalid image base64 data')
-                return { type: 'image' as const, data: encoded, mimeType }
-              })
-              if (!data.text.trim() && !blocks.length)
-                throw new HttpError(400, 'Expected text or images')
-              // `/skill:name args` sends the skill's instructions with the request, as Pi does.
-              const expanded = data.text.startsWith('/skill:')
-                ? expandSkillCommand(
-                    data.text,
-                    host.skills((await conversation.agent(context)).cwd ?? host.projectRoot),
-                  )
-                : data.text
-              const content = blocks.length
-                ? [
-                    ...(expanded.trim() ? [{ type: 'text' as const, text: expanded }] : []),
-                    ...blocks,
-                  ]
-                : expanded
-              const submission = await conversation.submit(
-                { type: 'input', content, whenBusy: data.whenBusy },
-                context,
-              )
-              // Pi admits the input in a commit with no hook for steers and follow-ups, so the event commits right
-              // after it: a crash in between loses the event, never the input.
-              const admitted = await submission.status(context)
-              await harness.commit(
-                (tx) =>
-                  emit(tx, UserInputEvent, {
-                    conversation: conversation.id,
-                    kind:
-                      admitted.status !== 'queued'
-                        ? 'prompt'
-                        : data.whenBusy === 'steer'
-                          ? 'steer'
-                          : 'follow-up',
-                    ...(admitted.entry === undefined
-                      ? { submission: submission.id }
-                      : { entry: admitted.entry }),
-                    length,
-                    ...deviceOf(request.headers),
-                  }),
-                context,
-              )
-              json(202, { submissionId: submission.id })
-              break
-            }
-            case 'abort': {
-              // Stop aborts the conversation's own tasks (each cascades to the work it owns) instead of calling
-              // Conversation.abort(), which also withdraws queued inputs: queued follow-ups stay, and Pi places them
-              // with the next input, ahead of it. Repeated, since a run ending meanwhile starts the next with them.
-              for (;;) {
-                const own = (await harness.inspect(context)).tasks.filter(
-                  ({ record }) =>
-                    record.conversationId === conversation.id &&
-                    !record.owner &&
-                    !record.background,
-                )
-                if (own.length === 0) break
-                for (const { record } of own) {
-                  await harness.abortTask(record.id, context)
-                  await harness.waitForTask(record.id, context)
-                }
+                json(202, { submissionId })
+              } catch (error) {
+                if (error instanceof InputLimitError) throw new HttpError(413, error.message)
+                throw error
               }
+              break
+            case 'abort':
+              await conversations.stop(id)
               json(200, { ok: true })
               break
-            }
-            case 'configure': {
-              const configure: ConfigureRequest = {}
-              if (data.model !== undefined) {
-                if (!data.model || typeof data.model !== 'object')
-                  throw new HttpError(400, 'Invalid model')
-                const model = data.model as Record<string, unknown>
-                const provider = text(model.provider, 'model.provider'),
-                  modelId = text(model.modelId, 'model.modelId')
-                if (
-                  !(await host.models()).some(
-                    (candidate) =>
-                      candidate.available &&
-                      candidate.provider === provider &&
-                      candidate.id === modelId,
-                  )
-                )
-                  throw new HttpError(400, 'Model is not available')
-                configure.model = { provider, modelId }
-              }
-              // Pi's policy: a requested level must suit the model; a new model clamps the current one.
-              if (data.thinkingLevel !== undefined || configure.model) {
-                const agent = await conversation.agent(context)
-                const ref = configure.model ?? agent.model
-                const model = ref && host.model(ref)
-                if (!model) throw new HttpError(400, 'No model to set a thinking level for')
-                if (data.thinkingLevel === undefined)
-                  configure.thinkingLevel = clampThinkingLevel(model, agent.thinkingLevel)
-                else {
-                  configure.thinkingLevel = getSupportedThinkingLevels(model).find(
-                    (level) => level === data.thinkingLevel,
-                  )
-                  if (!configure.thinkingLevel)
-                    throw new HttpError(
-                      400,
-                      `${model.provider}/${model.id} does not support thinking level ${JSON.stringify(data.thinkingLevel)}`,
-                    )
-                }
-              }
-              await conversation.configure(configure, context)
+            case 'configure':
+              await conversations.configure(id, data)
               json(200, { ok: true })
               break
-            }
             case 'compact':
-              if (data.instructions !== undefined && typeof data.instructions !== 'string')
-                throw new HttpError(400, 'Invalid instructions')
-              json(202, {
-                taskId: await conversation.compact(data.instructions, context),
-              })
+              json(202, { taskId: await backend.compact(id, data) })
               break
           }
           return true
@@ -746,14 +502,7 @@ export async function createApi(
       return true
     },
     async close() {
-      closed = true
-      unsubscribe()
-      graph.detach()
-      clearTimeout(timer)
       await Promise.all([...streams].map((stop) => stop()))
-      await refreshing
-      events.listeners.delete(indexListener)
-      await projectIndex.flush()
     },
   }
 }

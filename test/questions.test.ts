@@ -79,6 +79,10 @@ async function fixture() {
     ...apis(services),
     doc: () => undefined,
     onOpen: (fn: () => Promise<void>) => openers.push(fn),
+    onReady: () => {},
+    channelHost: () => {
+      throw new Error('Conversation host is unavailable in this fixture')
+    },
     onClose: (fn: () => Promise<void>) => closers.push(fn),
     emit: events.emit,
     react: events.react,

@@ -32,6 +32,7 @@ Server factories receive exactly these `ExtensionHost` fields (import its type o
 - `chapter`: the active chapter: its name, number, the newest chapter's name and its files.
 - `build()`, `system()`, `extensions()`: current build, system and extension inspection.
 - `conversations()`: every conversation's summary, as `useConversations()` gives the web; empty until the harness is open.
+- `channelHost()`: the channel-facing conversation service for chat adapters, scoped to this facet; see [channel host](channel-host.md). Its operations fail with `unavailable` before the harness opens, and its mutations wait for readiness.
 - `projects()`: the user's central project homes read from their JSON manifests, never another project's SQLite; includes this home and live supervisor URLs.
 - `projectSetup()`: whether the project has `.ultimate/` setup, the decision of its root (a linked worktree's main checkout) and its capped README.
 - `projectSettings()`: the project's parsed settings, only after a local decision; otherwise empty.
@@ -48,15 +49,21 @@ Server factories receive exactly these `ExtensionHost` fields (import its type o
 - `access.allow({ origin, verify })`: register an HTTP origin with an identity verifier; returns a disposer and is automatically removed when the facet unloads or reloads. HTTP, API, and websocket upgrades use the same admission rules.
 - `notice(message)`: publish a warning notice and retain it in this facet's system diagnostics for later clients, until unload/reload.
 - `resource(key, create)`, `onOpen(callback)`, `onRelease(callback)`, `onClose(cleanup)`: shared reload-stable resources, async work each
-  time the harness opens (at once if it is open; the server serves once it settles), async work each time before it closes while the process stays (a core swap; drop commit subscriptions there), and async cleanup. Facet-level callbacks are removed on unload/reload, with cleanup run before the replacement opens. Callbacks registered inside a shared resource's creation belong to that reload-stable resource and survive until server shutdown.
+  time the harness opens (at once if it is open; the server serves once it settles; reads work, conversation mutations wait for `onReady`), async work each time before it closes while the process stays (a core swap; drop commit subscriptions there), and async cleanup. Facet-level callbacks are removed on unload/reload, with cleanup run before the replacement opens. Callbacks registered inside a shared resource's creation belong to that reload-stable resource and survive until server shutdown.
   Keep only process state in a resource (running children, in-flight promises, flags); never capture document or task
   tokens or facet functions in it, since they go stale on reload. Build those on each install around the shared state.
+- `onReady(callback)`: finite async work each time the harness accepts public work, after this facet's `onOpen`
+  callbacks succeed; start channel listeners here. See [lifecycle](#lifecycle).
 - `onLoadError(callback)`: run `callback(name, error)` each time an extension's server facet fails to load; facet-scoped.
 - `onBeforeLoad(callback)`: run and await `callback()` before each extension reload, web build and restart, so none reads a checkout or packages still being written (`update` waits for git and installs owed packages there). When it throws, a reload or build goes on with a notice and a restart is refused with the message; facet-scoped.
 
 ## Lifecycle
 
 Facet-registered `onOpen` and `onClose` callbacks are facet-scoped: they end on reload, disable, or unload. An `onOpen` registered after installation while the harness is already open runs immediately. Cleanup failures produce notices and do not stop the remaining facet cleanups. Callbacks registered synchronously inside a `resource()` factory are process-scoped and survive reloads until server shutdown. Process-scoped cleanups settle independently; failures produce notices without preventing core shutdown.
+
+Each activation has this order: the harness opens, `onOpen` callbacks run (reads and watches work, conversation mutations fail with `unavailable`), the web adapter is prepared, the harness resumes, public admission opens, then `onReady` callbacks run. `StartedEvent` commits before `onOpen` and does not mean ready. A facet's `onReady` callbacks run once in each activation and only when its `onOpen` callbacks succeeded; a hot enable or reload runs the facet's `onOpen` callbacks, then its `onReady` callbacks, and a registration on a ready facet runs at once. A failed `onReady` callback produces a notice for its facet and does not stop the runtime or other facets. Callbacks for a facet or activation that is no longer current do not run.
+
+A core release and the final shutdown both close public admission before any cleanup. Operations that entered before then settle before storage closes; model runs and queued follow-ups are left to durable recovery. A release runs `onRelease`; final shutdown runs `onClose` without `onRelease`, so cleanup that both need must be safe to repeat. See [channel host](channel-host.md#lifecycle-and-cleanup) for channel watches.
 
 A server facet can export `reloadOnSettings = true` to reinstall on live settings changes even when its enablement is unchanged. Its scoped lifecycle callbacks and access registrations are cleaned up before its replacement opens.
 

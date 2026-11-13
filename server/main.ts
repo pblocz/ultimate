@@ -4,6 +4,8 @@ import { dirname, resolve as resolvePath } from 'node:path'
 import { createServer as createViteServer } from 'vite-plus'
 import type { ViteDevServer } from 'vite-plus'
 import { createApi, Events } from './api.ts'
+import { createConversationHost } from './conversation-host.ts'
+import type { ConversationBackend } from './conversation-host.ts'
 import { loadExtensions } from './extensions.ts'
 import type { Watch } from './extensions.ts'
 import { prepareHarness } from './harness.ts'
@@ -23,6 +25,7 @@ import { writeProject } from './project.ts'
 import { reportCore } from './supervisor-protocol.ts'
 import { viteLogger } from './vite-logger.ts'
 import type { Notice } from '../shared/protocol.ts'
+import { ChannelError } from '../shared/channel-host.ts'
 
 const send = (message: ChildMessage) => process.send?.(message)
 
@@ -78,7 +81,12 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
       .catch((error: unknown) => console.error('Publishing access changes failed:', error))
   })
   let api: Awaited<ReturnType<typeof createApi>> | undefined
+  let backend: ConversationBackend | undefined
   let web: Awaited<ReturnType<typeof createWeb>> | undefined
+  let releaseRequested = false
+  let pendingReleases = 0
+  let finalClosing = false
+  let finalClose: Promise<void> | undefined
   const http = createHttpServer((request, response) => {
     void (async () => {
       const port =
@@ -183,7 +191,11 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
         if (!system) throw new Error('System is not ready')
         return system.current()
       },
-      conversations: () => api?.conversations() ?? [],
+      conversations: () => backend?.conversations() ?? [],
+      channelHost: () => {
+        if (!backend) throw new ChannelError('unavailable', 'Conversation service is unavailable')
+        return backend.channelHost
+      },
     },
     watch,
     (message) => notice({ level: 'warning', message }),
@@ -221,22 +233,59 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
     access.origins,
     () => web.info(),
   )
-  /** Serve the opened harness: the `onOpen` callbacks, then the API. */
+  /** Serve the opened harness: shared backend, facet openers, web adapter, resume, then readiness. */
   const serve = async (harness: OpenHost) => {
     opened = harness
-    await harness.harness.commit(
-      (tx) =>
-        emit(tx, StartedEvent, {
-          generation: Number(process.env.ULTIMATE_GENERATION ?? 1),
-          build: host.build().id,
-        }),
-      context,
-    )
-    await extensions.opened()
-    await system.changed()
-    api = await createApi(host, harness, events, system, extensions, access)
-    harness.harness.resume()
-    return { ...harness, api, system }
+    let service: ConversationBackend | undefined
+    let adapter: Awaited<ReturnType<typeof createApi>> | undefined
+    let callbacksOpened = false
+    try {
+      await harness.harness.commit(
+        (tx) =>
+          emit(tx, StartedEvent, {
+            generation: Number(process.env.ULTIMATE_GENERATION ?? 1),
+            build: host.build().id,
+          }),
+        context,
+      )
+      service = await createConversationHost(host, harness, {
+        onConversations: (summaries) => events.emit('conversations', summaries),
+        onTasks: (tasks) => events.emit('tasks', tasks),
+        onRefreshError: () =>
+          events.emit('notice', { level: 'error', message: 'Could not refresh conversation list' }),
+      })
+      backend = service
+      await extensions.opened()
+      callbacksOpened = true
+      await system.changed()
+      adapter = await createApi(host, harness, events, system, extensions, access, service)
+      api = adapter
+      harness.harness.resume()
+      if (releaseRequested || finalClosing) service.closeAdmission()
+      else {
+        service.openAdmission()
+        await extensions.ready()
+      }
+      return { ...harness, api: adapter, system }
+    } catch (error) {
+      service?.closeAdmission()
+      if (api === adapter) api = undefined
+      try {
+        await adapter?.close()
+      } catch (cleanupError) {
+        console.error('Closing web adapter after activation failure:', cleanupError)
+      }
+      if (callbacksOpened) await extensions.released()
+      try {
+        await service?.close()
+      } catch (cleanupError) {
+        console.error('Closing conversation backend after activation failure:', cleanupError)
+      }
+      if (backend === service) backend = undefined
+      if (opened === harness) opened = undefined
+      await harness.close()
+      throw error
+    }
   }
   return {
     http,
@@ -247,38 +296,68 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
     url,
     port: address.port,
     web,
-    release: () =>
-      serial(async () => {
-        if (opened) await extensions.released()
-        await api?.close()
-        api = undefined
-        http.closeAllConnections()
-        await opened?.close()
-        opened = undefined
-        reportCore({ type: 'web', state: 'stopped' })
-      }),
+    release() {
+      releaseRequested = true
+      pendingReleases++
+      backend?.closeAdmission()
+      const adapter = api
+      api = undefined
+      return serial(async () => {
+        try {
+          if (opened) await extensions.released()
+          await (adapter ?? api)?.close()
+          api = undefined
+          // Admitted requests settle first, so an in-flight mutation that lost the race still gets its 503.
+          await backend?.close()
+          backend = undefined
+          http.closeAllConnections()
+          await opened?.close()
+          opened = undefined
+          reportCore({ type: 'web', state: 'stopped' })
+        } finally {
+          pendingReleases--
+          if (pendingReleases === 0) releaseRequested = false
+        }
+      })
+    },
     /** Open storage and serve. */
-    go: (activationError?: string) =>
-      serial(async () => {
+    go(activationError?: string) {
+      return serial(async () => {
+        if (finalClosing) throw new Error('Server is closing')
+        releaseRequested = false
         processInfo.activationError = activationError
         await writeProject(host.home, host.projectRoot)
         const served = await serve(await host.open(false))
-        reportCore({ type: 'web', state: 'ready' })
+        if (!releaseRequested && !finalClosing) reportCore({ type: 'web', state: 'ready' })
         return served
-      }),
-    async close() {
+      })
+    },
+    close() {
+      if (finalClose) return finalClose
+      finalClosing = true
+      releaseRequested = true
+      backend?.closeAdmission()
+      const adapter = api
+      api = undefined
       const stopped = new Promise<void>((resolve, reject) =>
         http.close((error) => (error ? reject(error) : resolve())),
       )
-      await api?.close()
-      await extensions.close()
-      await web?.close()
-      await system?.close()
-      await vite.close()
-      reportCore({ type: 'web', state: 'stopped' })
-      http.closeAllConnections()
-      await stopped
-      await opened?.close()
+      finalClose = serial(async () => {
+        await (adapter ?? api)?.close()
+        api = undefined
+        await extensions.close()
+        await backend?.close()
+        backend = undefined
+        await web?.close()
+        await system?.close()
+        await vite.close()
+        reportCore({ type: 'web', state: 'stopped' })
+        http.closeAllConnections()
+        await stopped
+        await opened?.close()
+        opened = undefined
+      })
+      return finalClose
     },
   }
 }

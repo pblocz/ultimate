@@ -33,6 +33,8 @@ import type { TraceReader } from './trace.ts'
 import type { Api, Catalogue } from '../shared/extension-api.ts'
 import { inExtensionTests } from '../shared/extension-api.ts'
 import type { Device } from '../shared/events.ts'
+import { ChannelError } from '../shared/channel-host.ts'
+import type { ChannelHost, ConversationOutput } from '../shared/channel-host.ts'
 
 export type ExtensionHost = Pick<
   PreparedHost,
@@ -68,6 +70,10 @@ export type ExtensionHost = Pick<
   resource<T>(key: string, create: () => T): T
   /** Run `callback` each time the harness opens, at once when it is open; the server serves once it settles. */
   onOpen(callback: () => Promise<void>): void
+  /** Run finite setup after open callbacks and shared runtime admission, once per active harness activation. */
+  onReady(callback: () => Promise<void>): void
+  /** The current scoped conversation service; operations fail unavailable outside an open harness activation. */
+  channelHost(): ChannelHost
   /** Run `callback` each time before the harness closes while the process stays: on a core swap. */
   onRelease(callback: () => Promise<void>): void
   onClose(cleanup: () => Promise<void>): void
@@ -108,8 +114,15 @@ export type ExtensionHost = Pick<
   doc(kind: string): ConversationDocToken<JsonObject> | undefined
   metadata: typeof Metadata
 } & EventHost
-const runOpener = (callback: () => Promise<void>) =>
-  callback().catch((error: unknown) => console.error('Extension onOpen:', error))
+const runOpener = async (callback: () => Promise<void>) => {
+  try {
+    await callback()
+    return true
+  } catch (error) {
+    console.error('Extension onOpen:', error)
+    return false
+  }
+}
 const runReleaser = (callback: () => Promise<void>) =>
   callback().catch((error: unknown) => console.error('Extension onRelease:', error))
 /** Attach listeners to Vite's current watcher and to each replacement; `attach` returns their removal. */
@@ -118,7 +131,7 @@ export async function loadExtensions(
   vite: ViteDevServer,
   host: PreparedHost,
   changed: () => void | Promise<void>,
-  runtime: Pick<ExtensionHost, 'harness' | 'system' | 'conversations' | 'access'>,
+  runtime: Pick<ExtensionHost, 'harness' | 'system' | 'conversations' | 'access' | 'channelHost'>,
   watch: Watch,
   notice: (message: string) => void = () => {},
   /** Bring the web bundle up to date with the settings just applied. */
@@ -133,12 +146,238 @@ export async function loadExtensions(
   const facetHosts = new Map<string, ExtensionHost>()
   const subscriptions = new Map<ExtensionHost, Set<() => void>>()
   const facetOpeners = new Map<ExtensionHost, Set<() => Promise<void>>>()
+  const facetReadies = new Map<ExtensionHost, Set<() => Promise<void>>>()
   const facetReleasers = new Map<ExtensionHost, Set<() => Promise<void>>>()
   const facetCleanups = new Map<ExtensionHost, Set<() => Promise<void>>>()
+  const facetCalls = new Map<ExtensionHost, Set<Promise<unknown>>>()
+  const facetWatchStops = new Map<ExtensionHost, Set<() => Promise<void>>>()
+  const disposedFacets = new WeakSet<ExtensionHost>()
+  type FacetOpenState = {
+    activation: number
+    completed: Set<() => Promise<void>>
+    failed: boolean
+    running?: Promise<void>
+  }
+  type ReadyState = {
+    activation: number
+    completed: Set<() => Promise<void>>
+    running?: Promise<void>
+  }
+  const facetOpenStates = new Map<ExtensionHost, FacetOpenState>()
+  const facetReadyStates = new Map<ExtensionHost, ReadyState>()
+  const processOpeners = new Set<() => Promise<void>>()
+  const processReadies = new Set<() => Promise<void>>()
+  let processOpenState: FacetOpenState | undefined
+  let processReadyState: ReadyState | undefined
+  let activation = 0
+  let open = false
+  let ready = false
   /** Each facet's distinct notice messages, and whether each is recorded as an event yet. */
   const facetNotices = new Map<ExtensionHost, Map<string, boolean>>()
+  let closed = false
   const extensionOf = (facetHost: ExtensionHost) =>
     [...facetHosts].find(([, current]) => current === facetHost)?.[0]
+  const currentFacet = (facetHost: ExtensionHost, generation: number) =>
+    !closed &&
+    open &&
+    activation === generation &&
+    !disposedFacets.has(facetHost) &&
+    [...facetHosts.values()].includes(facetHost)
+  const openState = (facetHost: ExtensionHost, generation: number) => {
+    let state = facetOpenStates.get(facetHost)
+    if (!state || state.activation !== generation) {
+      state = { activation: generation, completed: new Set(), failed: false }
+      facetOpenStates.set(facetHost, state)
+    }
+    return state
+  }
+  const readyState = (facetHost: ExtensionHost, generation: number) => {
+    let state = facetReadyStates.get(facetHost)
+    if (!state || state.activation !== generation) {
+      state = { activation: generation, completed: new Set() }
+      facetReadyStates.set(facetHost, state)
+    }
+    return state
+  }
+  function runFacetOpeners(facetHost: ExtensionHost, generation: number): Promise<void> {
+    const state = openState(facetHost, generation)
+    if (state.running) return state.running
+    state.running = (async () => {
+      for (;;) {
+        if (!currentFacet(facetHost, generation)) break
+        const pending = [...(facetOpeners.get(facetHost) ?? [])].filter(
+          (callback) => !state.completed.has(callback),
+        )
+        if (!pending.length) break
+        for (const callback of pending) state.completed.add(callback)
+        const results = await Promise.all(pending.map(runOpener))
+        if (results.some((success) => !success)) state.failed = true
+      }
+    })().finally(() => {
+      state.running = undefined
+    })
+    return state.running
+  }
+  function runFacetReadies(facetHost: ExtensionHost, generation: number): Promise<void> {
+    const state = readyState(facetHost, generation)
+    if (state.running) return state.running
+    state.running = (async () => {
+      await runFacetOpeners(facetHost, generation)
+      if (!ready || !currentFacet(facetHost, generation) || openState(facetHost, generation).failed)
+        return
+      for (;;) {
+        if (!ready || !currentFacet(facetHost, generation)) break
+        const pending = [...(facetReadies.get(facetHost) ?? [])].filter(
+          (callback) => !state.completed.has(callback),
+        )
+        if (!pending.length) break
+        for (const callback of pending) state.completed.add(callback)
+        for (const callback of pending) {
+          if (!ready || !currentFacet(facetHost, generation)) return
+          try {
+            await callback()
+          } catch (error) {
+            const message = `Extension onReady failed: ${String(error)}`
+            console.error(message)
+            try {
+              facetHost.notice(message)
+            } catch (noticeError) {
+              console.error('Reporting extension readiness failure:', noticeError)
+            }
+          }
+        }
+      }
+    })().finally(() => {
+      state.running = undefined
+    })
+    return state.running
+  }
+  function runProcessOpeners(generation: number): Promise<void> {
+    const state = (processOpenState =
+      processOpenState?.activation === generation
+        ? processOpenState
+        : { activation: generation, completed: new Set(), failed: false })
+    if (state.running) return state.running
+    state.running = (async () => {
+      for (;;) {
+        if (closed || !open || activation !== generation) break
+        const pending = [...processOpeners].filter((callback) => !state.completed.has(callback))
+        if (!pending.length) break
+        for (const callback of pending) state.completed.add(callback)
+        await Promise.all(pending.map(runOpener))
+      }
+    })().finally(() => {
+      state.running = undefined
+    })
+    return state.running
+  }
+  function runProcessReadies(generation: number): Promise<void> {
+    const state = (processReadyState =
+      processReadyState?.activation === generation
+        ? processReadyState
+        : { activation: generation, completed: new Set() })
+    if (state.running) return state.running
+    state.running = (async () => {
+      await runProcessOpeners(generation)
+      for (;;) {
+        if (closed || !open || !ready || activation !== generation) break
+        const pending = [...processReadies].filter((callback) => !state.completed.has(callback))
+        if (!pending.length) break
+        for (const callback of pending) state.completed.add(callback)
+        for (const callback of pending) {
+          if (closed || !open || !ready || activation !== generation) return
+          try {
+            await callback()
+          } catch (error) {
+            const message = `Process onReady failed: ${String(error)}`
+            console.error(message)
+            notice(message)
+          }
+        }
+      }
+    })().finally(() => {
+      state.running = undefined
+    })
+    return state.running
+  }
+  const callChannel = <T>(facetHost: ExtensionHost, work: (channel: ChannelHost) => Promise<T>) => {
+    const calls = facetCalls.get(facetHost)
+    if (!calls || disposedFacets.has(facetHost))
+      return Promise.reject(new ChannelError('unavailable', 'Conversation service is unavailable'))
+    let promise: Promise<T>
+    try {
+      promise = work(runtime.channelHost())
+    } catch (error) {
+      return Promise.reject(error)
+    }
+    let tracked: Promise<T>
+    tracked = promise.finally(() => calls.delete(tracked))
+    calls.add(tracked)
+    return tracked
+  }
+  const scopedChannelHost = (facetHost: ExtensionHost): ChannelHost => ({
+    conversations: {
+      list: () => callChannel(facetHost, (channel) => channel.conversations.list()),
+      create: (input) => callChannel(facetHost, (channel) => channel.conversations.create(input)),
+      get: (id) => callChannel(facetHost, (channel) => channel.conversations.get(id)),
+      configure: (id, change) =>
+        callChannel(facetHost, (channel) => channel.conversations.configure(id, change)),
+      submit: (id, input) =>
+        callChannel(facetHost, (channel) => channel.conversations.submit(id, input)),
+      submission: (id, submissionId) =>
+        callChannel(facetHost, (channel) => channel.conversations.submission(id, submissionId)),
+      cancelQueuedInput: (id, submissionId) =>
+        callChannel(facetHost, (channel) =>
+          channel.conversations.cancelQueuedInput(id, submissionId),
+        ),
+      stop: (id) => callChannel(facetHost, (channel) => channel.conversations.stop(id)),
+      compact: (id, input) =>
+        callChannel(facetHost, (channel) => channel.conversations.compact(id, input)),
+      history: (id, page) =>
+        callChannel(facetHost, (channel) => channel.conversations.history(id, page)),
+      watch: (id, options) => {
+        const watches = facetWatchStops.get(facetHost)
+        if (!watches || disposedFacets.has(facetHost))
+          throw new ChannelError('unavailable', 'Conversation service is unavailable')
+        const updates = runtime.channelHost().conversations.watch(id, options)
+        const iterator = updates[Symbol.asyncIterator]()
+        let stopped = false
+        const finished = { value: undefined, done: true } as const
+        // Facet disposal ends the watch; the backend ends it on release or shutdown.
+        const stop = async () => {
+          if (stopped) return
+          stopped = true
+          watches.delete(stop)
+          await iterator.return?.()
+        }
+        watches.add(stop)
+        const scoped: AsyncIterableIterator<ConversationOutput> = {
+          [Symbol.asyncIterator]() {
+            return this
+          },
+          next: async () => {
+            if (stopped) return finished
+            try {
+              const result = await callChannel(facetHost, () => iterator.next())
+              if (result.done) await stop()
+              return result
+            } catch (error) {
+              await stop()
+              throw error
+            }
+          },
+          return: async () => {
+            await stop()
+            return finished
+          },
+        }
+        return scoped
+      },
+    },
+    models: {
+      list: () => callChannel(facetHost, (channel) => channel.models.list()),
+    },
+  })
   const apis = extensionApis(
     (name) => {
       const service = providers.get(name)
@@ -156,13 +395,25 @@ export async function loadExtensions(
   let missingApis = new Set<string>()
   const dispose = async (facetHost: ExtensionHost | undefined) => {
     if (!facetHost) return
+    disposedFacets.add(facetHost)
     apis.dispose(facetHost)
     for (const [name, service] of providers) if (service.owner === facetHost) providers.delete(name)
     provided.delete(facetHost)
     for (const stop of subscriptions.get(facetHost) ?? []) stop()
     subscriptions.delete(facetHost)
-    for (const callback of facetOpeners.get(facetHost) ?? []) openers.delete(callback)
+    for (const stop of facetWatchStops.get(facetHost) ?? []) await stop()
+    facetWatchStops.delete(facetHost)
+    const pending = [
+      facetOpenStates.get(facetHost)?.running,
+      facetReadyStates.get(facetHost)?.running,
+    ].filter((task): task is Promise<void> => task !== undefined)
+    await Promise.all(pending)
+    await Promise.allSettled(facetCalls.get(facetHost) ?? new Set<Promise<unknown>>())
+    facetCalls.delete(facetHost)
     facetOpeners.delete(facetHost)
+    facetReadies.delete(facetHost)
+    facetOpenStates.delete(facetHost)
+    facetReadyStates.delete(facetHost)
     for (const callback of facetReleasers.get(facetHost) ?? []) releasers.delete(callback)
     facetReleasers.delete(facetHost)
     for (const cleanup of facetCleanups.get(facetHost) ?? []) {
@@ -229,12 +480,29 @@ export async function loadExtensions(
       onOpen: (callback) => {
         if (sharedResource) extensionHost.onOpen(callback)
         else {
-          facetOpeners.get(facetHost)!.add(callback)
-          openers.add(callback)
-          // oxlint-disable-next-line typescript/no-floating-promises -- runOpener catches and reports opener failures.
-          if (open && [...facetHosts.values()].includes(facetHost)) void runOpener(callback)
+          const callbacks = facetOpeners.get(facetHost)
+          if (!callbacks || disposedFacets.has(facetHost)) return
+          callbacks.add(callback)
+          if (currentFacet(facetHost, activation))
+            // oxlint-disable-next-line typescript/no-floating-promises -- lifecycle runners report callback failures.
+            void runFacetOpeners(facetHost, activation).then(() =>
+              ready ? runFacetReadies(facetHost, activation) : undefined,
+            )
         }
       },
+      onReady: (callback) => {
+        if (sharedResource) extensionHost.onReady(callback)
+        else {
+          const callbacks = facetReadies.get(facetHost)
+          if (!callbacks || disposedFacets.has(facetHost)) return
+          callbacks.add(callback)
+          if (ready && currentFacet(facetHost, activation))
+            // oxlint-disable-next-line typescript/no-floating-promises -- lifecycle runners report callback failures.
+            void runFacetReadies(facetHost, activation)
+        }
+      },
+      channelHost: (): ChannelHost =>
+        sharedResource ? extensionHost.channelHost() : scopedChannelHost(facetHost),
       onRelease: (callback) => {
         if (sharedResource) extensionHost.onRelease(callback)
         else {
@@ -264,8 +532,11 @@ export async function loadExtensions(
     provided.set(facetHost, new Map())
     subscriptions.set(facetHost, stops)
     facetOpeners.set(facetHost, new Set())
+    facetReadies.set(facetHost, new Set())
     facetReleasers.set(facetHost, new Set())
     facetCleanups.set(facetHost, new Set())
+    facetCalls.set(facetHost, new Set())
+    facetWatchStops.set(facetHost, new Set())
     facetNotices.set(facetHost, new Map())
     return facetHost
   }
@@ -285,7 +556,6 @@ export async function loadExtensions(
       LiveDoc as never as ConversationDocToken<JsonObject>,
       ...[...documents.values()].flat(),
     ].find((doc) => doc.definition.kind === kind)
-  const openers = new Set<() => Promise<void>>()
   const loadErrorListeners = new Set<(name: string, error: string) => void>()
   const beforeLoad = new Set<() => Promise<void>>()
   /** Wait for the `onBeforeLoad` callbacks; the message of the first that failed. */
@@ -314,7 +584,6 @@ export async function loadExtensions(
       await environment.pluginContainer.watchChange(modules, { event: 'create' })
   }
   const releasers = new Set<() => Promise<void>>()
-  let open = false
   const cleanups = new Set<() => Promise<void>>()
   const resources = new Map<string, unknown>()
   async function invoke(
@@ -387,10 +656,20 @@ export async function loadExtensions(
       return resources.get(key) as T
     },
     onOpen: (callback) => {
-      openers.add(callback)
-      // oxlint-disable-next-line typescript/no-floating-promises -- runOpener catches and reports opener failures.
-      if (open) void runOpener(callback)
+      if (closed) return
+      processOpeners.add(callback)
+      if (open)
+        // oxlint-disable-next-line typescript/no-floating-promises -- lifecycle runners report callback failures.
+        void runProcessOpeners(activation)
     },
+    onReady: (callback) => {
+      if (closed) return
+      processReadies.add(callback)
+      if (ready)
+        // oxlint-disable-next-line typescript/no-floating-promises -- lifecycle runners report callback failures.
+        void runProcessReadies(activation)
+    },
+    channelHost: runtime.channelHost,
     onRelease: (callback) => {
       releasers.add(callback)
     },
@@ -493,7 +772,6 @@ export async function loadExtensions(
     pollActions.delete(name)
     settingsReloads.delete(name)
   }
-  let closed = false
   const settingsFiles = [
     ...extensionSettingsFiles(host.projectRoot, host.userHome),
     join(host.userHome, '.ultimate/trust.json'),
@@ -629,7 +907,6 @@ export async function loadExtensions(
           for (const [key, value] of provided.get(facetHost)!)
             providers.set(key, { owner: facetHost, value })
           await dispose(previousHost)
-          if (open) await Promise.all([...facetOpeners.get(facetHost)!].map(runOpener))
           actions.set(name, exportedActions)
           userActions.set(name, exportedUserActions)
           pollActions.set(name, exportedPollActions)
@@ -649,6 +926,11 @@ export async function loadExtensions(
             hooks: extension.hooks?.length ?? 0,
             docs: docs.map((doc) => doc.definition.kind),
             secrets,
+          }
+          if (open) {
+            openState(facetHost, activation)
+            await runFacetOpeners(facetHost, activation)
+            if (ready) await runFacetReadies(facetHost, activation)
           }
         } catch (error) {
           await dispose(facetHost)
@@ -841,26 +1123,66 @@ export async function loadExtensions(
     preparedToLoad,
     /** The harness is open: run the `onOpen` callbacks. */
     async opened() {
+      if (closed) throw new Error('Extensions are closed')
       trace.open()
       open = true
-      for (const [name, facetHost] of facetHosts)
+      ready = false
+      activation++
+      const generation = activation
+      processOpenState = undefined
+      processReadyState = undefined
+      for (const [name, facetHost] of facetHosts) {
+        openState(facetHost, generation)
         for (const [message, recorded] of facetNotices.get(facetHost) ?? [])
           if (!recorded) {
             log.notice(name, message)
             facetNotices.get(facetHost)!.set(message, true)
           }
-      await Promise.all([...openers].map(runOpener))
+      }
+      await Promise.all([
+        ...[...facetHosts.values()].map((facetHost) => runFacetOpeners(facetHost, generation)),
+        runProcessOpeners(generation),
+      ])
+    },
+    /** Open public readiness after the backend is admitted; callbacks may use its mutation port. */
+    async ready() {
+      if (closed || !open) throw new Error('Harness is not open')
+      ready = true
+      const generation = activation
+      await Promise.all([
+        ...[...facetHosts.values()].map((facetHost) => runFacetReadies(facetHost, generation)),
+        runProcessReadies(generation),
+      ])
     },
     /** The harness is about to close: run the `onRelease` callbacks. */
     async released() {
+      ready = false
       open = false
+      activation++
+      const pending = [
+        ...[...facetOpenStates.values()].map((state) => state.running),
+        ...[...facetReadyStates.values()].map((state) => state.running),
+        processOpenState?.running,
+        processReadyState?.running,
+      ].filter((task): task is Promise<void> => task !== undefined)
+      await Promise.all(pending)
       await Promise.all([...releasers].map(runReleaser))
       trace.close()
     },
     async close() {
       closed = true
+      ready = false
+      open = false
+      activation++
       unwatch()
       await chain
+      const pending = [
+        ...[...facetOpenStates.values()].map((state) => state.running),
+        ...[...facetReadyStates.values()].map((state) => state.running),
+        processOpenState?.running,
+        processReadyState?.running,
+      ].filter((task): task is Promise<void> => task !== undefined)
+      await Promise.all(pending)
       for (const facetHost of subscriptions.keys()) await dispose(facetHost)
       const results = await Promise.allSettled([...cleanups].map(async (cleanup) => cleanup()))
       for (const result of results)

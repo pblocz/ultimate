@@ -1,4 +1,5 @@
 import type { JsonValue } from '@earendil-works/chord/json'
+import type { InputSource } from './channel-host.ts'
 
 /** Ids of the work an event happened in, from the call trace: a reactor's run continues `traceId` under `parentCall`. */
 export type EventContext = {
@@ -77,6 +78,7 @@ export const UserInputEvent = defineEvent<
     submission?: number
     message?: number
     length: number
+    source?: InputSource
   } & Partial<Device>
 >('user.input')
 

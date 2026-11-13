@@ -172,6 +172,10 @@ async function fixture(
       },
       resource: (_key, create) => create(),
       onOpen: () => {},
+      onReady: () => {},
+      channelHost: () => {
+        throw new Error('Not used')
+      },
       onRelease: () => {},
       onClose: () => {},
       onLoadError: () => {},

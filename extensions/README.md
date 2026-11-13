@@ -97,7 +97,9 @@ One file each in `docs/extensions/`:
 - [places](../docs/extensions/places.md): built-in, user and project folders; enabling, disabling; tool-name
   layering; declaring secrets; agents and skills.
 - [server](../docs/extensions/server.md): server facets, the `ExtensionHost` fields, lifecycle and resources,
-  `reloadOnSettings`, `order`, prompt sections.
+  `onReady`, `reloadOnSettings`, `order`, prompt sections.
+- [channel host](../docs/extensions/channel-host.md): `host.channelHost()` for chat adapters: operations, readiness
+  and admission, input, history cursors, watches and recovery, safe output, cleanup.
 - [contracts](../docs/extensions/contracts.md): `api.ts` services and extension points, `refs.ts`, `ui.tsx`, web
   points, the `api-*` lint rules.
 - [core-tier](../docs/extensions/core-tier.md): the always-on core tier, its layers, one-way dependencies,
