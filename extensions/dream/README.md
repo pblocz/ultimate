@@ -8,7 +8,7 @@ A dream is ordinary work; code keeps only which branch is the dream, so its end 
 1. **Asked for.** The user tells @ultimate to dream, presses **Dream** (Memory surface header or ⌘K "Dream…"; user-only
    `start` gives @ultimate a `dream.requested` input), or a built-in automation fires (below).
 2. **Dreamed.** In that turn @ultimate writes its handoff into the prompt of one dream branch, which runs the six
-   passes as `dream-pass` subagents (`agents/dream-pass.md`) and answers with its journal and a `Decisions:` block.
+   passes as `dream-pass` subagents (`extensions/dream/agents/dream-pass.md`) and answers with its journal and a `Decisions:` block.
    The `dream-branch` reactor reads each `lineage.branched` event, from the start of the log: a branch @ultimate
    started in a turn that answered a `dream.requested` entry newer than the last dream's (its stamp's entry, read back
    to the turn's start) becomes `dream.next.dream { branch, requested, at }`.

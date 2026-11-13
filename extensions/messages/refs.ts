@@ -6,6 +6,9 @@
 import { actionRef, docRef } from '../../shared/extension-api.ts'
 import { defineEvent } from '../../shared/events.ts'
 
+/** Images from the sender's current turn, or from a named entry. */
+export type ImagesRef = 'latest' | number
+
 /**
  * Another project's Ultimate: its project and machine, and `id`, that instance's id of the same message (the sender's
  * for an incoming one, the target's once an outgoing one is delivered).

@@ -1,6 +1,6 @@
 import { constants } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { access, link, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -30,8 +30,7 @@ import { groupAlive } from '../../lib/process-group.ts'
 import { writeJson } from '../../lib/json-file.ts'
 import { SubagentsApi } from '../subagents/api.ts'
 import { MessagesApi } from '../messages/api.ts'
-import { LineageApi } from '../lineage/api.ts'
-import { AutomationsApi } from './api.ts'
+import { AutomationsApi, AutomationsWorkflow } from './api.ts'
 import {
   CreateAction,
   DeleteAction,
@@ -51,8 +50,18 @@ import {
 import { describeSchedule, nextAt, parseSchedule } from './schedule.ts'
 import { scheduler } from './scheduler.ts'
 import { triggers, TRIGGER_EVENTS, describeTrigger } from './triggers.ts'
-import { supervisor } from './supervisor.ts'
-import type { Prepared } from './supervisor.ts'
+import { notifications } from './delivery.ts'
+import {
+  automationRecord,
+  MANIFEST,
+  projectDirectory,
+  runPath as scriptRunPath,
+  scriptFolder,
+  scriptsRoot,
+  supervisorState,
+  validId,
+} from './support.ts'
+import type { Prepared } from './support.ts'
 import type {
   Args,
   Automation,
@@ -62,9 +71,9 @@ import type {
   Manifest,
   Subscriber,
 } from './types.ts'
-import { isSlug, STANDING } from './types.ts'
+import { isId, isSlug, STANDING } from './types.ts'
 export type { Automation, Run } from './types.ts'
-export { launchHandshake } from './supervisor.ts'
+export { handshake as launchHandshake } from '../../lib/process-group.ts'
 type Ledger = { next: number; automations: Record<string, Automation> }
 export const Automations = defineDoc<Ledger>({
   kind: 'ultimate.automations',
@@ -131,25 +140,106 @@ const operations = [
   'unsubscribe',
   'delete',
 ] as const
+class ScriptSupportUnavailable extends Error {}
 function backend(host: ExtensionHost) {
-  const schedule = scheduler(host, Automations, (...args) => scripts.deliver(...args))
-  const scripts = supervisor(host, Automations, schedule.fire)
+  const shared = supervisorState(host)
+  let loading: Promise<ReturnType<(typeof import('./supervisor.ts'))['supervisor']>> | undefined
+  const notification = notifications(host, async (...args) =>
+    (await scripts()).deliveryContent(...args),
+  )
+  const { deliver } = notification
+  const schedule = scheduler(host, Automations, deliver)
   const trigger = triggers(host, Automations, schedule.fire, schedule.prepareFires)
-  const {
-    trusted,
-    agentFor,
-    projectDir,
-    manifest,
-    committedManifest,
-    discover,
-    snapshot,
-    runPath,
-    validId,
-    agentConversation,
-    deliver,
-    tail,
-    MANIFEST,
-  } = scripts
+  const snapshot = (id: string) => automationRecord(host, Automations, id)
+  const runPath = (sub: Pick<Automation, 'id' | 'scope'>) => scriptRunPath(host, sub)
+  async function scripts() {
+    loading ??= import('./supervisor.ts')
+      .then(({ supervisor }) => supervisor(host, Automations, schedule.fire, deliver))
+      .catch(async (error: unknown) => {
+        loading = undefined
+        const missing = error as { code?: string }
+        // The schedule-only test omits this file. Vite 8 reports ERR_LOAD_URL; Node reports ERR_MODULE_NOT_FOUND.
+        if (
+          (missing.code === 'ERR_MODULE_NOT_FOUND' || missing.code === 'ERR_LOAD_URL') &&
+          !(await exists(new URL('./supervisor.ts', import.meta.url)))
+        )
+          throw new ScriptSupportUnavailable('Script automation support is not available', {
+            cause: error,
+          })
+        throw error
+      })
+    return loading
+  }
+  async function exists(path: string | URL) {
+    try {
+      await access(path)
+      return true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
+  }
+  async function directories(path: string) {
+    try {
+      return await readdir(path, { withFileTypes: true })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+      throw error
+    }
+  }
+  async function scriptWork(recovery = false) {
+    if (shared.runs.size || shared.launches.size || shared.effects.size) return true
+    const state = await host.harness().snapshot(Automations, BACKGROUND_CONTEXT)
+    if (Object.values(state?.automations ?? {}).some((a) => a.script)) return true
+    if (recovery)
+      for (const entry of await directories(scriptsRoot(host)))
+        if (
+          entry.isDirectory() &&
+          isId(entry.name) &&
+          (await exists(join(scriptFolder(host, entry.name), 'pid')))
+        )
+          return true
+    if ((await host.projectSetup()).decision !== true) return false
+    for (const entry of await directories(join(host.projectRoot, '.ultimate/automations')))
+      if (
+        entry.isDirectory() &&
+        isSlug(entry.name) &&
+        (await exists(join(projectDirectory(host, entry.name), MANIFEST)))
+      )
+        return true
+    return false
+  }
+  async function discover() {
+    if (!(await scriptWork())) return
+    try {
+      await (await scripts()).discover()
+    } catch (error) {
+      if (!(error instanceof ScriptSupportUnavailable)) throw error
+      // Keep stored script records when support is absent; ordinary schedules still work.
+      console.warn(error.message)
+    }
+  }
+  async function status(id: string): Promise<AutomationListItem> {
+    if (!validId(id).startsWith('A')) await discover()
+    const sub = await snapshot(id)
+    return { ...json(sub), alive: groupAlive(sub.script?.pid) }
+  }
+  async function open() {
+    shared.closing = false
+    if (!(await scriptWork(true))) return
+    try {
+      await (await scripts()).open()
+    } catch (error) {
+      if (!(error instanceof ScriptSupportUnavailable)) throw error
+      // Missing support must not delete records or prevent ordinary schedule recovery.
+      console.warn(error.message)
+    }
+  }
+  async function close() {
+    shared.closing = true
+    if (loading || shared.runs.size || shared.launches.size || shared.effects.size)
+      await (await scripts()).close()
+  }
   /** A subscriber as stored: `#id` and numbers become the conversation id, `@name` stays the standing agent's name. */
   async function subscriber(value: unknown): Promise<Subscriber> {
     if (typeof value === 'number' || (typeof value === 'string' && /^#[1-9]\d*$/.test(value))) {
@@ -175,6 +265,7 @@ function backend(host: ExtensionHost) {
     throw new Error('subscribers must be #id or @name')
   }
   async function prepareScript(args: Args, caller?: number): Promise<Prepared> {
+    const { trusted, agentFor, projectDir, manifest, committedManifest } = await scripts()
     if (args.action === 'create') {
       if (!caller) throw new Error('create requires a caller conversation')
       if (args.scope !== 'project') {
@@ -282,6 +373,9 @@ function backend(host: ExtensionHost) {
       }
     }
     if (args.action === 'escalate') required(args.reason, 'reason')
+    return prepareSubscriber(args, caller, prepared)
+  }
+  async function prepareSubscriber(args: Args, caller?: number, prepared: Prepared = {}) {
     if (args.action === 'subscribe' || args.action === 'unsubscribe') {
       if (args.to === undefined && !caller) throw new Error('Subscriber conversation is missing')
       // Unsubscribing takes what is stored, even a conversation since removed.
@@ -346,7 +440,9 @@ function backend(host: ExtensionHost) {
         return { result: sub }
       }
       const id = `A${state.next++}`
-      const conversationId = await agentConversation(
+      const conversationId = await (
+        await scripts()
+      ).agentConversation(
         tx,
         prepared,
         id,
@@ -384,7 +480,8 @@ function backend(host: ExtensionHost) {
     const id = validId(args.id)
     const sub = state.automations[id]
     if (!sub) throw new Error(`Unknown automation: ${id}`)
-    if (args.action === 'log') return { result: { text: await tail(id, args.lines) } }
+    if (args.action === 'log')
+      return { result: { text: await (await scripts()).tail(id, args.lines) } }
     sub.updatedAt = Date.now()
     if (args.action === 'subscribe')
       sub.subscribers = [...new Set([...sub.subscribers, prepared.subscriber!])]
@@ -407,7 +504,7 @@ function backend(host: ExtensionHost) {
     } else if (args.action === 'pause' || args.action === 'delete' || args.action === 'escalate') {
       const pid = sub.script!.pid
       if (args.action === 'escalate')
-        await scripts.escalate(tx, sub, required(args.reason, 'reason'))
+        await (await scripts()).escalate(tx, sub, required(args.reason, 'reason'))
       else {
         sub.enabled = false
         if (sub.script!.state !== 'done') sub.script!.state = 'stopped'
@@ -491,7 +588,7 @@ function backend(host: ExtensionHost) {
       throw new Error('secrets must be names')
     args.secrets?.forEach(validateName)
     if (args.action === 'update') {
-      const a = await scripts.status(required(args.id, 'id'))
+      const a = await status(required(args.id, 'id'))
       // A schedule, event or condition may become another of these; a script stays a script.
       const kinds = [args.schedule, args.event, args.condition].filter((v) => v !== undefined)
       if (
@@ -516,6 +613,7 @@ function backend(host: ExtensionHost) {
       return { keyed: true }
     await validate(args, caller)
     if (args.action === 'create') {
+      if (args.ask !== undefined) await scripts()
       const subscribers = args.subscribers?.length
         ? [...new Set(await Promise.all(args.subscribers.map(subscriber)))]
         : undefined
@@ -527,16 +625,18 @@ function backend(host: ExtensionHost) {
       return prepared
     }
     if (args.action === 'list') {
-      await scripts.discover()
+      await discover()
       return {}
     }
     if (args.action === 'events') return {}
-    const prepared: Prepared = await prepareScript(args, caller)
+    const sub = await status(validId(args.id))
+    if (!sub.script && args.action === 'escalate') required(args.reason, 'reason')
+    const prepared = sub.script
+      ? await prepareScript(args, caller)
+      : await prepareSubscriber(args, caller)
     const condition =
       args.condition ??
-      (args.action === 'resume'
-        ? (await scripts.status(required(args.id, 'id'))).condition
-        : undefined)
+      (args.action === 'resume' ? (await status(required(args.id, 'id'))).condition : undefined)
     if (condition) prepared.target = await trigger.resolve(condition.of)
     return prepared
   }
@@ -692,7 +792,7 @@ function backend(host: ExtensionHost) {
   }
   async function apply(receipt: Partial<Change>) {
     if (receipt.abort) await host.harness().abortTask(receipt.abort, BACKGROUND_CONTEXT)
-    await scripts.apply(receipt.effect)
+    if (receipt.effect) await (await scripts()).apply(receipt.effect)
   }
   async function operate(args: Args, caller?: number): Promise<JsonValue> {
     const prepared = await prepare(args, caller)
@@ -700,8 +800,7 @@ function backend(host: ExtensionHost) {
       .harness()
       .commit(async (tx) => json(await change(tx, args, prepared, caller)), BACKGROUND_CONTEXT)
     await apply(receipt)
-    if (receipt.effect?.action === 'resume')
-      return json(await scripts.status(required(args.id, 'id')))
+    if (receipt.effect?.action === 'resume') return json(await status(required(args.id, 'id')))
     return receipt.result
   }
   /**
@@ -716,7 +815,22 @@ function backend(host: ExtensionHost) {
       0
     )
   }
-  return { ...schedule, ...scripts, prepare, change, apply, operate, trigger }
+  return {
+    ...schedule,
+    ...notification,
+    prepare,
+    change,
+    apply,
+    operate,
+    trigger,
+    status,
+    open,
+    close,
+    runPath,
+    scriptSupport: scripts,
+    watcherYielded: async (id: number, answer: string) =>
+      (await scripts()).watcherYielded(id, answer),
+  }
 }
 function input(args: unknown, action: string): Args {
   return { ...(args as Omit<Args, 'action'>), action }
@@ -779,6 +893,7 @@ export const actions = {
     const api = backend(host)
     const a = await api.status(required(input(args, 'script').id, 'id'))
     if (!a.script) throw new Error('script requires a script trigger')
+    await api.scriptSupport()
     const path = api.runPath(a)
     try {
       const text = await readFile(path, 'utf8')
@@ -932,16 +1047,16 @@ export default function automations(host: ExtensionHost) {
           }
           await api.apply(receipt)
           if (caller !== tool.conversationId)
-            await host
-              .need(LineageApi)
-              .leaveNote(
-                caller,
-                `Side chat #${tool.conversationId} ${args.action === 'create' ? 'created' : 'subscribed to'} automation ${(receipt.result as Automation).id}.`,
-                {
-                  from: tool.conversationId,
-                  requestId: `sidechat:automation:${tool.taskId}:${tool.callId}`,
-                },
-              )
+            await host.want(AutomationsWorkflow)?.note(
+              {
+                from: tool.conversationId,
+                to: caller,
+                action: args.action as 'create' | 'subscribe',
+                automation: (receipt.result as Automation).id,
+                requestId: `sidechat:automation:${tool.taskId}:${tool.callId}`,
+              },
+              context,
+            )
           return tool.memo(
             'result',
             { output: [{ type: 'text' as const, text: concise(receipt.result!) }] },

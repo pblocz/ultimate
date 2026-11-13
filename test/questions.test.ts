@@ -13,7 +13,8 @@ import messagesExtension, {
   actions as messageActions,
   gist,
 } from '../extensions/messages/server.ts'
-import { Started } from '../extensions/messages/addresses.ts'
+import { Started } from '../extensions/messages/api.ts'
+import codingWorkflow from '../extensions/coding-workflow/server.ts'
 import { Messages } from '../extensions/messages/api.ts'
 import type { Question } from '../extensions/messages/api.ts'
 import { checkQuestions } from '../extensions/messages/questions.ts'
@@ -95,6 +96,7 @@ async function fixture() {
   services.set('workspaces', { doc: Workspaces })
   services.set('conversations', { concludedIn: async () => new Set() })
   prepared.registry.install(messagesExtension(host))
+  prepared.registry.install(codingWorkflow(host))
   prepared.registry.install(questionsExtension(host))
   const observed: string[] = []
   /** Runs with each input the agent reads, as an agent's tool calls would during its turn. */

@@ -16,6 +16,7 @@ import { Standing } from '../../subagents/api.ts'
 import type { SubagentsService } from '../../subagents/api.ts'
 import { createChild } from '../../subagents/children.ts'
 import automations, { actions, Automations } from '../server.ts'
+import messages from '../../messages/server.ts'
 import type { Automation } from '../types.ts'
 import { IDLE_TICK } from '../triggers.ts'
 import { temp, eventHost, until, apis } from '../../../test/helpers.ts'
@@ -26,7 +27,7 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
-async function fixture() {
+async function fixture(workflow = true) {
   const root = await temp('ultimate-triggers-')
   const prepared = await prepareHarness({
     ultimateRoot: root,
@@ -41,7 +42,7 @@ async function fixture() {
   let closer: () => Promise<void>
   let fail = false
   let rolledBack = false
-  const send = vi.fn<() => Promise<object>>(async () => ({}))
+  const escalate = vi.fn<() => Promise<undefined>>(async () => undefined)
   const host = {
     ...prepared,
     ...events,
@@ -67,7 +68,7 @@ async function fixture() {
     onClose: (fn: () => Promise<void>) => {
       closer = fn
     },
-    ...apis(new Map<string, unknown>([['messages', { send }]])),
+    ...apis(new Map<string, unknown>()),
     extensions: () => [{ name: 'subagents', enabled: true }],
     projectSetup: async () => ({ decision: false }),
     notice: (message: string) => {
@@ -75,6 +76,7 @@ async function fixture() {
     },
   }
   host.provided.set('subagents', {
+    residents: async () => [],
     // As the real one: the standing agent's conversation of the moment, the fixture's target before one is recorded.
     standing: async (name: string) =>
       name === 'ultimate'
@@ -84,6 +86,8 @@ async function fixture() {
     createChild: (tx: Tx, options: Parameters<SubagentsService['createChild']>[1]) =>
       createChild(host, tx, options),
   })
+  prepared.registry.install(messages(host as unknown as ExtensionHost))
+  if (workflow) host.provided.set('automations.workflow', { escalate })
   prepared.registry.install(automations(host as unknown as ExtensionHost))
   const answer = () => {
     prepared.faux!.appendResponses([answer])
@@ -131,7 +135,7 @@ async function fixture() {
     startEvents: events.start,
     stopEvents: events.stop,
     usage,
-    send,
+    escalate,
     get harness() {
       return opened.harness
     },
@@ -487,11 +491,13 @@ const floodTriggers: { kind: string; trigger: Record<string, JsonValue> }[] = [
   { kind: 'schedule', trigger: { schedule: 'every 1d' } },
   { kind: 'context', trigger: { condition: { metric: 'context', of: '@ultimate', above: 80 } } },
 ]
-it.each(floodTriggers)(
-  'pauses the seventh $kind fire in an hour and delivers escalation to subscribers',
-  async ({ trigger }) => {
+it.each(
+  floodTriggers.flatMap((trigger) => [true, false].map((workflow) => ({ ...trigger, workflow }))),
+)(
+  'pauses the seventh $kind fire and notifies subscribers (workflow: $workflow)',
+  async ({ trigger, workflow }) => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    const f = await fixture()
+    const f = await fixture(workflow)
     const a = (await f.action('create', {
       name: 'Flood',
       ...trigger,
@@ -505,7 +511,7 @@ it.each(floodTriggers)(
       const target = (await f.harness.conversation(f.target, context))!
       return (await target.context(context)).entries.some((e) => e.kind === 'automations.escalated')
     })
-    expect(f.send).toHaveBeenCalled()
+    expect(f.escalate).toHaveBeenCalledTimes(workflow ? 1 : 0)
     vi.setSystemTime(Date.now() + 3600001)
     await f.action('run', { id: a.id })
     expect((await f.record(a.id)).fires).toBe(7)

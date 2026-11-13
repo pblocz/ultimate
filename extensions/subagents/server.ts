@@ -50,13 +50,11 @@ import {
 import type { AgentDefinition, DefinitionFields } from '../../lib/agents.ts'
 import { createChild, started } from './children.ts'
 import { implementAction } from '../../lib/actions.ts'
-import { exec } from '../../lib/exec.ts'
 import { shortTitle } from '../../lib/title.ts'
-import { WorkspacesApi } from '../workspaces/api.ts'
-import { ConversationsApi, Marks } from '../conversations/api.ts'
+import { ConversationsApi, Marks, WorktreeSupport } from '../conversations/api.ts'
 import type { AgentMarkStyle } from '../conversations/refs.ts'
 import { Family, Pin } from '../models/api.ts'
-import { Profile, Runs, Standing, Subagents, SubagentsApi } from './api.ts'
+import { Profile, Runs, Standing, Subagents, SubagentsApi, SubagentsWorkflow } from './api.ts'
 import type { SubagentsService } from './api.ts'
 import { definitionRuns, refName, refOf } from '../../lib/families.ts'
 import { readFamilies } from '../../lib/families-settings.ts'
@@ -72,7 +70,6 @@ export const docs = [Subagents, Standing, Profile, Runs]
 
 /** The instructions of an agent `subagent start` makes on the fly, before the caller's own. */
 const ADHOC = `You were made for one task: do what your brief asks, and only that. Read the code and the repository instructions it touches first. Never delegate or push. Report problems instead of working around them. Answer with conclusions and their evidence (\`path:line\`, commands with their output), not dumps; say what you could not confirm.`
-const WRITE_TOOLS = ['edit', 'write']
 
 /** Record standing agent `definition`'s title and how its mark looks in conversations' marks doc, or that it asks for nothing. */
 const setMark = (
@@ -557,6 +554,7 @@ export default function subagents(
     | 'home'
     | 'projectSettings'
     | 'need'
+    | 'want'
     | 'implement'
     | 'resource'
     | 'extensions'
@@ -569,7 +567,12 @@ export default function subagents(
 ) {
   // Core services, always on; each handle resolves the current provider at every call.
   const conversations = host.need(ConversationsApi)
-  const workspaces = host.need(WorkspacesApi)
+  const worktrees = () => host.want(WorktreeSupport)
+  const requireWorktrees = () => {
+    const support = worktrees()
+    if (!support) throw new Error('Worktree isolation is not available')
+    return support
+  }
   const residentDefinitions = async () =>
     (
       await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
@@ -692,7 +695,7 @@ export default function subagents(
   /**
    * The definition a `start` runs: the named one with the call's family, model and thinking over its own, or, without
    * `agent`, one made on the fly from the call (`label`, neutral instructions plus the caller's, the parent's tools or a
-   * subset, a worktree when it can edit or write). A family or model the call names must have a login here: unlike a
+   * subset, and the optional coding feature's isolation choice). A family or model the call names must have a login here: unlike a
    * definition's pin, it is the point of the spawn, so it never falls back to the parent's model.
    */
   const spawnDefinition = async (
@@ -730,9 +733,7 @@ export default function subagents(
       instructions: [ADHOC, args.instructions?.trim()].filter(Boolean).join('\n\n'),
       family: 'default',
       ...(args.tools ? { tools: args.tools } : {}),
-      isolate: WRITE_TOOLS.some((tool) => !args.tools || args.tools.includes(tool))
-        ? 'worktree'
-        : 'none',
+      isolate: worktrees()?.defaultIsolation(args.tools) ?? 'none',
       summaries: false,
     }
     const chosen = args.family !== undefined || pinned !== undefined || !named
@@ -849,12 +850,10 @@ export default function subagents(
   })
   host.onOpen(async () => {
     await pruneRetired(BACKGROUND_CONTEXT)
-    // Every resident definition has its conversation from the start, in a fresh project and a new chapter alike, so
-    // the sidebar lists each one before anything addresses it (#568566). Creating one runs no turn. @ultimate keeps its
-    // own start: its row shows before it exists, the first page or Get ready makes it, and its start brings dream's
-    // automations.
+    // Residents have conversations from startup for the sidebar (#568566). Creation starts no turn.
+    // An optional workflow can reserve a resident for an explicit start.
     for (const { name } of await residentDefinitions())
-      if (name !== 'ultimate')
+      if (!host.want(SubagentsWorkflow)?.onDemand(name))
         await service
           .standing(name, BACKGROUND_CONTEXT)
           .catch((error: unknown) => host.notice(`Standing agent @${name}: ${String(error)}`))
@@ -1045,7 +1044,7 @@ export default function subagents(
             const rows = await Promise.all(
               Object.values(index.agents).map(async (agent) => ({
                 ...agent,
-                workspace: await workspaces.get(agent.conversationId, context),
+                workspace: await worktrees()?.get(agent.conversationId, context),
                 busy:
                   (await api.snapshot(LiveDoc, agent.conversationId, context))?.run !== undefined,
               })),
@@ -1058,12 +1057,13 @@ export default function subagents(
           )
             throw new Error('id must identify a child of this conversation')
           if (args.action === 'land' || args.action === 'discard') {
+            const support = requireWorktrees()
             if (await api.memo<boolean>('workspace-operation', context))
               throw new Error('Workspace operation interrupted; call again')
             await api.memo('workspace-operation', true, context)
             const operation = args.action
             return finish(
-              JSON.stringify(await workspaces[operation](args.id as ConversationId, context)),
+              JSON.stringify(await support[operation](args.id as ConversationId, context)),
             )
           }
           if (args.action === 'start' || args.action === 'message') {
@@ -1091,11 +1091,9 @@ export default function subagents(
             const label = definition && (args.agent ? (args.label ?? definition.name) : args.label!)
             const isolated =
               definition && (args.isolate ?? definition.isolate ?? 'none') === 'worktree'
-            const warning =
-              isolated &&
-              (await workspaces.git(parent.cwd ?? host.projectRoot, 'status', '--porcelain'))
-                ? '\nWarning: parent has uncommitted changes; they are not in the worktree.'
-                : ''
+            const warning = isolated
+              ? await requireWorktrees().warning(parent.cwd ?? host.projectRoot)
+              : ''
             const task = await api.getTask(api.taskId, context)
             // Pi upstream: @earendil-works/pi-durable@1.5.2 src/harness/tool.ts — internal ToolTaskInput.assistant locates the calling assistant. Drop when ToolExecutionApi exposes the calling assistant entry ID.
             const assistant = (task?.input as { assistant: EntryId } | undefined)?.assistant
@@ -1157,16 +1155,11 @@ export default function subagents(
                   background: args.background === true,
                   reported: [],
                 }
-                if (isolated) {
-                  const workspace = await workspaces.create(
-                    tx,
-                    child.id,
-                    parent.cwd ?? host.projectRoot,
-                  )
-                  await configure(tx, child.id, {
-                    instructions: `${definition.instructions}\nWork only in ${workspace.path} on ${workspace.branch}, cut from ${workspace.base}. Commit your work on this branch with clear messages. Never push and never touch other checkouts.`,
+                if (isolated)
+                  await requireWorktrees().prepare(tx, child.id, {
+                    cwd: parent.cwd ?? host.projectRoot,
+                    instructions: definition.instructions,
                   })
-                }
               }
               const reporter = await tx.createTask(
                 Reporter,
@@ -1182,7 +1175,7 @@ export default function subagents(
               state.actions[api.callId] = createdAction
               return createdAction
             }, context)
-            const isolate = await workspaces.get(action.conversationId, context)
+            const isolate = await worktrees()?.get(action.conversationId, context)
             const isolateInfo = isolate
               ? `\nIsolate: ${isolate.path}\nBranch: ${isolate.branch}${warning}`
               : ''
@@ -1304,27 +1297,9 @@ export default function subagents(
               await host.harness().abortTask(run.taskId, context)
               await api.waitForTask(run.taskId, context)
             }
-            // Report, never commit or delete: the coordinator decides what happens to the work.
-            const workspace = await workspaces.get(id, context)
-            // Untrimmed NUL-separated name lists: the git helper in lib/ trims, which would cut a
-            // leading space off the first name.
-            const list = (...command: string[]) =>
-              exec('git', [...command, '-z'], {
-                cwd: workspace!.path,
-                maxBuffer: 1024 * 1024,
-              }).then(({ stdout }) => stdout.split('\0').filter(Boolean))
-            const uncommitted =
-              workspace?.state === 'ready'
-                ? [
-                    ...new Set([
-                      ...(await list('diff', '--cached', '--name-only')),
-                      ...(await list('diff', '--name-only')),
-                      ...(await list('ls-files', '--others', '--exclude-standard')),
-                    ]),
-                  ]
-                : []
+            const uncommitted = (await worktrees()?.uncommitted(id, context)) ?? { files: [] }
             return finish(
-              `Stopped ${id}.${uncommitted.length ? `\nLeft uncommitted in ${workspace!.path}: ${uncommitted.join(', ')}` : ''}`,
+              `Stopped ${id}.${uncommitted.files.length ? `\nLeft uncommitted in ${uncommitted.path}: ${uncommitted.files.join(', ')}` : ''}`,
               info,
             )
           }

@@ -119,7 +119,7 @@ async function ask(server: Server, id: ConversationId, text: string) {
 it.concurrent('ships a resident Ultimate definition with valid tools; standing addresses create recipients and name both sides', async () => {
   const f = await fixture()
   const definition = parseDefinition(
-    await readFile(resolve('agents/ultimate.md'), 'utf8'),
+    await readFile(resolve('extensions/coding-workflow/agents/ultimate.md'), 'utf8'),
     'ultimate',
   )
   expect(definition.resident).toBe(true)
@@ -251,7 +251,7 @@ it.concurrent('starts a lineage branch with a message input and caller attributi
   const branchConversation = (await f.server.harness.conversation(branch, context))!
   const configured = await branchConversation.agent(context)
   const coordinator = parseDefinition(
-    await readFile(resolve('agents/coordinator.md'), 'utf8'),
+    await readFile(resolve('extensions/coding-workflow/agents/coordinator.md'), 'utf8'),
     'coordinator',
   )
   expect(coordinator.resident).not.toBe(true)
@@ -350,7 +350,8 @@ it.concurrent('refreshes standing definitions before delivering automatic replie
     if (text.startsWith('Message from') && text.includes('\nRoll after edit\n'))
       await writeFile(
         join(home, '.ultimate/agents/ultimate.md'),
-        (await readFile(resolve('agents/ultimate.md'), 'utf8')) + '\nEdited reply recipient.',
+        (await readFile(resolve('extensions/coding-workflow/agents/ultimate.md'), 'utf8')) +
+          '\nEdited reply recipient.',
       )
   })
   const ultimate = await f.subagents.standing('ultimate', context)
@@ -436,18 +437,23 @@ it.concurrent('re-applies an updated @ultimate definition on a typed input and n
   // The first run records what it saw silently.
   await ask(f.server, ultimate, 'first')
   expect(await notes()).toEqual([])
-  const path = join(f.root, 'agents/ultimate.md')
+  const path = join(f.root, 'extensions/coding-workflow/agents/ultimate.md')
   await writeFile(path, (await readFile(path, 'utf8')) + '\nNew rule: delegate extensions.\n')
   await writeFile(join(f.root, 'docs/subagents.md'), 'Changed docs.\n')
   // A typed input, not a Messages delivery, picks up the new definition.
   await ask(f.server, ultimate, 'second')
   expect(await instructions()).toContain('New rule: delegate extensions.')
   const [note] = await notes()
-  expect(note.data).toEqual({ instructions: ['agents/ultimate.md'], docs: ['docs/subagents.md'] })
-  expect(note.model?.[0]?.content).toContain('Instructions changed: agents/ultimate.md')
+  expect(note.data).toEqual({
+    instructions: ['extensions/coding-workflow/agents/ultimate.md'],
+    docs: ['docs/subagents.md'],
+  })
+  expect(note.model?.[0]?.content).toContain(
+    'Instructions changed: extensions/coding-workflow/agents/ultimate.md',
+  )
   // The note comes once per change.
   await ask(f.server, ultimate, 'third')
-  expect(await notes()).toHaveLength(1)
+  expect((await notes()).map((entry) => entry.data)).toEqual([note.data])
   // A definition a Messages delivery already applied, and a removed doc, are still named.
   await writeFile(path, (await readFile(path, 'utf8')) + '\nMessages rule.\n')
   await rm(join(f.root, 'docs/worktrees.md'))
@@ -456,9 +462,17 @@ it.concurrent('re-applies an updated @ultimate definition on a typed input and n
   await ask(f.server, ultimate, 'fourth')
   // Entries come newest first.
   expect((await notes())[0].data).toEqual({
-    instructions: ['agents/ultimate.md'],
+    instructions: ['extensions/coding-workflow/agents/ultimate.md'],
     docs: ['docs/worktrees.md (removed)'],
   })
+  // Other bundled definitions still count as docs after they move into an extension.
+  const worker = join(f.root, 'extensions/coding-workflow/agents/worker.md')
+  await writeFile(worker, (await readFile(worker, 'utf8')) + '\nWorker addition.\n')
+  await ask(f.server, ultimate, 'fifth')
+  expect((await notes())[0].data).toEqual({ docs: ['extensions/coding-workflow/agents/worker.md'] })
+  const recorded = (await notes()).map((entry) => entry.data)
+  await ask(f.server, ultimate, 'sixth')
+  expect((await notes()).map((entry) => entry.data)).toEqual(recorded)
   // Other conversations never get it.
   await writeFile(path, (await readFile(path, 'utf8')) + '\nAnother rule.\n')
   await ask(f.server, ROOT_CONVERSATION_ID, 'root')

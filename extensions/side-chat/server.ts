@@ -358,7 +358,7 @@ export function tracksEffect(name: string, args: Record<string, unknown>) {
   ].includes(name)
 }
 
-/** Read ahead of the user's first words in a side chat; agents/ultimate.md describes side chats the same way. */
+/** Read ahead of the user's first words; extensions/coding-workflow/agents/ultimate.md describes side chats the same way. */
 export function sideReminder(side: number, main: number, at: Date) {
   return [
     `You are in a side chat (#${side}): a temporary copy of @ultimate (#${main}), forked at ${at.toTimeString().slice(0, 5)}. Main keeps running without you.`,

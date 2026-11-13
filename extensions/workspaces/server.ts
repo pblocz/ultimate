@@ -20,7 +20,7 @@ import type { ActionInput } from '../../lib/actions.ts'
 import { empty, git, isolatable, noCommit, noRepository } from '../../lib/git.ts'
 import type { ActionContext } from '../../server/actions.ts'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { ConversationsApi, Release } from '../conversations/api.ts'
+import { ConversationsApi, Release, WorktreeSupport } from '../conversations/api.ts'
 import { Branches, WorkspacesApi } from './api.ts'
 import {
   DiskAction,
@@ -34,6 +34,7 @@ import {
 import { githubRepo } from '../../lib/project-identity.ts'
 import { sweepChecks } from './lander.ts'
 import { Workspaces, workspaces } from './workspaces.ts'
+import { subagentWorktrees } from './subagents.ts'
 export const order = -200
 export const docs = [Workspaces]
 export const userActions = ['setupGit']
@@ -141,6 +142,7 @@ export default function workspaceExtension(host: ExtensionHost) {
     doc: Workspaces,
     setupGit: () => setupGit(host),
   })
+  host.implement(WorktreeSupport, subagentWorktrees(service))
   // Concluding conversations frees their worktrees, through conversations' extension point.
   host.implement(Release, { release: (ids, caller) => service.release(ids, caller) })
   const resume = () =>

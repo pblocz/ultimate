@@ -7,9 +7,9 @@ patched `beforeInput` hook), and the `prompt.build` document records the last bu
 conversation records its first build silently, and a fork starts from its parent's.
 
 The primary agent (@ultimate) also follows its instructions there. When its definition's
-text differs from the conversation's, the hook re-applies it, so a typed input picks up an updated `agents/ultimate.md`
+text differs from the conversation's, the hook re-applies it, so a typed input picks up an updated `extensions/coding-workflow/agents/ultimate.md`
 as Messages deliveries already did. The document keeps a hash of each project context file (`AGENTS.md`) and of the
-clone's `AGENTS.md`, `docs/*.md` and `agents/*.md`, and the note names the definition re-applied and the files changed
+clone's `AGENTS.md`, `docs/*.md`, `agents/*.md`, and enabled extensions' `agents/*.md`, and the note names the definition re-applied and the files changed
 since the last run ("Instructions changed: … · Docs changed: …"). Other agents keep the instructions they started with.
 
 A build note also names what landed: the document keeps the clone's commit each run started on, and the first-parent

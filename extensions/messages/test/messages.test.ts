@@ -37,6 +37,7 @@ import type { ActionContext } from '../../../server/actions.ts'
 import { Metadata } from '../../../server/metadata.ts'
 import { emit } from '../../../server/events.ts'
 import messagesExtension, { actions } from '../server.ts'
+import codingWorkflow from '../../coding-workflow/server.ts'
 import pauseExtension, { actions as pauseActions } from '../../pause/server.ts'
 import { Messages, MessageSent } from '../api.ts'
 import { send as sendMessage } from '../send.ts'
@@ -107,6 +108,7 @@ async function fixture(
     /** Only this conversation's calls wait at the gate. */
     conversation?: () => number
   },
+  workflow = true,
 ) {
   /** Services other extensions implement here, by API name, such as pause's `messages.gate`. */
   const provided = new Map<string, unknown>()
@@ -115,7 +117,7 @@ async function fixture(
   await mkdir(join(home, 'agents'), { recursive: true })
   await writeFile(
     join(home, 'agents/coordinator.md'),
-    await readFile(resolve('agents/coordinator.md'), 'utf8'),
+    await readFile(resolve('extensions/coding-workflow/agents/coordinator.md'), 'utf8'),
   )
   const prepared = await prepareHarness({
     home,
@@ -156,8 +158,8 @@ async function fixture(
     metadata: Metadata,
     emit,
     harness: () => opened.harness,
-    // Messages also implements workspaces' branches point; the tests call its own service.
     implement: (api: { name: string }, value: MessagesService) => {
+      provided.set(api.name, value)
       if (api.name === 'messages') service = value
     },
     want: provider,
@@ -172,10 +174,12 @@ async function fixture(
       kind === 'lineage.roots' ? Roots : kind === 'lineage.tally' ? Tally : undefined,
   } as unknown as ExtensionHost
   let backend = messagesExtension(host)
-  if (sendGate)
-    backend = {
-      ...backend,
-      tools: backend.tools!.map((tool) => ({
+  const workflowBackend = workflow ? codingWorkflow(host) : undefined
+  const gateTools = (extension: typeof backend): typeof backend => {
+    if (!sendGate) return extension
+    return {
+      ...extension,
+      tools: extension.tools!.map((tool) => ({
         ...tool,
         execute: (...[input, api, ctx]: Parameters<typeof tool.execute>) =>
           tool.execute(
@@ -203,6 +207,9 @@ async function fixture(
           ),
       })),
     }
+  }
+  backend = gateTools(backend)
+  if (workflowBackend) prepared.registry.install(gateTools(workflowBackend))
   prepared.registry.install(
     replyGate
       ? {
@@ -412,6 +419,83 @@ async function worker(f: Awaited<ReturnType<typeof fixture>>) {
   }, context)
   return (await f.opened.harness.conversation(childId, context))!
 }
+it('delivers numeric and named messages without a workflow or primary privilege', async () => {
+  const f = await fixture(undefined, undefined, false)
+  await f.send(`#${f.recipient.id}`)
+  await until(async () => (await replies(f)).length === 1)
+  await f.send('@scout', 'Named recipient', { reply: false })
+  await until(async () => (await f.log())!.messages.at(-1)?.state === 'delivered')
+  expect((await f.log())!.messages.at(-1)).toMatchObject({
+    to: f.recipient.id,
+    text: 'Named recipient',
+  })
+  const sent = await eventHost(() => f.opened.harness, 'test').eventLog.recent({
+    events: [MessageSent],
+  })
+  expect(sent.every((event) => !event.data.steer)).toBe(true)
+})
+it('does not grant user or remote actions when the workflow is absent', async () => {
+  const f = await fixture(undefined, undefined, false)
+  await expect(
+    f.service().send(1, { to: 'user', text: 'Not authorized', reply: false }, 'denied', context),
+  ).rejects.toThrow('Messaging the user is not available')
+  await expect(
+    actions.settle(
+      { messageId: 1, text: 'Not authorized' },
+      {
+        ...f.action(),
+        conversationId: 1,
+      },
+    ),
+  ).rejects.toThrow('The coding workflow is not available')
+  await expect(
+    actions.remote(
+      {
+        key: 'incoming',
+        text: 'Not authorized',
+        reply: true,
+        from: {
+          project: 'other',
+          machine: 'host',
+        },
+      },
+      f.action(),
+    ),
+  ).rejects.toThrow('The coding workflow is not available')
+  await expect(
+    actions.remoteReply({ key: 'incoming', text: 'Not authorized' }, f.action()),
+  ).rejects.toThrow('The coding workflow is not available')
+  await expect(
+    f.service().tell(1, { project: 'other', text: 'Not authorized' }, context),
+  ).rejects.toThrow('The coding workflow is not available')
+  expect((await f.log())?.messages ?? []).toEqual([])
+})
+it('keeps child messages restricted to their parent without a workflow', async () => {
+  const f = await fixture(undefined, undefined, false)
+  const child = await worker(f)
+  await expect(
+    f.service().send(
+      child.id,
+      {
+        to: `#${f.recipient.id}`,
+        text: 'Not my parent',
+        reply: false,
+      },
+      'wrong-parent',
+      context,
+    ),
+  ).rejects.toThrow('message only #1')
+  expect((await f.log())?.messages ?? []).toEqual([])
+  await f
+    .service()
+    .send(child.id, { to: '#1', text: 'Parent update', reply: false }, 'parent', context)
+  await until(async () => (await f.log())?.messages.at(-1)?.state === 'delivered')
+  const entries = (await f.opened.root.context(context)).entries
+  expect(entries.find((entry) => entry.kind === 'board.message')?.data).toMatchObject({
+    from: child.id,
+    delivery: 'note',
+  })
+})
 it('places an idle parent update as a note without starting a run', async () => {
   const f = await fixture()
   const child = await worker(f)
@@ -959,12 +1043,17 @@ async function codemodeFixture() {
   const home = await temp('ultimate-messages-actions-')
   homes.push(home)
   await mkdir(join(home, 'extensions/messages'), { recursive: true })
+  await mkdir(join(home, 'extensions/coding-workflow'), { recursive: true })
   await mkdir(join(home, 'extensions/codemode'), { recursive: true })
   await mkdir(join(home, 'web'))
   await linkDependencies(home)
   await writeFile(
     join(home, 'extensions/messages/server.ts'),
-    `export { default, actions, docs } from ${JSON.stringify(resolve('extensions/messages/server.ts'))}`,
+    `export { default, actions, docs, userActions } from ${JSON.stringify(resolve('extensions/messages/server.ts'))}`,
+  )
+  await writeFile(
+    join(home, 'extensions/coding-workflow/server.ts'),
+    `export { default } from ${JSON.stringify(resolve('extensions/coding-workflow/server.ts'))}`,
   )
   await writeFile(
     join(home, 'extensions/codemode/server.ts'),

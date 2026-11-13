@@ -92,6 +92,7 @@ async function fixture(
     metadata: Metadata,
     implement: () => {},
     need: idleNeed,
+    want: () => undefined,
     resource: (_key, create) => create(),
     extensions: () => [],
     notice: () => {},
@@ -440,6 +441,49 @@ it('makes an agent on the fly from the call, read-only without a worktree, and r
   expect(await f.opened.harness.snapshot(Metadata, child.conversationId, context)).toMatchObject({
     label: 'dead-code scan',
   })
+})
+
+it('lets a writable child use the shared workspace when worktree support is absent', async () => {
+  const f = await fixture(undefined, undefined, undefined, (transcript) => {
+    const last = transcript.messages.findLast((message) => message.role !== 'system')!
+    if (last.role === 'user' && last.content === 'WRITE_SHARED')
+      return fauxAssistantMessage(
+        fauxToolCall('write', { path: 'shared.txt', content: 'from child' }),
+        { stopReason: 'toolUse' },
+      )
+    return undefined
+  })
+  const result = await call(f.opened, {
+    action: 'start',
+    label: 'writer',
+    model: 'faux/faux-1',
+    tools: ['read', 'write'],
+    task: 'WRITE_SHARED',
+  })
+  expect(result.tool.kind).toBe('pi.tool-result')
+  const [child] = await children(f.opened)
+  const agent = await (await f.opened.harness.conversation(child.conversationId, context))!.agent(
+    context,
+  )
+  expect(agent.cwd).toBe(f.ultimateRoot)
+  expect(await readFile(join(f.ultimateRoot, 'shared.txt'), 'utf8')).toBe('from child')
+  expect(await readdir(f.ultimateRoot)).not.toContain('.git')
+})
+
+it('refuses unsupported worktrees before child creation and respects an explicit shared override', async () => {
+  const f = await fixture()
+  await writeFile(
+    join(f.ultimateRoot, 'agents/scout.md'),
+    definition().replace('tools: [read, bash]\n', 'tools: [read, bash]\nisolate: worktree\n'),
+  )
+  for (const args of [{}, { isolate: 'worktree' }]) {
+    const result = await call(f.opened, { action: 'start', agent: 'scout', task: 'Scan', ...args })
+    expect(result.text).toContain('Worktree isolation is not available')
+    expect(await children(f.opened)).toHaveLength(0)
+  }
+  await call(f.opened, { action: 'start', agent: 'scout', task: 'Scan', isolate: 'none' })
+  expect(await children(f.opened)).toHaveLength(1)
+  expect(await readdir(f.ultimateRoot)).not.toContain('.git')
 })
 
 it('routes asynchronous leaf reports only to their lead, not the root', async () => {

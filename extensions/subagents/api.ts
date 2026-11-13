@@ -96,4 +96,10 @@ export type SubagentsService = {
 }
 /** Child conversations and standing agents; `need` it where delegation is required, else `want` it. */
 export const SubagentsApi = defineApi<SubagentsService>()('subagents')
+export type SubagentsWorkflowService = {
+  /** Whether the owning workflow starts this resident only on demand; other residents start on open. */
+  onDemand(name: string): boolean
+}
+/** Optional workflow rules for residents; ordinary child agents do not require a provider. */
+export const SubagentsWorkflow = defineApi<SubagentsWorkflowService>()('subagents.workflow')
 export const tier = 'core'

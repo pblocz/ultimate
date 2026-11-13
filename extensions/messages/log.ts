@@ -1,19 +1,20 @@
 /** The shared Messages log: appending to it, and the terminal outcome its tasks commit. */
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import type { ConversationId, Tx } from '@earendil-works/pi-durable'
+import type { Tx } from '@earendil-works/pi-durable'
 import { isOpen } from '../../lib/message-state.ts'
 import { Messages } from './api.ts'
-import type { Message } from './api.ts'
-import { Started } from './addresses.ts'
+import type { Message, MessagesWorkflowService } from './api.ts'
 
-export async function append(tx: Tx, input: Omit<Message, 'id' | 'at'>) {
+export async function append(
+  tx: Tx,
+  input: Omit<Message, 'id' | 'at'>,
+  workflow?: Pick<MessagesWorkflowService, 'replyAwaits'>,
+) {
   const log = await tx.doc(Messages, ROOT_CONVERSATION_ID)
-  // A branch's reply to its starter awaits the starter's answer, which `board.route` sends down; anyone else's reply
-  // (a standing agent's) just answered and awaits nothing.
   const awaits =
     input.re !== undefined &&
     typeof input.from === 'number' &&
-    (await tx.doc(Started, input.from as ConversationId)).by === input.to
+    (await workflow?.replyAwaits(tx, input.from, input.to)) === true
   const message = {
     ...input,
     ...(awaits ? { awaits: true as const } : {}),

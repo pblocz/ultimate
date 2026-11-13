@@ -27,15 +27,16 @@ extension depending on an optional one. The core layers, lowest first, each depe
 4. workspaces: worktrees and the lander.
 5. subagents: child conversations and standing agents.
 6. lineage: roots, branches, tallies, notes.
-7. messages: delivery and the `branch` tool.
+7. messages: delivery, replies, and optional workflow points.
 8. onboarding and agent.
 9. sidebar: the sidebar and the @ultimate button, the UI that brings the core together.
 
 Where a lower extension needs something a higher one knows, it declares the contract and the higher one fills it:
-server extension points (`conversations.trees` and `conversations.release` from conversations, `workspaces.branches`
-from workspaces), web points (`conversations.phase`, `conversations.task`, `conversations.unsummarized`,
+server extension points (`conversations.trees`, `conversations.release`, and `conversations.worktrees` from
+conversations, `workspaces.branches` from workspaces, `messages.workflow` from messages, `subagents.workflow` from
+subagents), web points (`conversations.phase`, `conversations.task`, `conversations.unsummarized`,
 `messages.answers`, `lineage.memory-header`, `workspaces.review`), or durable events (`workspaces.landed`,
-`models.login-changed`). Optional extensions plug into the core the same way: phase, plan and questions provide
-points and react to events; the core never imports them. A web point is `definePoint` in the owner's `ui.tsx`,
+`models.login-changed`). Optional extensions plug into the core the same way: phase, plan, questions, and
+`coding-workflow` provide points and react to events; the core never imports them. A web point is `definePoint` in the owner's `ui.tsx`,
 rendered with `<Provided>` and filled by `provides` in another facet (see
 [Web points](contracts.md#web-points)).

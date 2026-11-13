@@ -39,8 +39,9 @@ import { setAutomaticSummaries, Summaries } from '../../../conversations/summary
 import { setStanding } from '../../../conversations/server.ts'
 import self from '../../../self/server.ts'
 import messagesExtension from '../../../messages/server.ts'
+import codingWorkflow from '../../../coding-workflow/server.ts'
 import { Messages, MessagesApi } from '../../../messages/api.ts'
-import { Started } from '../../../messages/addresses.ts'
+import { Started } from '../../../messages/api.ts'
 import promptExtension, { order as promptOrder } from '../../../prompt/server.ts'
 import subagents from '../../../subagents/server.ts'
 import { Subagents } from '../../../subagents/api.ts'
@@ -151,7 +152,10 @@ async function fixture(
     }),
   )
   const service = workspaces(host)
-  if (messagesEnabled) prepared.registry.install(messagesExtension(host))
+  if (messagesEnabled) {
+    prepared.registry.install(messagesExtension(host))
+    prepared.registry.install(codingWorkflow(host))
+  }
   prepared.registry.install(workspaceExtension(host))
   prepared.registry.install(self(host))
   prepared.registry.install(subagents(host))
@@ -276,7 +280,15 @@ async function holdGit(path: string, command: string, fail = false) {
     `#!/bin/sh
 cat >/dev/null
 [ "$1" = prepared ] && [ ! -f '${started}' ] || exit 0
-case "$(ps -ww -p "$PPID" -o args=)" in "git ${command} "*) ;; *) exit 0 ;; esac
+# Git 2.39 runs worktree hooks in its branch/reset subprocess; find the original command in its parents.
+parent=$PPID
+matched=false
+while [ "$parent" -gt 1 ]; do
+  case "$(ps -ww -p "$parent" -o args=)" in "git ${command} "*) matched=true; break ;; esac
+  parent=$(ps -p "$parent" -o ppid= | tr -d ' ')
+  [ -n "$parent" ] || break
+done
+[ "$matched" = true ] || exit 0
 mkfifo '${gate}'
 touch '${started}'
 read release < '${gate}'
@@ -667,6 +679,43 @@ it('isolated restart refuses before landing and accepts a clean running clone at
   expect(JSON.stringify(await f.call(id, 'restart'))).toContain('land your workspace into')
   expect(f.restart).toHaveBeenCalledOnce()
 })
+it.concurrent.each([
+  { name: 'named worktree default', args: { agent: 'worker' }, isolated: true },
+  {
+    name: 'writable agent made on the fly',
+    args: { label: 'writer', model: 'faux/faux-1', tools: ['read', 'write'] },
+    isolated: true,
+  },
+  {
+    name: 'explicit shared workspace over a worktree definition',
+    args: { agent: 'worker', isolate: 'none' },
+    isolated: false,
+  },
+])('preserves $name when the parent has uncommitted changes', async ({ args, isolated }) => {
+  const f = await fixture()
+  await writeFile(join(f.projectRoot, 'base.txt'), 'parent change')
+  const result = await f.call(f.opened.root.id, 'subagent', {
+    action: 'start',
+    task: 'finish',
+    ...args,
+  })
+  const children = Object.values(
+    (await f.opened.harness.snapshot(Subagents, f.opened.root.id, context))!.agents,
+  )
+  expect(children).toHaveLength(1)
+  const id = children[0].conversationId
+  const child = (await f.opened.harness.conversation(id, context))!
+  const agent = await child.agent(context)
+  const workspace = await f.service.get(id, context)
+  expect(workspace?.state).toBe(isolated ? 'ready' : undefined)
+  expect(agent.cwd).toBe(isolated ? workspace!.path : f.projectRoot)
+  expect(await readFile(join(agent.cwd!, 'base.txt'), 'utf8')).toBe(
+    isolated ? 'base' : 'parent change',
+  )
+  expect(JSON.stringify(result).includes('Warning: parent has uncommitted changes')).toBe(isolated)
+  expect(await readFile(join(f.projectRoot, 'base.txt'), 'utf8')).toBe('parent change')
+})
+
 it.concurrent('starts a worker isolate, commits in the child and lands it through the parent tool', async () => {
   const f = await fixture()
   const result = await f.call(f.opened.root.id, 'subagent', {

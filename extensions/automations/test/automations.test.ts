@@ -14,6 +14,7 @@ import type { OpenHost } from '../../../server/harness.ts'
 import { Metadata } from '../../../server/metadata.ts'
 import { Profile } from '../../subagents/api.ts'
 import automations, { actions, Automations } from '../server.ts'
+import messages from '../../messages/server.ts'
 import type { Automation } from '../server.ts'
 import type { ActionContext } from '../../../server/actions.ts'
 import type { SubagentsService } from '../../subagents/api.ts'
@@ -88,8 +89,10 @@ async function fixture() {
     ...apis(provided),
   }
   provided.set('subagents', {
+    residents: async () => [],
     createChild: (tx, options) => createChild(host, tx, options),
   } satisfies Partial<SubagentsService>)
+  prepared.registry.install(messages(host as unknown as Parameters<typeof messages>[0]))
   const extension = automations(host as unknown as Parameters<typeof automations>[0])
   prepared.registry.install(extension)
   const route: FauxResponseFactory = (transcript) => {

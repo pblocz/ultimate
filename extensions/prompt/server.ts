@@ -15,7 +15,7 @@ import {
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import type { ConversationSummary } from '../../shared/protocol.ts'
-import { discoverAgents } from '../../lib/agents.ts'
+import { agentRoots, discoverAgents } from '../../lib/agents.ts'
 import { git } from '../../lib/git.ts'
 import { shortTitle } from '../../lib/title.ts'
 import { Standing } from '../subagents/api.ts'
@@ -104,17 +104,20 @@ export async function landings(
 
 const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16)
 
-/** Ultimate's own docs the primary agent reads on demand, by absolute path: `AGENTS.md`, `docs/*.md`, `agents/*.md`. */
-async function cloneDocs(ultimateRoot: string, files: Record<string, string>) {
+/** The clone's docs and bundled definitions, including definitions in enabled extensions. */
+async function cloneDocs(host: ExtensionHost, files: Record<string, string>) {
   const listed = async (folder: string) =>
     // A missing folder lists nothing.
-    (await readdir(join(ultimateRoot, folder)).catch(() => [] as string[]))
+    (await readdir(folder).catch(() => [] as string[]))
       .filter((name) => name.endsWith('.md'))
-      .map((name) => join(ultimateRoot, folder, name))
+      .map((name) => join(folder, name))
+  const roots = (await agentRoots(host.ultimateRoot, host.projectRoot, host.userHome)).filter(
+    (root) => root.source === 'builtin' && !relative(host.ultimateRoot, root.path).startsWith('..'),
+  )
   const paths = [
-    join(ultimateRoot, 'AGENTS.md'),
-    ...(await listed('docs')),
-    ...(await listed('agents')),
+    join(host.ultimateRoot, 'AGENTS.md'),
+    ...(await listed(join(host.ultimateRoot, 'docs'))),
+    ...(await Promise.all(roots.map((root) => listed(root.path)))).flat(),
   ]
   for (const path of paths) {
     // A doc removed between the listing and the read is simply not there.
@@ -164,7 +167,7 @@ async function instructionChanges(
   // Keyed by absolute path, so the project's and the clone's AGENTS.md stay apart (and are one file when the clone is
   // the project).
   const files: Record<string, string> = {}
-  await cloneDocs(host.ultimateRoot, files)
+  await cloneDocs(host, files)
   for (const file of loadProjectContextFiles({
     cwd: host.projectRoot,
     agentDir: join(host.userHome, '.ultimate'),

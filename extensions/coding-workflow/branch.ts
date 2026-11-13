@@ -14,10 +14,8 @@ import { Family } from '../models/api.ts'
 import { readFamilies } from '../../lib/families-settings.ts'
 import { LineageApi, Roots } from '../lineage/api.ts'
 import { actingAs } from '../../lib/acting-as.ts'
-import { imagesParameter } from './images.ts'
-import { send } from './send.ts'
-import { Started } from './addresses.ts'
-import { Messages } from './api.ts'
+import { Messages, MessagesApi, Started } from '../messages/api.ts'
+import { imagesParameter } from '../../lib/entries.ts'
 import { isOwed } from '../../lib/message-state.ts'
 
 export const branchTool = (host: ExtensionHost) =>
@@ -119,8 +117,7 @@ export const branchTool = (host: ExtensionHost) =>
         }, ctx)
         id = await api.memo('branch-id', branch.id, ctx)
       }
-      const message = await send(
-        host,
+      const message = await host.need(MessagesApi).dispatch(
         from,
         {
           to: `#${id}`,

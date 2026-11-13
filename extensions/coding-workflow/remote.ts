@@ -1,21 +1,17 @@
 /** Messaging another project's Ultimate: `tell` out, and the `remote` and `remoteReply` actions it posts in. */
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@earendil-works/chord/context'
-import type { JsonValue } from '@earendil-works/chord/json'
 import type { EntryId } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { defineDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import type { ActionContext } from '../../server/actions.ts'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { Standing, SubagentsApi } from '../subagents/api.ts'
 import { locate, postAction, selfAddress } from '../../lib/remote.ts'
 import { discoverAgents } from '../../lib/agents.ts'
-import { Messages, MessageSent } from './api.ts'
-import type { Message } from './api.ts'
-import { append } from './log.ts'
+import { Messages, MessagesApi, MessageSent } from '../messages/api.ts'
+import type { Message, MessagesWorkflowService } from '../messages/api.ts'
 import { isOpen } from '../../lib/message-state.ts'
-import { remoteLabel, senderName } from './addresses.ts'
-import { delivery } from './delivery.ts'
+import { remoteLabel } from './addresses.ts'
 
 /** What this instance told another project's Ultimate, kept until its answer arrives, apart from the bounded log. */
 type Told = { message: Message; answer?: number }
@@ -38,11 +34,6 @@ const RemoteDoc = defineDoc<{
 })
 const unknownKey = () =>
   new Error('No message from this Ultimate that expects a reply has that key')
-const field = (value: unknown, name: string, max: number) => {
-  if (typeof value !== 'string' || !value.trim() || value.length > max)
-    throw new Error(`${name} must be a nonempty string of at most ${max} characters`)
-  return value
-}
 /**
  * The other projects on this machine with their standing agents besides @ultimate, read from local files only (no
  * network on a render). Undefined when there are none.
@@ -120,7 +111,7 @@ export async function tell(
     return { message: sent.id, delivered: sent.remote.id }
   const id = await host.harness().commit(async (tx) => {
     if (sent) return sent.id
-    const message = await append(tx, {
+    const message = await host.need(MessagesApi).append(tx, {
       from,
       to: 'remote',
       text: input.text,
@@ -180,23 +171,17 @@ export async function tell(
  * `{ key, text, reply, from: { project, machine } }`: another project's Ultimate messages this instance's primary
  * agent, the only conversation it can reach. A repeated `key` returns the first delivery's id.
  */
-export async function remoteAction(args: JsonValue, { host }: ActionContext) {
-  const input = (args ?? {}) as Record<string, unknown>
-  const from = (input.from ?? {}) as Record<string, unknown>
-  const key = field(input.key, 'key', 100)
-  const body = field(input.text, 'text', 100_000)
-  const sender = {
-    project: field(from.project, 'from.project', 200),
-    machine: field(from.machine, 'from.machine', 200),
-  }
-  if (typeof input.reply !== 'boolean') throw new Error('reply must be a boolean')
-  const reply = input.reply
+export async function remoteAction(
+  input: Parameters<MessagesWorkflowService['remote']>[0],
+  host: ExtensionHost,
+) {
+  const { key, text: body, from: sender, reply } = input
   const to = await host.need(SubagentsApi).standing('ultimate', BACKGROUND_CONTEXT)
-  const toLabel = await senderName(host, to, BACKGROUND_CONTEXT)
+  const toLabel = await host.need(MessagesApi).label(to, BACKGROUND_CONTEXT)
   return host.harness().commit(async (tx) => {
     const { received } = await tx.doc(RemoteDoc, ROOT_CONVERSATION_ID)
     if (Object.hasOwn(received, key)) return received[key]
-    const message = await append(tx, {
+    const message = await host.need(MessagesApi).append(tx, {
       from: 'remote',
       to,
       text: body,
@@ -212,21 +197,13 @@ export async function remoteAction(args: JsonValue, { host }: ActionContext) {
       reply,
       steer: true,
     })
-    await tx.createTask(
-      delivery(host),
-      {
-        message,
-        steer: true,
-        note: false,
-        fromLabel: remoteLabel(sender),
-        toLabel,
-      },
-      {
-        conversationId: ROOT_CONVERSATION_ID,
-        ownership: { kind: 'conversation' },
-        background: true,
-      },
-    )
+    await host.need(MessagesApi).deliver(tx, {
+      message,
+      steer: true,
+      note: false,
+      fromLabel: remoteLabel(sender),
+      toLabel,
+    })
     return message.id
   }, BACKGROUND_CONTEXT)
 }
@@ -235,16 +212,19 @@ export async function remoteAction(args: JsonValue, { host }: ActionContext) {
  * the teller as a reply that expects none; a second answer returns the first one's id, and a message that expects no
  * reply refuses it, so two Ultimates cannot keep answering each other.
  */
-export async function remoteReplyAction(args: JsonValue, { host }: ActionContext) {
-  const input = (args ?? {}) as Record<string, unknown>
-  const key = field(input.key, 'key', 100)
-  const body = field(input.text, 'text', 100_000)
+export async function remoteReplyAction(
+  input: Parameters<MessagesWorkflowService['remoteReply']>[0],
+  host: ExtensionHost,
+) {
+  const { key, text: body } = input
   const failed = input.failed === true
   const stopped = failed && input.stopped === true
   const seen = (await host.harness().snapshot(RemoteDoc, ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT))
     ?.told
   if (!seen || !Object.hasOwn(seen, key)) throw unknownKey()
-  const fromLabel = await senderName(host, seen[key].message.from as number, BACKGROUND_CONTEXT)
+  const fromLabel = await host
+    .need(MessagesApi)
+    .label(seen[key].message.from as number, BACKGROUND_CONTEXT)
   return host.harness().commit(async (tx) => {
     const { told } = await tx.doc(RemoteDoc, ROOT_CONVERSATION_ID)
     if (!Object.hasOwn(told, key)) throw unknownKey()
@@ -255,7 +235,7 @@ export async function remoteReplyAction(args: JsonValue, { host }: ActionContext
       (m) => m.id === original.id,
     )
     if (stored) stored.state = stopped ? 'stopped' : failed ? 'failed' : 'answered'
-    const response = await append(tx, {
+    const response = await host.need(MessagesApi).append(tx, {
       from: 'remote',
       to: original.from,
       text: body,
@@ -265,22 +245,14 @@ export async function remoteReplyAction(args: JsonValue, { host }: ActionContext
       remote: original.remote!,
     })
     entry.answer = response.id
-    await tx.createTask(
-      delivery(host),
-      {
-        message: original,
-        steer: true,
-        note: false,
-        fromLabel,
-        toLabel: remoteLabel(original.remote!),
-        reply: { message: response, failed, ...(stopped ? { stopped } : {}) },
-      },
-      {
-        conversationId: ROOT_CONVERSATION_ID,
-        ownership: { kind: 'conversation' },
-        background: true,
-      },
-    )
+    await host.need(MessagesApi).deliver(tx, {
+      message: original,
+      steer: true,
+      note: false,
+      fromLabel,
+      toLabel: remoteLabel(original.remote!),
+      reply: { message: response, failed, ...(stopped ? { stopped } : {}) },
+    })
     return response.id
   }, BACKGROUND_CONTEXT)
 }

@@ -257,6 +257,7 @@ async function fixture(
         onOpen: () => {},
         onClose: () => {},
         need: () => ({ get: async () => undefined }),
+        want: () => undefined,
       } as unknown as Parameters<typeof subagents>[0])
       const tool = backendForStop.tools!.find((candidate) => candidate.name === 'subagent')!
       const memos = new Map<string, unknown>()

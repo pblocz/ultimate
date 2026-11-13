@@ -1,4 +1,4 @@
-Durable schedules, domain events, context thresholds and supervised scripts, with actions that start prompt runs or wake subscribed conversations. One `automation` tool and session ledger; requires core `subagents` and `messages`. Scripts use tokens for setup and repair, not waiting; prompt runs cost tokens on every fire.
+Durable schedules, domain events, context thresholds and supervised scripts, with actions that start prompt runs or wake subscribed conversations. One `automation` tool and session ledger; requires core `subagents` and `messages`. Ordinary triggers and notifications do not load script support. Scripts use tokens for setup and repair, not waiting; prompt runs cost tokens on every fire.
 
 ## Triggers
 
@@ -24,7 +24,7 @@ Exactly one per automation:
   makes the first FIRE finish the automation. A recurring script may print `DONE [text]` and exit 0 to stop cleanly.
   Any other unplanned exit wakes only the watcher, to repair or escalate. The third failure in a row (a FIRE or an hour
   of running resets the count), or a watcher whose turn ends mid-repair, escalates instead: the script stops as
-  `failed`, subscribers get `automations.escalated`, and @ultimate a message.
+  `failed`, and subscribers get `automations.escalated`. With `coding-workflow`, @ultimate also receives a message.
 
 ## Actions
 
@@ -38,7 +38,12 @@ Each automation has one or both:
 
 Without either, create subscribes the caller; nothing may leave an automation with neither. To be reminded, subscribe:
 a prompt run costs a whole agent turn per fire. The seventh fire within an hour pauses the automation instead,
-escalating with `Fired more than 6 times in an hour; paused`.
+escalating with `Fired more than 6 times in an hour; paused`. Subscribers receive this notification without a
+coordinator.
+
+`delivery.ts` owns the existing `ultimate.automation-delivery` task kind and stored input. `supervisor.ts` loads only
+for script operations, existing script records, script process cleanup, and trusted project manifests. If the file is
+absent, ordinary schedules keep working, explicit script requests fail, and stored script records stay unchanged.
 
 An optional `agent` runs prompt runs with that definition's instructions, tools (minus `automation` and `subagent`),
 model and thinking, discovered as in subagents; its isolate is ignored and unknown names are refused. Without one, runs

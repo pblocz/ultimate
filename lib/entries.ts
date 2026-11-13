@@ -1,4 +1,11 @@
 import type { ConversationId, EntryRecord, Tx } from '@earendil-works/pi-durable'
+import { int, lit, union } from '@earendil-works/pi-schema'
+
+/** The shared image selector for message and branch tools. */
+export const imagesParameter = union([lit('latest'), int({ minimum: 1 })], {
+  description:
+    'Forward images from your conversation: "latest" for those of this turn (your current input, or a tool result such as a screenshot since; it fails when there are none), or an entry id for older ones.',
+})
 
 /** Pi inputs and harness-marked typed inputs count; user-role writes are context, not requests. */
 export const isInput = (entry: EntryRecord) => entry.kind === 'pi.user' || entry.input === true

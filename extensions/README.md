@@ -104,6 +104,7 @@ One file each in `docs/extensions/`:
   points, the `api-*` lint rules.
 - [core-tier](../docs/extensions/core-tier.md): the always-on core tier, its layers, one-way dependencies,
   `pnpm deps`.
+- [coding workflow](coding-workflow/README.md): the optional branch, Lander, remote-project, and primary-agent rules.
 - [events](../docs/extensions/events.md): durable events and reactors, today's events, the browser `events` bus,
   `useReady`.
 - [actions](../docs/extensions/actions.md): server `actions`, `ActionContext`, `useAction` and `api.action`,

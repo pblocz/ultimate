@@ -3,20 +3,17 @@ import type { Context } from '@earendil-works/chord/context'
 import { defineDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryId, TaskId } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { Standing } from '../subagents/api.ts'
-import { Messages, MessageSent } from './api.ts'
-import type { Question } from './api.ts'
+import { Messages, MessageSent, MessagesWorkflow } from './api.ts'
+import type { ImagesRef, Question } from './api.ts'
 import type { Via } from './refs.ts'
-import { checkQuestions, gist, openQuestion } from './questions.ts'
+import { checkQuestions, openQuestion } from './questions.ts'
 import { isOwed } from '../../lib/message-state.ts'
 import { UserInputEvent } from '../../shared/events.ts'
 import type { Device } from '../../shared/events.ts'
 import { resolveImages } from './images.ts'
-import type { ImagesRef } from './images.ts'
 import { append } from './log.ts'
-import { parentOf, resolve, senderName, starterOf } from './addresses.ts'
+import { parentOf, resolve, senderName } from './addresses.ts'
 import { delivery } from './delivery.ts'
-import { notice } from './notice.ts'
 
 // The receipt commits with the message, closing the gap before api.memo records its id.
 const Sent = defineDoc<{ ids: Record<string, number> }>({
@@ -36,12 +33,6 @@ const Requests = defineDoc<{ ids: Record<string, number> }>({
   fork: 'initial',
   initial: () => ({ ids: {} }),
 })
-/** An answer in a few characters: its picks (`1a 2b,c 3`) when the card numbered them, else its first line. */
-const answerSummary = (text: string) => {
-  const lines = text.split('\n').filter((line) => line.trim())
-  const picks = lines.flatMap((line) => /^(\d+[a-z,]*)[.:]/.exec(line)?.[1] ?? [])
-  return picks.length ? picks.join(' ') : (lines[0] ?? '')
-}
 
 export async function send(
   host: ExtensionHost,
@@ -74,6 +65,8 @@ export async function send(
     device?: Device
     /** The user's answer or dismissal settled by @ultimate on their behalf, from their input `via.entry`. */
     via?: Via
+    /** A trusted caller's display label, never a source of authority. */
+    fromLabel?: string
     /** A branch's final answer routed as its report: the branch shows as awaiting its starter. */
     report?: boolean
     /** The starter's final answer, this entry of its, routed down to the branch it answers. */
@@ -91,18 +84,18 @@ export async function send(
     const sent = await host.harness().snapshot(Sent, taskId, ctx)
     if (callId !== undefined && sent?.ids[callId] !== undefined) return sent.ids[callId]
   }
-  const standing = await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
-  const primaryId = standing?.ultimate
+  const workflow = host.want(MessagesWorkflow)
+  const primaryId = workflow
+    ? await host.harness().commit((tx) => workflow.primary(tx), ctx)
+    : undefined
   // The primary agent's messages to a busy conversation almost always steer it: new scope, a decision, a stop.
   const steer = input.steer ?? (from !== 'user' && from === primaryId)
   // Checked before resolving, which may create a standing agent's conversation.
   const parent = from === 'user' ? undefined : await parentOf(host, from, ctx)
-  const starter = parent ?? (await starterOf(host, from, ctx))
+  const starter = parent ?? (await workflow?.starter(from, ctx))
   if (input.to === 'user') {
-    if (from !== primaryId && !(parent === undefined && starter !== undefined))
-      throw new Error(
-        'Only @ultimate and branches message the user; send this to the conversation that started you.',
-      )
+    if (!workflow) throw new Error('Messaging the user is not available')
+    await workflow.authorizeUserMessage(from, ctx)
   }
   if (!input.text.trim()) throw new Error('Message text must not be empty')
   if (input.questions !== undefined && (input.to !== 'user' || input.reply === false))
@@ -113,9 +106,7 @@ export async function send(
       `Subagents report to the conversation that started them: message only #${parent}. Your final answer reaches it anyway.`,
     )
   const to = await resolve(host, input.to, from, ctx)
-  const fromLabel = via
-    ? `user (settled for them by @ultimate, from what they said in its chat)`
-    : await senderName(host, from, ctx)
+  const fromLabel = options.fromLabel ?? (await senderName(host, from, ctx))
   const toLabel = await senderName(host, to, ctx)
   return host.harness().commit(async (tx) => {
     const receipt = taskId === undefined ? undefined : await tx.doc(Sent, taskId)
@@ -126,6 +117,8 @@ export async function send(
     if (requestId !== undefined && requests?.ids[requestId] !== undefined)
       return requests.ids[requestId]
     if (callId !== undefined && receipt?.ids[callId] !== undefined) return receipt.ids[callId]
+    if (input.to === 'user' && !host.want(MessagesWorkflow))
+      throw new Error('Messaging the user is not available')
     if (answerId !== undefined) {
       const original = (await tx.doc(Messages, ROOT_CONVERSATION_ID)).messages.find(
         (m) => m.id === answerId,
@@ -158,16 +151,20 @@ export async function send(
       // `reply` do not apply: an answer is one-way and returns in the reply phase.
       else if (pending) {
         pending.state = 'answered'
-        const response = await append(tx, {
-          from,
-          to,
-          text: input.text,
-          reply: false,
-          re: pending.id,
-          state: 'sent',
-          ...(callId === undefined ? {} : { call: callId }),
-          ...(images ? { images } : {}),
-        })
+        const response = await append(
+          tx,
+          {
+            from,
+            to,
+            text: input.text,
+            reply: false,
+            re: pending.id,
+            state: 'sent',
+            ...(callId === undefined ? {} : { call: callId }),
+            ...(images ? { images } : {}),
+          },
+          host.want(MessagesWorkflow),
+        )
         await tx.createTask(
           delivery(host),
           {
@@ -189,21 +186,25 @@ export async function send(
         return response.id
       }
     }
-    const message = await append(tx, {
-      from,
-      to,
-      text: input.text,
-      reply: input.reply ?? true,
-      state: to === 'user' ? 'delivered' : 'sent',
-      ...(re === undefined ? {} : { re }),
-      ...(callId === undefined ? {} : { call: callId }),
-      ...(images ? { images } : {}),
-      ...(questions ? { questions } : {}),
-      ...(options.report ? { report: true as const } : {}),
-      ...(options.routed !== undefined ? { routed: options.routed } : {}),
-      ...(options.echo ? { echo: true as const } : {}),
-      ...(via ? { via } : {}),
-    })
+    const message = await append(
+      tx,
+      {
+        from,
+        to,
+        text: input.text,
+        reply: input.reply ?? true,
+        state: to === 'user' ? 'delivered' : 'sent',
+        ...(re === undefined ? {} : { re }),
+        ...(callId === undefined ? {} : { call: callId }),
+        ...(images ? { images } : {}),
+        ...(questions ? { questions } : {}),
+        ...(options.report ? { report: true as const } : {}),
+        ...(options.routed !== undefined ? { routed: options.routed } : {}),
+        ...(options.echo ? { echo: true as const } : {}),
+        ...(via ? { via } : {}),
+      },
+      host.want(MessagesWorkflow),
+    )
     await host.emit(tx, MessageSent, {
       message: message.id,
       from,
@@ -211,55 +212,13 @@ export async function send(
       reply: message.reply,
       steer,
     })
-    if (primaryId !== undefined) {
-      const asked = to === 'user' && message.reply && from !== primaryId && typeof from === 'number'
-      const answered =
-        from === 'user' && answerId !== undefined && typeof to === 'number' && to !== primaryId
-      const notification = asked
-        ? {
-            kind: 'board.asked' as const,
-            // What the pointer shows outlives the capped message log.
-            data: {
-              message: message.id,
-              from,
-              ...(callId === undefined ? {} : { call: callId }),
-              summary: questions?.length
-                ? `asks you ${questions.length} question${questions.length === 1 ? '' : 's'} · ${questions[0].text}`
-                : `asks you · ${input.text.split('\n')[0]}`,
-            },
-            content: `#${from} asked the user (message ${message.id}): ${gist(message)}. The user answers there; their answer reaches you as a note.`,
-          }
-        : answered
-          ? {
-              kind: 'board.answered' as const,
-              data: {
-                message: answerId,
-                from: to,
-                ...(via ? { via } : {}),
-                ...(input.dismiss
-                  ? { dismissed: true }
-                  : {
-                      summary: answerSummary(input.text),
-                    }),
-              },
-              content: via
-                ? `You settled #${to}'s questions (message ${answerId}) for the user${input.dismiss ? ', closed without an answer' : ''}.`
-                : input.dismiss
-                  ? `The user dismissed #${to}'s questions (message ${answerId}).`
-                  : `The user answered #${to}'s questions (message ${answerId}):\n${input.text}`,
-            }
-          : undefined
-      if (notification)
-        await tx.createTask(
-          notice(host),
-          { to: primaryId, ...notification },
-          {
-            conversationId: primaryId,
-            ownership: { kind: 'conversation' },
-            background: true,
-          },
-        )
-    }
+    await host.want(MessagesWorkflow)?.posted(tx, message, {
+      answerId,
+      callId,
+      via,
+      dismiss: input.dismiss,
+      primary: primaryId,
+    })
     // The user's answer or dismissal is their input to the asker; the message's `entry` names it once delivered. One
     // @ultimate settled for them is not: their chat input that it came from counted already.
     if (from === 'user' && answerId !== undefined && typeof to === 'number' && !via)

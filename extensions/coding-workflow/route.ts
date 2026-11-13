@@ -15,15 +15,12 @@ import type { ExtensionHost } from '../../server/extensions.ts'
 import { ConversationsApi } from '../conversations/api.ts'
 import { Subagents } from '../subagents/api.ts'
 import { WorkspacesApi } from '../workspaces/api.ts'
-import { Messages } from './api.ts'
+import { Messages, MessagesApi, Started } from '../messages/api.ts'
 import { isOpen } from '../../lib/message-state.ts'
-import { terminal } from './log.ts'
-import type { Message } from './api.ts'
-import type { Remote } from './refs.ts'
-import { send } from './send.ts'
+import type { Message, Remote, Serves } from '../messages/api.ts'
 import { tell } from './remote.ts'
-import { Started } from './addresses.ts'
-import type { Serves } from './addresses.ts'
+
+const terminal = { status: 'terminal', outcome: { status: 'completed', result: null } } as const
 
 /** The lander's card in the starter, an input only when the landing concluded the branch (workspaces' lander.ts). */
 const LANDED = 'workspaces.lander-report'
@@ -303,7 +300,7 @@ export function route(host: ExtensionHost) {
             })
             continue
           }
-          await send(host, id, { to: `#${to}`, text, reply: false }, ctx, {
+          await host.need(MessagesApi).dispatch(id, { to: `#${to}`, text, reply: false }, ctx, {
             requestId,
             ...options,
           })

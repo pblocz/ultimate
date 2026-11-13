@@ -7,12 +7,13 @@ Durable messages between conversations, standing agents and the user. Built in a
 `message { to, text, reply?: true, steer?, images?, questions? }` returns the message id at once. Address a
 conversation as `#123` or `123`, a standing agent as `@name`, or `user`.
 
-- **Who may message whom.** Only @ultimate and branches may message `user`. A subagent may message only its parent, so
-  its work reaches the user through its coordinator. Automation runs and other top-level conversations may message any
-  agent. Self-messages, unknown conversations and tallies (use `note`) are refused, as is the lander, which takes no
-  messages; an unknown standing name lists the valid ones.
+- **Who may message whom.** Without `coding-workflow`, no conversation may message `user`. With it, only @ultimate
+  and branches may do so. A subagent may message only its parent, so its work reaches the user through its parent.
+  Automation runs and other top-level conversations may message any agent. Self-messages and unknown conversations are
+  refused. With `coding-workflow`, tallies are also refused (use `note`). The workspaces lander takes no model input.
+  An unknown standing name lists the valid ones.
 - **Delivery.** An idle recipient wakes. A busy one gets a follow-up after its current run, or steering with
-  `steer: true`, the default for @ultimate's messages and `false` for everyone else. A message to a concluded
+  `steer: true`. With `coding-workflow`, steering stays the default for @ultimate's messages. A message to a concluded
   conversation resumes it.
 - **Answers.** With `reply` (the default) the recipient's final answer returns as a `board.reply`, steering the sender;
   an unanswered input returns a `failed` reply, or `stopped` when a person pressed Stop. Answer directly instead of
@@ -24,7 +25,10 @@ conversation as `#123` or `123`, a standing agent as `@name`, or `user`.
   entry id names an older one. At most `maxImages`, each at most
   `maxImageBytes`. `branch` takes `images` for its first message too.
 
-### Waking upward: notes and reports
+### Coding workflow notes and reports
+
+The optional [coding workflow](../coding-workflow/README.md) supplies the branch rules below. Ordinary child notes stay
+in `messages`.
 
 **A one-way message to the conversation that started you is a note, and stopping with nothing under way is your
 report.**
@@ -35,7 +39,7 @@ report.**
   When nothing of the branch is under way (no run, queued input, busy subagent, pending submission or open
   reply-enabled message), it goes as a one-way message with `report: true`, which wakes the starter; otherwise as a
   note, since the branch will run again. A landing concludes the branch and wakes the starter itself, asking through
-  the `workspaces.branches` point this extension provides (`starter`, `underway`).
+  the `workspaces.branches` point that `coding-workflow` provides (`starter`, `underway`).
 - **Answers back down.** The primary agent's final answer goes to each branch whose reply or report was an input of
   that run (not concluded, not messaged in the run) with `routed: true`, so a weigh-in reaches the branch. The run's
   other inputs (the user's, another Ultimate's, a card) neither receive it nor keep it from a branch.
@@ -129,18 +133,16 @@ exposes `send`, a one-way message from a conversation, and `answer`, the user's 
 
 ## Files
 
-Server side, imported in one direction (`log`, `images`, `addresses`, `questions` → `delivery` → `send` → `route` →
-`branch`; `remote` → `delivery`):
+Server side, imported in one direction (`log`, `images`, `addresses`, `questions` → `delivery` → `send`):
 
-- `server.ts`: wiring: the `message` tool, prompt section, hooks, actions, `MessagesApi` and the `workspaces.branches`
-  point.
+- `server.ts`: wiring: the `message` tool, prompt section, hooks, thin actions and `MessagesApi`.
 - `send.ts`: `send()`, validation, receipts, and turning a message to a sender you owe into that answer.
 - `delivery.ts`: the `board.delivery` task, its `deliver` and `reply` phases.
-- `route.ts`: the `board.route` task: notes, reports and answers back down.
-- `remote.ts`: `tell`, the `remote` and `remoteReply` actions.
-- `branch.ts`: the `branch` tool.
-- `addresses.ts`: resolving `to`, sender names, a subagent's parent and the lander.
+- `addresses.ts`: resolving `to`, sender names, and a subagent's parent.
 - `images.ts`, `questions.ts`, `log.ts`: forwarded images, questions and the `board.open` line, the bounded log.
+
+`coding-workflow` owns `branch.ts`, `route.ts`, `remote.ts`, and `notice.ts`. It uses `messages.workflow` and
+`MessagesApi`; generic message files do not import it.
 
 `api.ts` and `refs.ts` are the contract; `caller.ts` is shared with the browser; the `.tsx` files are the UI.
 

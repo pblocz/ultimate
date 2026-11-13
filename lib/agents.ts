@@ -453,7 +453,8 @@ export async function agentRoots(ultimateRoot: string, projectRoot: string, user
 }
 
 /**
- * Definitions from `agents/` in Ultimate's clone, `~/.ultimate/`, and the project's `.ultimate/`; a later file wins
+ * Definitions from `agents/` in Ultimate's clone, enabled extensions' `agents/`, `~/.ultimate/`, and the project's
+ * `.ultimate/`; a later file wins
  * by name, unless it is an overlay (marked by `addTools`), which extends the earlier one.
  */
 export async function discoverAgents(

@@ -1,4 +1,4 @@
-Delegate bounded work to child conversations with `subagent`, configure them from Markdown agent definitions, and run standing agents such as @ultimate.
+Delegate bounded work to child conversations with `subagent`, configure them from Markdown agent definitions, and run standing agents. The full app adds @ultimate through `coding-workflow`.
 
 ## The `subagent` tool
 
@@ -6,10 +6,10 @@ Delegate bounded work to child conversations with `subagent`, configure them fro
   (foreground) or its id (background). Child ids are conversation ids.
 - `message {id, text, steer?}` steers a busy child, or queues a follow-up with `steer: false`.
 - `wait {id}` returns the latest answer; `list` shows your children.
-- `stop {id}` stops the child's current work and pending reporters, even before its run starts. It lists the paths left
-  uncommitted in the child's worktree; nothing is committed or deleted.
+- `stop {id}` stops the child's current work and pending reporters, even before its run starts. With worktree support,
+  it lists the paths left uncommitted in the child's worktree; nothing is committed or deleted.
 - `land {id}` fast-forwards a worktree child's commits into your checkout; `discard {id}` removes its clean, idle
-  checkout and keeps its branch. See [workspaces](../workspaces/README.md).
+  checkout and keeps its branch. Both need `conversations.worktrees`. See [workspaces](../workspaces/README.md).
 
 Every child belongs to an independent background anchor: foreground is a waiting style, not ownership, and stopping the
 parent does not stop its children. A foreground start, message or wait returns the answer when ready, or yields on
@@ -37,7 +37,8 @@ Children get `subagent` only when their definition lists it in `tools`; each par
 `start {label, task, family? | model?, thinking?, tools?, instructions?, isolate?}` without `agent` makes a child from
 the call; nothing is written to disk. It gets a short neutral base (one task, no delegating or pushing, report
 evidence) plus `instructions`; the parent's tools or the `tools` subset, never `subagent`; `family`, else the parent's
-model; no automatic summaries; and a worktree when it may `edit` or `write`. Read-only means leaving those two out;
+model; and no automatic summaries. When worktree support is present, a child that may `edit` or `write` uses a
+worktree by default. Without that support, it uses the shared workspace. Read-only means leaving those two out;
 bash stays read-only only by instruction, as for `scout`. A family or model the call names must have a login here and
 never falls back; the error lists the usable families.
 
@@ -54,9 +55,11 @@ prompt cache usually covers the shared prefix.
 
 ### Isolates
 
-An isolate is where a child's tools run. `isolate: "none"` (the default) uses the parent's directory; `"worktree"` (the
-shipped worker's) gets a checkout made from the parent's committed HEAD, owned by the workspaces extension, with the
-project's `isolates.worktree.setup` commands (see [workspaces](../workspaces/README.md)). Isolation is by working
+An isolate is where a child's tools run. `isolate: "none"` uses the parent's directory. Without the optional
+`conversations.worktrees` point, an omitted isolate also uses the parent's directory. `"worktree"` gets a checkout made
+from the parent's committed HEAD, owned by the workspaces extension, with the project's `isolates.worktree.setup`
+commands (see [workspaces](../workspaces/README.md)). If worktree support is absent, an effective `"worktree"` fails
+before the child is created. Isolation is by working
 directory, not a sandbox: absolute paths can still reach other checkouts, and children are instructed to work only in
 their isolate, commit, and never push.
 
@@ -65,7 +68,8 @@ their isolate, commit, and never push.
 A definition is Markdown with YAML frontmatter (parsed by Pi's `parseFrontmatter`); the body is the instructions. It is
 the profile both subagents and automations run with, turned into a child's configuration by `createChild`
 (`children.ts`) and `definitionAgent` (`lib/agents.ts`). `lib/agents.ts` reads `agents/` in Ultimate's clone, then
-`~/.ultimate/agents/`, then the project's `.ultimate/agents/`; a later file overrides by name. Definitions are reread on
+enabled extensions' `agents/` folders, then `~/.ultimate/agents/`, then the project's `.ultimate/agents/`; a later file
+overrides by name. Definitions are reread on
 every start, and editing one does not change the build id.
 
 Fields (others are errors):
@@ -96,9 +100,9 @@ definition, fails to parse. So `addTools: []` with `title: Atlas` renames @ultim
 with `model` pins one agent, the exception to families. The setup check warns about user or project files that replace
 a built-in whole.
 
-**Shipped definitions:** `coordinator` (branches started with the messages extension's `branch`; its behaviour lives
-in `agents/coordinator.md`), `scout` (read-only reconnaissance, tiny family), `worker` (fast family, worktree),
-`designer` (design family, worktree), `reviewer`, `lander` and `watcher` (owns one script automation).
+**Shipped definitions:** `scout` stays in the global `agents/` folder. `coding-workflow/agents/` ships `ultimate`,
+`coordinator`, `worker`, `designer`, and `reviewer`. `dream/agents/` ships `dream-pass`, and
+`automations/agents/` ships `watcher`. A disabled owner removes its definitions from later discovery.
 
 **Review team.** The shipped `reviewer` reviews alone on the `review` family. Add `reviewer-<name>.md` definitions and
 it leads them instead: it starts every one in parallel and returns one merged verdict, like this repository's

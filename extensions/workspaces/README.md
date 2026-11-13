@@ -1,7 +1,8 @@
 # Workspaces
 
 An isolated conversation gets its own Git checkout. Coordinator branches started by @ultimate are isolated by
-default. Subagents can select `isolate: "worktree"` for the same setup. Uncommitted source changes are not included.
+default. Subagents reach this extension through the optional `conversations.worktrees` point. Uncommitted source
+changes are not included.
 
 Isolation needs a Git repository with a checked-out branch and a first commit. Until a project has them, `isolation`
 returns `{ reason }`, an isolated start fails with that reason, and the project has no lander.
@@ -180,7 +181,7 @@ lander's sidebar row shows the feature it lands or landed last.
    - A landing is the end of the branch's work. The report is a note in the submitter, which starts no run. In one
      commit the submitter is concluded unless work is still under way: messages' `underway` (a run or queued input, a
      busy subagent, a reply-enabled message of its own still open, a pending notify or subagent report), through the
-     `workspaces.branches` extension point messages provides. Then the conversation that started the branch
+     `workspaces.branches` extension point that `coding-workflow` provides. Then the conversation that started the branch
      (`starter`, from the same extension point) wakes with the same card, saying whether the branch is concluded or
      still has work under way (which then reports when it stops, as any branch does). Last, a concluded branch's
      checkout is released. A root or standing agent refuses concluding and stays open. Any later input resumes a

@@ -17,11 +17,21 @@ import type { ConversationId } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { Standing, SubagentsApi } from '../subagents/api.ts'
 import { locate, postAction } from '../../lib/remote.ts'
-import { Messages } from './api.ts'
+import { Messages, MessagesWorkflow } from './api.ts'
 import type { Message } from './api.ts'
 import { imagesOf } from '../../lib/entries.ts'
 import { append, terminal } from './log.ts'
-import { remoteLabel, servesLine } from './addresses.ts'
+import { remoteLabel } from './addresses.ts'
+
+export type DeliveryInput = {
+  message: Message
+  steer: boolean
+  note: boolean
+  fromLabel: string
+  toLabel: string
+  /** A remote reply uses the same durable reply phase. */
+  reply?: { message: Message; failed: boolean; stopped?: boolean }
+}
 
 export function delivery(host: ExtensionHost) {
   // A standing recipient is reconfigured from its current definition before each delivery, by name or by number.
@@ -35,15 +45,7 @@ export function delivery(host: ExtensionHost) {
       await service.standing(name, ctx)
   }
   return defineTask<
-    {
-      message: Message
-      steer: boolean
-      note: boolean
-      fromLabel: string
-      toLabel: string
-      /** Another project's Ultimate answered `message`: deliver only this reply. */
-      reply?: { message: Message; failed: boolean; stopped?: boolean }
-    },
+    DeliveryInput,
     | { phase: 'deliver' }
     /** `stopped`: the recipient's run was stopped before it answered; `failed` is set too, as for any non-answer. */
     | {
@@ -87,7 +89,9 @@ export function delivery(host: ExtensionHost) {
           },
         }
         // A replayed delivery places its first body again by request id.
-        const serves = await host.harness().commit((tx) => servesLine(tx, m.from, m.to), ctx)
+        const serves = await host
+          .harness()
+          .commit((tx) => host.want(MessagesWorkflow)?.servesLine(tx, m.from, m.to) ?? '', ctx)
         // The user's answer names the message it answers, so one among several open cards is never guessed.
         const answering =
           m.from === 'user' && m.re !== undefined ? `Answer to message ${m.re}:\n` : ''
@@ -215,18 +219,23 @@ export function delivery(host: ExtensionHost) {
             if (error !== undefined) original.error = error
             if ('entry' in settled && settled.entry !== undefined) original.entry = settled.entry
           }
-          const response = await append(tx, {
-            from: m.to,
-            to: m.from,
-            text: error ?? text,
-            reply: false,
-            re: m.id,
-            state: state ?? 'sent',
-            ...(answer ? { answer } : {}),
-            ...(error ? { error } : {}),
-            ...(m.remote ? { remote: m.remote } : {}),
-          })
-          const line = await servesLine(tx, response.from, response.to)
+          const response = await append(
+            tx,
+            {
+              from: m.to,
+              to: m.from,
+              text: error ?? text,
+              reply: false,
+              re: m.id,
+              state: state ?? 'sent',
+              ...(answer ? { answer } : {}),
+              ...(error ? { error } : {}),
+              ...(m.remote ? { remote: m.remote } : {}),
+            },
+            host.want(MessagesWorkflow),
+          )
+          const line =
+            (await host.want(MessagesWorkflow)?.servesLine(tx, response.from, response.to)) ?? ''
           return {
             status: 'running',
             checkpoint: {

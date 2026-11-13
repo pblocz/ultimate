@@ -8,7 +8,12 @@ import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '../../shared/extension-api.ts'
 import { ContextDoc, MarksDoc } from './refs.ts'
 import type { AgentMarkStyle, ContextUsage } from './refs.ts'
-import type { ConversationSubject, KeptWork } from './types.ts'
+import type {
+  ConversationSubject,
+  ConversationWorktree,
+  KeptWork,
+  WorktreeLandResult,
+} from './types.ts'
 import type {
   accountResponse,
   askSummaryModel,
@@ -86,6 +91,24 @@ export type ReleaseService = {
 }
 /** The extension point concluding frees resources through; workspaces provides it (worktrees). */
 export const Release = defineApi<ReleaseService>()('conversations.release')
+export type WorktreeService = {
+  /** The coding feature's default for an agent made on the fly; absent support means `none`. */
+  defaultIsolation(tools?: string[]): 'none' | 'worktree'
+  /** A dirty-parent warning before a worktree start; does not modify the checkout. */
+  warning(cwd: string): Promise<string>
+  /** Prepare a child's worktree and its Git instructions inside the child-creation transaction. */
+  prepare(tx: Tx, id: ConversationId, input: { cwd: string; instructions: string }): Promise<void>
+  /** An existing worktree, or undefined when the conversation uses the shared workspace. */
+  get(id: ConversationId, caller: Context): Promise<ConversationWorktree | undefined>
+  /** Verify and land the child's work through the existing worktree operation. */
+  land(id: ConversationId, caller: Context): Promise<WorktreeLandResult>
+  /** Remove an eligible checkout, keeping its branch as the current discard operation does. */
+  discard(id: ConversationId, caller: Context): Promise<{ text: string }>
+  /** Files left by a stopped child; never commits or removes them. */
+  uncommitted(id: ConversationId, caller: Context): Promise<{ path?: string; files: string[] }>
+}
+/** Optional worktree operations; workspaces supplies them without a dependency on child-agent code. */
+export const WorktreeSupport = defineApi<WorktreeService>()('conversations.worktrees')
 export type PreviewsService = {
   /** Stop the previews conversations `ids` started (each listed, descendants included); returns their instance ids. */
   stop(ids: number[], caller: Context): Promise<string[]>

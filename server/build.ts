@@ -38,7 +38,12 @@ export function createBuild(root: string) {
     extension(name: string, path = join(root, 'extensions', name)) {
       extensions[name] = hash(
         path,
-        files(path, '.').filter((file) => !inExtensionTests(`${name}${file.slice(1)}`)),
+        files(path, '.').filter(
+          (file) =>
+            !inExtensionTests(`${name}${file.slice(1)}`) &&
+            // Definitions are read at use and have their own prompt notices, not code-build notices.
+            !(file.startsWith('./agents/') && file.endsWith('.md')),
+        ),
       )
     },
     remove(name: string) {

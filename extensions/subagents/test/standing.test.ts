@@ -1,8 +1,8 @@
 import { fauxProvider } from '@earendil-works/pi-ai/providers/faux'
 // Harness tests use the faux provider without token pacing.
-import { eventHost, idleNeed, temp, removeTemp } from '../../../test/helpers.ts'
+import { apis, eventHost, fauxServer, idleNeed, temp, removeTemp } from '../../../test/helpers.ts'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, expect, it } from 'vitest'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -18,7 +18,7 @@ import { prepareHarness } from '../../../server/harness.ts'
 import { emit } from '../../../server/events.ts'
 import type { OpenHost } from '../../../server/harness.ts'
 import subagents from '../server.ts'
-import { Profile, Standing, Started } from '../api.ts'
+import { Profile, Standing, Started, SubagentsWorkflow } from '../api.ts'
 import type { SubagentsService } from '../api.ts'
 import { Metadata } from '../../../server/metadata.ts'
 import { Marks } from '../../conversations/api.ts'
@@ -33,7 +33,7 @@ afterEach(async () => {
 })
 const definition = (body: string, extra = '') =>
   `---\nname: x\ndescription: Test\nresident: true\ntools: [read, t]\nisolate: worktree\n${extra}---\n${body}\n`
-async function fixture() {
+async function fixture(onDemand?: (name: string) => boolean) {
   const path = await temp('ultimate-standing-')
   directories.push(path)
   const prepared = await prepareHarness({
@@ -59,6 +59,8 @@ async function fixture() {
   let host!: OpenHost
   let service!: SubagentsService
   const openers: (() => Promise<void>)[] = []
+  const providers = new Map<string, unknown>()
+  if (onDemand) providers.set(SubagentsWorkflow.name, { onDemand })
   const backend = subagents({
     ...prepared,
     harness: () => host.harness,
@@ -68,6 +70,7 @@ async function fixture() {
       service = value as SubagentsService
     },
     need: idleNeed,
+    want: apis(providers).want,
     resource: (_key, create) => create(),
     extensions: () => [],
     notice: () => {},
@@ -89,9 +92,28 @@ async function fixture() {
     opened.push(host)
     return host
   }
-  return { path, prepared, host, service, file, reopen, open }
+  return { path, prepared, host, service, file, reopen, open, providers }
 }
 
+it('starts every resident without a workflow, including an operator-defined ultimate', async () => {
+  const f = await fixture()
+  await writeFile(
+    join(f.path, 'agents/ultimate.md'),
+    definition('Ordinary resident').replace('name: x', 'name: ultimate'),
+  )
+  await f.reopen()
+  const index = await f.host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
+  expect(index?.x).toBeDefined()
+  expect(index?.ultimate).toBeDefined()
+})
+it('uses the current optional workflow to defer any resident until requested', async () => {
+  const f = await fixture((name) => name === 'x')
+  await f.reopen()
+  expect((await f.host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.x).toBeUndefined()
+  f.providers.clear()
+  await f.reopen()
+  expect((await f.host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.x).toBeDefined()
+})
 it('lists definitions only to agents that can use them', async () => {
   const { service, host, prepared } = await fixture()
   const standing = (await host.harness.conversation(await service.standing('x', ctx), ctx))!
@@ -232,6 +254,39 @@ it('keeps one ownerless standing conversation, refreshes its definition and recr
 })
 
 // #568566: a new chapter opened with an empty Standing document, so resident agents vanished until addressed.
+it('keeps the full application primary agent on demand across reopen', async () => {
+  const home = await temp('ultimate-primary-startup-')
+  directories.push(home)
+  const projectRoot = join(home, 'project')
+  await mkdir(projectRoot)
+  const server = await fauxServer({
+    ultimateRoot: resolve('.'),
+    projectRoot,
+    userHome: home,
+    home: join(home, 'state'),
+  })
+  try {
+    expect(
+      (await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate,
+    ).toBeUndefined()
+    const id = (await server.extensions.invoke(
+      'subagents',
+      'standing',
+      { name: 'ultimate' },
+      new AbortController().signal,
+    )) as number
+    expect(id).toBeGreaterThan(server.root.id)
+    expect((await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate).toBe(id)
+    await server.release()
+    const reopened = await server.go()
+    expect((await reopened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate).toBe(
+      id,
+    )
+  } finally {
+    await server.close()
+  }
+})
+
 it('gives every resident definition its conversation when the project opens, once', async () => {
   const { host, reopen } = await fixture()
   expect(await host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx)).toBeUndefined()
