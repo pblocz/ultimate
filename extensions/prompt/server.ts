@@ -273,17 +273,6 @@ export default function prompt(host: ExtensionHost) {
         () =>
           'You are an assistant running in a durable agent runtime. Your selected agent definition supplies your role and instructions.',
       ),
-      section(
-        'principles',
-        () => `- Read what kind of request it is. A question, or "how could we…", asks you to explore: investigate, then come back with one proposal that includes what the person may not have thought of (a risk, a simpler path, a case it also touches), and wait for their go before changing anything. A clear instruction ("do this", "fix that"), a delegated task or a scheduled run is the go, unless it asks for an assessment first: do it, verify, and report, asking only about decisions that change behaviour or scope. When you need a decision from the person, ask it the way your instructions say.
-- Understand before you change: read the relevant code, run it, look at it. Ground every claim in files, command output, tests, or screenshots.
-- Keep it simple: question the need, reuse what exists, prefer platform features and installed dependencies, and write the least code that solves the actual problem. No speculative abstractions, compatibility shims, or fallbacks for situations that do not exist.
-- Fail fast, iterate quickly, verify by trying: make a small change, run it, check the result in tests, the running app, or a screenshot, then take the next step.
-- Never claim success you have not verified. When a check fails, say so and show the output. When you skipped something, say that.
-- Taste matters. Code reads like the code around it; UI is clean, consistent, and quiet. Leave things better than you found them, within the scope you were asked for.
-- Think about how it is experienced, not just whether it works. Before building or delegating anything a person sees, look at how the app presents similar things today (take screenshots, open older ones, read neighbouring renderers) and design the new thing to match: an outcome the user waits for gets a clear, distinct card, never raw text in a plain message. Connect what you learn: a pattern the user corrected once applies to every similar case, without being asked again.
-- Be concise and direct. Surface the risks and tradeoffs that matter, and recommend one option instead of listing them all.`,
-      ),
       section('self_awareness', (input) => {
         const tools = input.agent.tools ?? []
         const has = (name: string) => tools.some((tool) => tool.name === name)
@@ -299,8 +288,8 @@ export default function prompt(host: ExtensionHost) {
                 '- Subagents are separate conversations with their own context. Give them self-contained tasks.',
               ]
             : []),
-          '- When a "Build changed" note arrives with your input, you were hot-swapped: your tools, prompt, or UI may be different now. Find out what changed (the changed list, `git log`/`git diff`' +
-            (has('codemode') ? ', `ultimate.extensions()`' : '') +
+          '- When a "Build changed" note arrives with your input, you were hot-swapped: your tools, prompt, or UI may be different now. Find out what changed (the changed list' +
+            (has('codemode') ? ' and `ultimate.extensions()`' : '') +
             ') and test new behaviour before relying on it. An "Instructions changed" or "Docs changed" line means those files changed: your system prompt already carries changed instructions; re-read changed docs before relying on them.',
         ].join('\n')
       }),
@@ -362,7 +351,7 @@ export default function prompt(host: ExtensionHost) {
               return `- ${extension.name}: ${sentence ?? ''}`
             }),
             'Enable names with "extensions": { "enable": [...] } in ~/.ultimate/settings.json (this machine) or <project>/.ultimate/settings.json (the host project). Changes apply live with no restart.',
-            `The running host uses ${host.projectRoot}/.ultimate/settings.json and ${host.projectRoot}/.ultimate/extensions/; editing these in a separate work checkout does not change the host's configuration or hot-reload its extensions.`,
+            `The running host uses ${host.projectRoot}/.ultimate/settings.json and ${host.projectRoot}/.ultimate/extensions/; editing copies of them in another directory does not change the host's configuration or hot-reload its extensions.`,
             '</building_blocks>',
           ].join('\n')
         },

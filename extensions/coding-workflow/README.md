@@ -17,6 +17,17 @@ messages, and schedules continue to work when this extension is absent.
 The `messages` extension keeps the web action names. Its thin handlers call `messages.workflow` only after the current
 permission checks. When the workflow is absent, these actions fail before they change state.
 
+## Prompt and skills
+
+`conduct.ts` supplies coding principles and shared-checkout advice outside ordinary chat trees.
+It follows the existing `chat` label through ownership and history parents; it adds no new conversation identity.
+Owned children get the principles but not the top-level checkout advice, as before.
+The existing `coding_workflow` section still follows the `branch` tool.
+
+This extension owns four skills: `how-ultimate-works`, `adopt-ultimate-setup`, `integrate-ultimate`, and `ui-preview-round`.
+They live under `skills/` here. Disabling the extension removes them from later discovery.
+User and trusted project skills can override them by name.
+
 ## Boundaries
 
 Generic extensions must not import this extension's implementation. They use the optional points declared below them:

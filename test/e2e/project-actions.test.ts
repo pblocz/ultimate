@@ -280,7 +280,7 @@ it('discovers user/project agents and skills with provenance and hot config chan
   await until(() => skill().description === 'User skill')
 })
 
-it('discovers clone skills live and lets project skills override them by name', async () => {
+it("discovers an enabled extension's skills live and lets project skills override them by name", async () => {
   const projectRoot = await temp()
   const userHome = await temp()
   const ultimateRoot = await sourceCopy(userHome)
@@ -295,14 +295,15 @@ it('discovers clone skills live and lets project skills override them by name', 
   servers.push(server)
   const skill = () =>
     server.system.current().skills.find((entry) => entry.name === 'ult108-built-in')
-  const builtIn = join(ultimateRoot, 'skills/ult108-built-in')
+  // Built-in skills belong to an extension; `self` is enabled by default.
+  const builtIn = join(ultimateRoot, 'extensions/self/skills/ult108-built-in')
   await mkdir(builtIn, { recursive: true })
   await writeFile(
     join(builtIn, 'SKILL.md'),
-    '---\nname: ult108-built-in\ndescription: Clone skill\n---\nInspect.',
+    '---\nname: ult108-built-in\ndescription: Extension skill\n---\nInspect.',
   )
   await server.system.changed()
-  await until(() => skill()?.description === 'Clone skill')
+  await until(() => skill()?.description === 'Extension skill')
   expect(skill()?.path).toBe(join(builtIn, 'SKILL.md'))
   const project = join(projectRoot, '.ultimate/skills/ult108-built-in')
   await mkdir(project, { recursive: true })
@@ -318,7 +319,7 @@ it('discovers clone skills live and lets project skills override them by name', 
   ).toHaveLength(1)
   await rm(project, { recursive: true })
   await server.system.changed()
-  await until(() => skill()?.description === 'Clone skill')
+  await until(() => skill()?.description === 'Extension skill')
 })
 
 it('exec times out, caps output and defaults to the project without a shell', async () => {

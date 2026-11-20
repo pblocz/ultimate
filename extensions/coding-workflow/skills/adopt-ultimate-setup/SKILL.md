@@ -53,7 +53,7 @@ commands or people may survive.
 - **Lander.** `checks` are the project's own check and test commands, found in its manifests and CI, in order (an
   array runs as a concurrent group), each with a `timeout`. Add `push` only after the owner says yes, naming the
   remote.
-- **Worktree setup.** Follow "Worktree setup" in `skills/integrate-ultimate/SKILL.md` (lockfile install, `.env`,
+- **Worktree setup.** Follow "Worktree setup" in `../integrate-ultimate/SKILL.md` (lockfile install, `.env`,
   database, dev port) and prove it in a scratch worktree as it describes.
 
 ## 3. Show and commit

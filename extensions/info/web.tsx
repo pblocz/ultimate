@@ -382,6 +382,7 @@ function Skills({ system }: { system: SystemInfo }) {
             tags={
               <span className="truncate text-muted-foreground/60">
                 {skill.scope}
+                {skill.extension && ` · ${skill.extension}`}
                 {skill.manual && ' · manual'}
                 {skill.overrides.length > 0 &&
                   ` · overrides ${skill.overrides.length === 1 ? 'one' : skill.overrides.length}`}

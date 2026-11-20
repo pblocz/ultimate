@@ -27,6 +27,9 @@ An extension is a folder `<name>/` in `extensions/` (built-in), `~/.ultimate/ext
 - `web.tsx`: UI, `export default defineWebExtension({ … })`. Rebuilt on save; open pages switch to the new bundle.
 - `api.ts`, `refs.ts`, `ui.tsx`: its [contracts](../docs/extensions/contracts.md) for other extensions; live with the
   facets that import them.
+- `agents/`: optional agent definitions; disabled extensions supply no definitions.
+- `skills/<name>/SKILL.md`: optional skills and supporting files. Disabled extensions supply no skills.
+  User and trusted project skills override extension skills by name. See [precedence](../docs/settings.md).
 - `README.md`: what it does; the first paragraph is shown in the UI, so open with a sentence, not a heading.
   Required; read on change.
 - `test/`: its tests, which are not part of the extension: saving one reloads nothing, its classes stay out of the

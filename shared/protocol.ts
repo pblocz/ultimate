@@ -170,14 +170,16 @@ export interface SystemInfo {
   extensionDiagnostics: string[]
   extensions: ExtensionInfo[]
   /**
-   * Loaded skills: `scope` is where the winner came from, `overrides` the paths of same-named skills in earlier scopes,
+   * Loaded skills: `scope` is where the winner came from (`extension` with the owner's name), `overrides` the paths of same-named skills in earlier scopes,
    * `manual` a skill with `disable-model-invocation` that the model is never shown.
    */
   skills: {
     name: string
     description: string
     path: string
-    scope: 'clone' | 'user' | 'project'
+    scope: 'extension' | 'user' | 'project'
+    /** The extension that supplies an `extension` skill. */
+    extension?: string
     overrides: string[]
     manual?: true
   }[]

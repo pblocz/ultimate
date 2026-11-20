@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import { context } from '../server/harness.ts'
 import { fauxServer, temp, removeTemp, until } from './helpers.ts'
 
-it('renders only enabled guidance, lists off building blocks, and adds self guidance live', async () => {
+it('renders only enabled guidance, lists off building blocks, and adds the self skill live', async () => {
   const home = await temp()
   vi.stubEnv('PI_CODING_AGENT_DIR', join(home, 'pi'))
   // Pi's personal instructions and skills stay with Pi; Ultimate's come from ~/.ultimate.
@@ -52,13 +52,21 @@ it('renders only enabled guidance, lists off building blocks, and adds self guid
     }
     const withoutSelf = await render()
     expect(withoutSelf.self).toBeUndefined()
+    expect(withoutSelf.skills ?? '').not.toContain('<name>maintain-ultimate</name>')
     expect(withoutSelf.building_blocks).toContain('- self:')
 
     await writeFile(settings, '{}')
     server.vite.watcher.emit('change', settings)
     await until(() => !!server.host.registry.snapshot().extension('self'))
     const withSelf = await render()
-    expect(withSelf.self).toBeDefined()
+    // Self guidance is a skill: the prompt lists its name and description, not its procedure.
+    expect(withSelf.self).toBeUndefined()
+    expect(withSelf.skills).toContain('<name>maintain-ultimate</name>')
+    expect(withSelf.skills).not.toContain('Call restart only after')
+    // The neutral prompt names no Git command and no work checkout.
+    expect(withSelf.self_awareness).not.toContain('git log')
+    expect(withSelf.building_blocks).not.toContain('work checkout')
+    expect(withSelf.principles).toBeUndefined()
     // Only the default-off built-ins are left to list.
     expect(withSelf.building_blocks).not.toContain('- self:')
     expect(withSelf.building_blocks).toContain('- sounds:')
@@ -66,7 +74,12 @@ it('renders only enabled guidance, lists off building blocks, and adds self guid
     const checkout = join(home, 'isolated-work')
     await mkdir(checkout)
     await writeFile(join(checkout, 'AGENTS.md'), 'Isolated project instructions.')
-    const skills = vi.spyOn(server.host, 'skills')
+    const localSkill = join(checkout, '.pi/skills/isolated-only')
+    await mkdir(localSkill, { recursive: true })
+    await writeFile(
+      join(localSkill, 'SKILL.md'),
+      '---\nname: isolated-only\ndescription: Effective-directory skill\n---\nInspect this directory.',
+    )
     for (const useEnv of [true, false]) {
       const isolated = await render(checkout, useEnv)
       expect(isolated.cwd).toBe(checkout)
@@ -78,9 +91,9 @@ it('renders only enabled guidance, lists off building blocks, and adds self guid
       expect(isolated.project_context).not.toContain('Pi personal instructions.')
       expect(isolated.skills).toContain('ultimate-only')
       expect(isolated.skills).not.toContain('pi-only')
-      expect(skills).toHaveBeenLastCalledWith(checkout)
+      expect(isolated.skills).toContain('<name>isolated-only</name>')
     }
-    skills.mockRestore()
+    expect((await render()).skills).not.toContain('<name>isolated-only</name>')
   } finally {
     await server.close()
     await removeTemp(home)

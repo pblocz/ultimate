@@ -17,6 +17,7 @@ import { OnboardingWorkflow } from '../onboarding/api.ts'
 import { Standing, SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { Branches, WorkspacesApi } from '../workspaces/api.ts'
 import { branchTool } from './branch.ts'
+import { conductSections } from './conduct.ts'
 import { servesLine, starterOf } from './addresses.ts'
 import { notice } from './notice.ts'
 import { onboardingWorkflow } from './onboarding.ts'
@@ -153,6 +154,8 @@ export default function codingWorkflow(host: ExtensionHost) {
     tasks: [route(host), notice(host)],
     tools: [branchTool(host)],
     sections: [
+      // Ordinary chats and the conversations that work for them keep the neutral prompt.
+      ...conductSections(host),
       // Agents that can start coding branches get the coding workflow text; a fork keeps its source's tools.
       section('coding_workflow', (input) =>
         input.agent.tools.some((tool) => tool.name === 'branch')

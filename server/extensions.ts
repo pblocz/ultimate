@@ -6,6 +6,8 @@ import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
 import { discoveryRoots, projects } from './project.ts'
 import type { ProjectInfo } from './project.ts'
 import { extensionSettingsFiles } from './extension-settings.ts'
+import { projectSkills } from './skills.ts'
+import type { ScopedSkill } from './skills.ts'
 import { watchRoots } from './watch-roots.ts'
 import { actionExec } from './actions.ts'
 import type { ExtensionAction } from './actions.ts'
@@ -49,7 +51,6 @@ export type ExtensionHost = Pick<
   | 'uiState'
   | 'scanSubmissions'
   | 'models'
-  | 'skills'
   | 'restart'
   | 'chapter'
 > & {
@@ -86,6 +87,11 @@ export type ExtensionHost = Pick<
    * restart is refused with the message; facet-scoped.
    */
   onBeforeLoad(callback: () => Promise<void>): void
+  /**
+   * Skills for working directory `cwd`: enabled extensions' `skills/` folders, then `.pi/skills`, user and trusted
+   * project skills, each with its `scope` and `overrides`.
+   */
+  skills(cwd: string): ScopedSkill[]
   harness(): Harness
   system(): SystemInfo
   /** Summaries of every conversation, as the web's conversation list shows them; empty until the harness is open. */
@@ -688,7 +694,7 @@ export async function loadExtensions(
     scanSubmissions: (query, limit, cursor, caller) =>
       host.scanSubmissions(query, limit, cursor, caller),
     models: () => host.models(),
-    skills: (cwd) => host.skills(cwd),
+    skills: (cwd) => projectSkills(host, cwd, info()).skills,
     restart: async (approved) => (await prepared()) ?? host.restart(approved),
     get chapter() {
       return host.chapter

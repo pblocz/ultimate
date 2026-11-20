@@ -19,7 +19,7 @@ afterEach(async () => {
 })
 const definition = (body: string, tools = 'read, write') =>
   `---\nname: helper\ndescription: Ordinary helper\ntools: [${tools}]\nmodel: faux/faux-1\n---\n${body}\n`
-async function fixture(onTool?: (file: string) => Promise<void>) {
+async function fixture(onTool?: (file: string) => Promise<void>, disable: string[] = []) {
   const home = await temp('ultimate-profile-prompt-')
   cleanup.push(() => removeTemp(home))
   const source = await sourceCopy(home)
@@ -32,7 +32,7 @@ async function fixture(onTool?: (file: string) => Promise<void>) {
     join(userHome, '.ultimate/settings.json'),
     JSON.stringify({
       summaryModel: 'unavailable/test',
-      extensions: { disable: ['dream', 'update', 'keep-warm', 'goal'] },
+      extensions: { disable: ['dream', 'update', 'keep-warm', 'goal', ...disable] },
     }),
   )
   const file = join(userHome, '.ultimate/agents/helper.md')
@@ -152,6 +152,59 @@ it('uses a neutral prompt without a selected definition or a compulsory primary 
   )
 })
 
+it('keeps coding guidance in coding conversations and gives an ordinary chat a neutral prompt', async () => {
+  const f = await fixture()
+  const chat = await f.create()
+  await f.ask(chat.id, 'Hello')
+  const ordinary = f.requests.at(-1)!.system
+  const ultimate = (await f.server.extensions.invoke(
+    'subagents',
+    'standing',
+    { name: 'ultimate' },
+    new AbortController().signal,
+  )) as ConversationId
+  await f.ask(ultimate, 'Hello')
+  const coding = f.requests.at(-1)!.system
+  for (const text of [
+    'Understand before you change: read the relevant code, run it, look at it.',
+    'check `git status` before broad changes, never revert or reformat changes you did not make',
+  ]) {
+    expect(ordinary).not.toContain(text)
+    expect(coding).toContain(text)
+  }
+  expect(ordinary).toContain('Other conversations in this project are separate agents')
+  for (const system of [ordinary, coding]) {
+    // Self guidance is a skill summary; the neutral prompt names no Git command.
+    expect(system).not.toContain('<self>')
+    expect(system).not.toContain('git log')
+    expect(system).toContain('<name>maintain-ultimate</name>')
+    expect(system).toContain('<name>how-ultimate-works</name>')
+  }
+  expect(ordinary).not.toContain("@ultimate's row")
+})
+
+const owned = {
+  'coding-workflow': [
+    'how-ultimate-works',
+    'adopt-ultimate-setup',
+    'integrate-ultimate',
+    'ui-preview-round',
+  ],
+  self: ['maintain-ultimate', 'write-extension', 'verify-ui'],
+}
+it.each(Object.keys(owned) as (keyof typeof owned)[])(
+  'lists no %s skill while that extension is disabled',
+  async (name) => {
+    const f = await fixture(undefined, [name])
+    const chat = await f.create()
+    await f.ask(chat.id, 'Hello')
+    const system = f.requests.at(-1)!.system
+    for (const [owner, skills] of Object.entries(owned))
+      for (const skill of skills)
+        expect(system.includes(`<name>${skill}</name>`)).toBe(owner !== name)
+  },
+)
+
 it('keeps a child instruction snapshot while the standalone conversation picks up definition edits', async () => {
   const f = await fixture()
   const chat = await f.create({ definition: 'helper' })
@@ -160,16 +213,44 @@ it('keeps a child instruction snapshot while the standalone conversation picks u
     const [at] = (await tx.scanEntries({ conversationId: chat.id }, 1)).items
     const fork = await tx.forkConversation(chat.id, at.id, { ownership: { kind: 'ownerless' } })
     ;(await tx.doc(Profile, fork.id)).definition = 'helper'
-    // The label alone would allow a refresh; the fork's history parent keeps its snapshot.
-    ;(await tx.doc(Metadata, fork.id)).label = 'chat'
+    // A standalone agent label allows refresh, but the fork keeps its history parent's instruction snapshot.
+    ;(await tx.doc(Metadata, fork.id)).label = 'agent'
     return fork
   }, context)
   await writeFile(f.file, definition('Persona B instructions.'))
   await f.ask(child.id, 'Child turn')
   expect(f.requests.at(-1)!.system).toContain('Persona A instructions.')
   expect(f.requests.at(-1)!.system).not.toContain('Persona B instructions.')
+  // A fork of an ordinary chat remains outside the coding workflow, even without its parent's label.
+  expect(f.requests.at(-1)!.system).not.toContain(
+    'Understand before you change: read the relevant code',
+  )
+  expect(f.requests.at(-1)!.system).not.toContain('check `git status` before broad changes')
   await f.ask(chat.id, 'Parent turn')
   expect(f.requests.at(-1)!.system).toContain('Persona B instructions.')
+})
+
+it('keeps Dream enabled without creating its automations in an ordinary instance with no primary agent', async () => {
+  const f = await fixture()
+  const settings = join(f.server.host.userHome, '.ultimate/settings.json')
+  await writeFile(
+    settings,
+    JSON.stringify({
+      summaryModel: 'unavailable/test',
+      extensions: { disable: ['update', 'keep-warm', 'goal'] },
+    }),
+  )
+  f.server.vite.watcher.emit('change', settings)
+  await until(() => !!f.server.host.registry.snapshot().extension('dream'))
+  const chat = await f.create()
+  await f.ask(chat.id, 'Ordinary chat with Dream enabled')
+  const list = await f.server.extensions.invoke(
+    'automations',
+    'list',
+    null,
+    new AbortController().signal,
+  )
+  expect(list).toEqual([])
 })
 
 it('keeps the effective configuration when a selected definition becomes invalid', async () => {

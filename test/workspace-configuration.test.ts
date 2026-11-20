@@ -82,7 +82,7 @@ it('keeps trust, definitions, presets, extensions and credentials independent of
       await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
     ).definitions.find((definition) => definition.name === 'helper')?.instructions,
     families: (await readFamilies(host.userHome, host.projectRoot)).families,
-    skills: projectSkills(host).skills.map((skill) => skill.name),
+    skills: projectSkills(host, host.projectRoot, []).skills.map((skill) => skill.name),
     trust: projectDecision(host.projectRoot, host.userHome),
   })
   const before = await Promise.all(hosts.map(inspect))

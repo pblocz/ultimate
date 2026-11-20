@@ -59,7 +59,7 @@ login or is unavailable, the button opens Get ready instead, whose Continue then
 no input.
 
 @ultimate greets and first walks the user through how Ultimate works with the `how-ultimate-works` skill
-(`skills/how-ultimate-works/SKILL.md`): five short beats, each a message with one question card and a Skip the rest
+(`extensions/coding-workflow/skills/how-ultimate-works/SKILL.md`): five short beats, each a message with one question card and a Skip the rest
 option, ending with what the project is about and what to do first. That answer is the user's instructions for setup.
 The input carries @ultimate's model and context window so the walkthrough can recommend a 1M+ model.
 

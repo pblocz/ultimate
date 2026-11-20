@@ -194,6 +194,7 @@ async function fixture(
       react: () => {},
       eventLog: { recent: async () => [], reactors: async () => [] },
       projects: async () => [],
+      skills: () => [],
       extensions: () => [],
       invoke: async () => {
         throw new Error('Not used')

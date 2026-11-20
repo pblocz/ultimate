@@ -43,7 +43,8 @@ import { refOf } from '../lib/families.ts'
 import { Family, Profile } from '../shared/conversation-configuration.ts'
 import { prepareDefinition, applyDefinition } from './conversation-configuration.ts'
 import type { ConfigurationServices } from './conversation-configuration.ts'
-import { expandSkillCommand } from './skills.ts'
+import { expandSkillCommand, projectSkills } from './skills.ts'
+import type { SkillOwner } from './skills.ts'
 import { onCommit } from '../lib/commits.ts'
 import { conversationIndex } from './project.ts'
 import { shortTitle } from '../lib/title.ts'
@@ -82,6 +83,8 @@ export class InputLimitError extends ChannelError {
 
 type ConversationHostOptions = {
   configurationServices?: () => ConfigurationServices
+  /** The loaded extensions, whose enabled members supply skills to `/skill:` expansion; none by default. */
+  extensions?: () => readonly SkillOwner[]
   onConversations?: (summaries: ConversationSummary[]) => void
   onTasks?: (tasks: TaskGraph) => void
   onRefreshError?: (error: unknown) => void
@@ -640,7 +643,11 @@ export async function createConversationHost(
       const expanded = input.text.startsWith('/skill:')
         ? expandSkillCommand(
             input.text,
-            host.skills((await conversation.agent(hostContext)).cwd ?? host.projectRoot),
+            projectSkills(
+              host,
+              (await conversation.agent(hostContext)).cwd ?? host.projectRoot,
+              options.extensions?.() ?? [],
+            ).skills,
           )
         : input.text
       const content = images.length

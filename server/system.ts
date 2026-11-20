@@ -31,6 +31,7 @@ export function skillInfo({
       description: skill.description,
       path: skill.filePath,
       scope: skill.scope,
+      ...(skill.extension && { extension: skill.extension }),
       overrides: skill.overrides,
       ...(skill.disableModelInvocation && { manual: true as const }),
     })),
@@ -139,7 +140,7 @@ export async function createSystem(
       web: web(),
       extensions: registry(),
       extensionDiagnostics: registry.diagnostics(),
-      ...skillInfo(projectSkills(host)),
+      ...skillInfo(projectSkills(host, host.projectRoot, registry())),
       contextFiles: loadProjectContextFiles({
         cwd: host.projectRoot,
         agentDir: join(host.userHome, '.ultimate'),

@@ -16,7 +16,6 @@ import { listModels } from './models.ts'
 import { guardToolArguments, modelTrace } from './tool-arguments.ts'
 import { readFamilies } from '../lib/families-settings.ts'
 import { callTrace } from './trace.ts'
-import { projectSkills } from './skills.ts'
 import { requestSwap } from './supervisor-protocol.ts'
 import { activeChapter, finishChapterSwitch } from '../lib/chapters.ts'
 import { defaultAgent } from '../lib/agents.ts'
@@ -194,7 +193,6 @@ export async function prepareHarness(options: HostOptions) {
     },
     models: async () => (await listModels(modelRuntime)).models,
     model: (ref: ModelRef) => modelRuntime.getModel(ref.provider, ref.modelId),
-    skills: (cwd: string) => projectSkills({ ultimateRoot, projectRoot, userHome }, cwd).skills,
     restart: (approved: (generation: number) => Promise<void>) =>
       requestSwap(approved, builds.current()),
     ultimateRoot,

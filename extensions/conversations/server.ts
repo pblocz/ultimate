@@ -399,7 +399,7 @@ export default (host: ExtensionHost) => {
         if (!topLevel.get(input.conversationId)) return undefined
         // Fixed text: a changed system prompt costs the prompt cache, and the list of others changed nearly every turn.
         return [
-          'Other conversations in this project are separate agents with their own context, and some may work in your checkout: check `git status` before broad changes, never revert or reformat changes you did not make, and coordinate through the user.',
+          'Other conversations in this project are separate agents with their own context.',
           'In codemode, `ultimate.conversations()` lists them with title, cwd and whether they are busy or concluded; `ultimate.entries(id)` shows what one did; `ultimate.projects()` lists other projects.',
         ].join('\n')
       }),

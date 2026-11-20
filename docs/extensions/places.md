@@ -48,5 +48,9 @@ classes. In the clone, `pnpm check` type-checks and lints `extensions/` and `.ul
 `.ultimate/extensions/*`; pass a user extension's folder to check it) and writes nothing into the clone or the project.
 Never copy an extension into the clone to check it: the running host would load it. Agents live in the same three places
 (`agents/`); an enabled extension may also ship an `agents/` folder. Those definitions load as built-ins before
-user/project definitions and overlays, and disappear when the extension is disabled. Skills load as [Discovery and settings](../settings.md) describes, later scopes winning by name. A project's `.ultimate/settings.json` may set `defaultSurface` (see
+user/project definitions and overlays, and disappear when the extension is disabled.
+An enabled extension can also supply `skills/<name>/SKILL.md`, with supporting files beside it.
+These skills load before effective-directory, user and trusted project skills; later names win.
+Disabling or removing the extension removes its skills from later discovery without rewriting history.
+Skills load as [Discovery and settings](../settings.md) describes. A project's `.ultimate/settings.json` may set `defaultSurface` (see
 [Surfaces](surfaces.md)).

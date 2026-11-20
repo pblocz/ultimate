@@ -52,6 +52,7 @@ export function SkillPicker() {
                   <span className="text-brand">{skill.name}</span>
                   <span className="ml-auto text-[11px] text-muted-foreground/60">
                     {skill.scope}
+                    {skill.extension && ` · ${skill.extension}`}
                     {skill.manual && ' · manual'}
                   </span>
                 </span>

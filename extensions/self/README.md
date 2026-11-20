@@ -1,5 +1,10 @@
 Ultimate's awareness of its own code: the replay-safe `restart` tool requests a type-checked core swap from the supervisor (`pnpm start`). Failed preparation returns diagnostics while the old core continues. The tool saves the next generation before activation; replay reports the running generation or activation rollback.
 
+Maintenance guidance is the `maintain-ultimate` skill, not an unconditional system-prompt section.
+The prompt lists its name, description, and path; the agent reads the procedure when the task needs it.
+This extension also owns `write-extension` and `verify-ui`. Disabling `self` removes all three skills from later discovery.
+It does not erase text already present in conversation history.
+
 Call after authorized changes to `server/` or `shared/`, and after a landing that changed packages (`patches/` or `pnpm-lock.yaml`). Never call for `web/`, `extensions/`, or `agents/`: those reload without a core swap.
 
 An isolated conversation must first land into the running Ultimate clone. Restart requires that clone to be clean and its HEAD to equal the workspace's saved landed commit; otherwise it asks you to land first. A shared conversation, including one in a project subdirectory, uses ordinary restart behavior.

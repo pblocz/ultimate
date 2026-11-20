@@ -12,7 +12,16 @@ conversation records its first build silently, and a fork starts from its parent
 
 The prompt's `identity` section names no role: "You are an assistant running in a durable agent runtime. Your selected
 agent definition supplies your role and instructions." The selected definition (`Profile`) supplies the role. The
-`coding-workflow` extension adds its rules in a `coding_workflow` section, which only agents with the `branch` tool get.
+`coding-workflow` extension keeps its existing `coding_workflow` section for agents with the `branch` tool.
+It also supplies `principles` and top-level `shared_checkout` advice outside ordinary chat trees.
+A `chat` label on a conversation or its ownership/history ancestor keeps that conversation outside those two sections.
+The generic prompt no longer supplies coding principles or Git commands for reload checks.
+
+Skills come from enabled extensions and the existing configuration folders, with only summaries in the system prompt.
+The `self` extension supplies its maintenance guidance as the `maintain-ultimate` skill, not a `self` section.
+Disabling an owner removes its skills and sections from later requests, not earlier history.
+Other enabled extensions still supply their own descriptions, tool guidance, and definition lists.
+A neutral base prompt does not hide an enabled coding workflow's advertised capabilities.
 
 A top-level conversation with a selected definition also follows its instructions there: an ordinary chat (label
 `chat`) or a standing agent such as @ultimate (label `agent`). Forks and children (a conversation with an owner or a

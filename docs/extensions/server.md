@@ -26,7 +26,7 @@ Server factories receive exactly these `ExtensionHost` fields (import its type o
 - `ultimateRoot`, `projectRoot`, `userHome`, `home`: source, work, user and instance-state roots.
 - `modelRuntime`, `settings`: Pi model/auth runtime and settings.
 - `models()`: model descriptors, including availability.
-- `skills(cwd)`: merged clone, user and project skills for a working directory, each with its `scope` and `overrides`.
+- `skills(cwd)`: enabled extensions' skills, then effective-directory, user and trusted project skills. Each has `scope` and `overrides`; an extension skill also names its owner in `extension`. See [skill precedence](../settings.md).
 - `restart(approved)`: request a verified core swap; the async callback records the approved generation before activation.
 - `scanSubmissions(query, limit, cursor, caller)`: a page of committed submission records; it exists until Pi Durable exposes submission scans publicly.
 - `chapter`: the active chapter: its name, number, the newest chapter's name and its files.

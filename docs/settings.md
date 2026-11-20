@@ -3,16 +3,27 @@
 Discovery is clone built-ins, then `~/.ultimate/`, then `<project>/.ultimate/`; later names replace earlier ones.
 Enabled extensions may ship `agents/` definitions, loaded as built-ins before user and project definitions or overlays.
 Disabling the extension removes its definitions too.
-Skills ([Agent Skills](https://agentskills.io) folders with a `SKILL.md`, as Pi loads them) come from clone `skills/`, the
-project's `.pi/skills/`, `~/.ultimate/skills/`, then, once the project is trusted, its `.agents/skills/` and
-`.ultimate/skills/`; a later scope overrides an earlier skill of the same name. Every agent's
+Skills use [Agent Skills](https://agentskills.io) folders with a `SKILL.md`, as Pi loads them.
+They load from enabled extensions' `skills/<name>/` folders, then the effective working directory's `.pi/skills/`,
+then `~/.ultimate/skills/`, and finally the trusted project's `.agents/skills/` and `.ultimate/skills/`.
+A later skill replaces an earlier skill with the same name.
+Extension skills follow discovery order: built-in, user, project; names sort within each source.
+Facet load priority does not change this order.
+The installed application's top-level `skills/` folder no longer loads.
+Disabling or removing an extension removes its skills from subsequent discovery, not from existing history. Every agent's
 system prompt lists each skill's name, description and path after the project context, and the agent reads `SKILL.md`
 when a task matches (`disable-model-invocation: true` leaves a skill out of that list). The user runs one with
 `/skill:name request` in the composer or ⌘K → Run a skill: the server sends the skill's body in Pi's `<skill>` block
-ahead of the request. The Info tab lists skills with their scope, overrides and Pi's load warnings; a read of a
+ahead of the request. The Info tab lists skills with their scope (`extension`, `user`, or `project`), owner, overrides and Pi's load warnings; a read of a
 `SKILL.md` shows as `skill <name>` in the transcript. Personal instructions load from `~/.ultimate/AGENTS.md`
 (or `CLAUDE.md`) ahead of the project's. Pi's own `~/.pi/agent/skills/` and `~/.pi/agent/AGENTS.md` and the shared
 `~/.agents/skills/` are not read: they belong to other agents, so link a skill into `~/.ultimate/skills/` to use it here.
+In this container, built-in skills live below `/opt/ultimate/extensions/<owner>/skills/`.
+Personal skills live in `data/.ultimate/skills/`, mounted at `/home/node/.ultimate/skills/`.
+Workspace skills live in `data/workspace/.ultimate/skills/`, mounted at `/workspace/.ultimate/skills/`.
+These are separate folders; the loader does not copy files between them.
+The existing bundled skills belong to `coding-workflow` and `self`, and follow those extensions' enabled state.
+
 Built-ins are on by default, including `messages` (durable agent messages and @ultimate's messages to you), `questions` (answer cards for @ultimate's questions to the user), `lineage` (conversation trees: roots, branches, notes) and `update` (tells you when the Ultimate clone is behind `origin`, checked hourly). The ones that need something of their own ship installed but off (`defaultOff` in `shared/extension-api.ts`): `cloud` (backups; your own backup Worker), `parallel` (web tools; a Parallel API key), `tailscale` (remote access; Tailscale on this machine), `health` (provider health), `classify` (Jev typed judgments; a Jev key), `phase` (working phases; requires `classify`), `sounds` (notification sounds), `voice-live` (live voice relay; an OpenAI API key and microphone), `push`, and `wire` (keeps each conversation's raw model requests and responses on disk; System's Wire tab). `recall` (project memories recalled for @ultimate's messages) is on but idle until `classify` is. The first-run extensions card and the Extensions tab turn them on in user settings. Settings layer defaults, `~/.ultimate/settings.json`, then `<project>/.ultimate/settings.json`:
 `extensions.enable` and `extensions.disable` are name arrays, later layers win, and changes apply live without a
 restart. User/project extension folders are on by default too; `disable` turns off any extension outside the core
