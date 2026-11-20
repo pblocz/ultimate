@@ -13,11 +13,13 @@ import { actingAs } from '../../lib/acting-as.ts'
 import { AutomationsWorkflow } from '../automations/api.ts'
 import { LineageApi } from '../lineage/api.ts'
 import { MessagesApi, MessagesWorkflow, Started } from '../messages/api.ts'
+import { OnboardingWorkflow } from '../onboarding/api.ts'
 import { Standing, SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { Branches, WorkspacesApi } from '../workspaces/api.ts'
 import { branchTool } from './branch.ts'
 import { servesLine, starterOf } from './addresses.ts'
 import { notice } from './notice.ts'
+import { onboardingWorkflow } from './onboarding.ts'
 import { posted } from './posted.ts'
 import { projectsSection, remoteAction, remoteReplyAction, tell } from './remote.ts'
 import { reported, route, working } from './route.ts'
@@ -41,6 +43,7 @@ export default function codingWorkflow(host: ExtensionHost) {
   host.need(LineageApi)
   host.need(WorkspacesApi)
   host.implement(SubagentsWorkflow, { onDemand: (name) => name === 'ultimate' })
+  host.implement(OnboardingWorkflow, onboardingWorkflow(host))
   host.implement(Branches, {
     starter: (id, ctx) => starterOf(host, id, ctx),
     working: (tx, id) => working(tx, id),

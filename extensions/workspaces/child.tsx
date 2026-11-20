@@ -2,7 +2,7 @@
 import { GitBranchIcon, GitMergeIcon, Trash2Icon } from 'lucide-react'
 import { ToolOutput, ToolSection } from '@/components/ai/tool'
 import { cn } from '@/sdk'
-import { Tag } from '../subagents/parts.tsx'
+import { Tag } from '../subagents/ui.tsx'
 import { stateLabel, useWorkspaces } from './data.tsx'
 import type { Workspace as Isolate, LandResult } from './types.ts'
 

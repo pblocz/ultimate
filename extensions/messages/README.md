@@ -75,7 +75,8 @@ line listing them; @ultimate's lists every open question to the user and names `
 
 ## Ultimate and branches
 
-Talk to `@ultimate` in its own conversation (the first sidebar row; on phones, the top-bar button). It is the standing
+Talk to `@ultimate` in its own conversation (its row in the coding workflow's project tree, below the ordinary conversations; on phones, the
+top-bar button). It is the standing
 orchestrator, not a coding worker. Model-facing text names standing senders `#12 (@ultimate)`, user replies `user`.
 
 `branch { prompt, title?, root?, isolated?: true, images? }` (deferred; offered to definitions that name it) starts a

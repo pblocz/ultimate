@@ -275,7 +275,8 @@ export const MessageReference = definePoint<
 >('ultimate.messageReference')
 
 /**
- * Where an error card can hand its report for debugging (`subagents` provides it: into @ultimate's composer, unsent):
+ * Where an error card can hand its report for debugging, unsent: `agent` provides it into the selected conversation's
+ * draft, and `coding-workflow` replaces it with @ultimate's draft.
  * `title` labels the card's button. No button while nothing provides it.
  */
 export const ErrorReport = definePoint<

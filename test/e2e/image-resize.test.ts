@@ -6,7 +6,7 @@ import { chromium } from 'playwright-core'
 import { afterEach, expect, it } from 'vitest'
 import { browserBinary } from '../../extensions/browser/server.ts'
 import { maxImageBytes } from '../../shared/protocol.ts'
-import { fauxServer, removeTemp, temp, until } from '../helpers.ts'
+import { fauxServer, post, removeTemp, temp, until } from '../helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -40,12 +40,15 @@ it('resizes a pasted image over the limit and sends it', async () => {
   })
   cleanup.push(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-  await page.goto(server.url)
-  const editor = page.locator('#app [data-ui="composer"] textarea')
+  // A page opens no conversation of its own (no implicit @ultimate), so the test creates an ordinary chat to paste into.
+  const { data: created } = await post(server, '/api/conversations')
+  await page.goto(`${server.url}/?conversation=${created.id}`)
+  const composer = `#app [data-ui="composer"] textarea[data-conversation="${created.id}"]`
+  const editor = page.locator(composer)
   await editor.waitFor()
   // A 3000×2400 PNG of noise: far over 2 MiB, as a phone photo or 5K screenshot would be. It takes a while to make,
   // and the composer may render a new editor meanwhile, so the paste goes to the one on the page once it is made.
-  const size = await page.evaluate(async () => {
+  const size = await page.evaluate(async (selector) => {
     const canvas = new OffscreenCanvas(3000, 2400)
     const context = canvas.getContext('2d')!
     const pixels = context.createImageData(3000, 2400)
@@ -58,10 +61,10 @@ it('resizes a pasted image over the limit and sends it', async () => {
     const data = new DataTransfer()
     data.items.add(new File([blob], 'big.png', { type: 'image/png' }))
     document
-      .querySelector('#app [data-ui="composer"] textarea')!
+      .querySelector(selector)!
       .dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true }))
     return blob.size
-  })
+  }, composer)
   expect(size).toBeGreaterThan(maxImageBytes)
   const note = page.locator('[data-ui="composer"] p[title^="Resized"]')
   await note.waitFor()

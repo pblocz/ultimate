@@ -128,7 +128,7 @@ emits `lineage.branched` `{ id, from, at, intent, title? }` (`Branched` in `api.
 
 ## UI
 
-The user talks to @ultimate in its own conversation (the first sidebar row; on phones, the top-bar button); it reads
+The user talks to @ultimate in its own conversation (its row in the coding workflow's project tree; on phones, the top-bar button); it reads
 tallies and starts coordinator branches. A branch's header and System lanes label it `branch · coordinator`. There is
 no manual creation page.
 

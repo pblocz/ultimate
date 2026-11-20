@@ -1,5 +1,11 @@
 Inline setup choices, the first-run prerequisites, and the Extensions panel that turns extensions on and off live.
 
+These are generic settings. They depend only on `models` and `secrets`, and they work in an ordinary chat and on the
+empty new-chat screen without `@ultimate` or a model turn. The coding onboarding (Start here, the walkthrough, Git
+setup, and help from `@ultimate`) is in the optional `coding-workflow` extension. It plugs in through the server point
+`onboarding.workflow` (`OnboardingWorkflow`, `api.ts`) and the web points `SetupWorkflow` and `SetupCard` (`ui.tsx`).
+Opening settings does not initialize Git and does not change project trust.
+
 ## First run
 
 The first run has only **Get ready**: connect a provider and choose an available model. The model row recommends a
@@ -7,10 +13,11 @@ The first run has only **Get ready**: connect a provider and choose an available
 configured it pre-selects the first of `RECOMMENDED_MODELS` (`lib/families.ts`: Opus 5.5 through Claude Code, then
 `openai-codex/gpt-6-astra`) with a login, else the first model with one, and links to Claude Code's setup while that is
 logged out. Continue saves the pre-selection, or a model picked in the dialog, as the default family's model with
-thinking high (the models extension's `setDefault`), so @ultimate, new conversations and branches start on it; a
+thinking high (the models extension's `setDefault`), so new conversations start on it; a
 configured default is only replaced by a pick made in the dialog. ⌘K **Get ready…** opens it
 again whatever the recorded state, e.g. on a preview (which has its own copy of `onboarding.json`); its
-Continue starts onboarding once per root, as above. Continue waits for both, starts onboarding with @ultimate through `onDone`, then records `firstRunDone`;
+Continue starts onboarding once per root, as above. Continue waits for both, then records `firstRunDone`. When a `SetupWorkflow` provider is present, it also starts
+onboarding with @ultimate through `onDone`;
 there is no second page. Escape or the close button records completion without changing settings. Closing returns
 focus to the composer. An automated browser (`navigator.webdriver`) does not get this dialog.
 
@@ -21,10 +28,14 @@ The extension is core tier, so `extensions.disable` ignores it. A machine whose 
 users). `status` then reports `off: true` and `firstRun: false`: no Get ready, no splash first-run version, no Start
 here card, so no `onboarding.start` input and no setup cards, and no "set up git" reminder. An undecided project
 setup keeps its **project setup** reminder, since nothing else asks; with onboarding off, clicking it opens the
-Extensions panel at the project decision instead of asking @ultimate. The Extensions panel, ⌘K Get ready… and Walk me
-through Ultimate still work on demand.
+Extensions panel at the project decision instead of asking @ultimate. The Extensions panel, ⌘K Get ready… and (with `coding-workflow`)
+Walk me through Ultimate still work on demand.
 
 ## Onboarding with @ultimate
+
+This section needs the `coding-workflow` extension. The thin `start`, `walkthrough` and `help` handlers here keep their
+names and user-only checks and call `onboarding.workflow`. Without a provider they fail with "Coding onboarding is not
+available: enable the coding-workflow extension" before they change state, and Get ready only applies its settings.
 
 Continue on Get ready, or **Set up with @ultimate** on the Start here card, calls the user-only action
 `start { root?, instructions? }` and opens @ultimate's standing conversation. An omitted root resolves to the shown
@@ -38,7 +49,7 @@ while @ultimate is idle, its newest run failed that way and nothing since the st
 meanwhile may have failed too), a repeated call continues it instead, checked and admitted in one commit, so two calls
 start one run. Once @ultimate answered anything after the start, onboarding is under way and a call sends nothing.
 
-Start here is a card above @ultimate's composer (`survey.tsx`, through the SDK's `composer` renderer) until
+Start here is a card above @ultimate's composer (`coding-workflow/onboarding.tsx`, through the SDK's `composer` renderer) until
 onboarding has run for the project's root: `onboarding.starts` names the root, or the root carries memories (a new
 chapter's root, set up long ago; `onboarded.ts`). Its one button, **Set up with @ultimate**, calls `start { root }`,
 like Get ready's Continue; once that records the root, the card is gone for good. While @ultimate's model has no
@@ -52,7 +63,7 @@ no input.
 option, ending with what the project is about and what to do first. That answer is the user's instructions for setup.
 The input carries @ultimate's model and context window so the walkthrough can recommend a 1M+ model.
 
-**Walk me through Ultimate** (⌘K) reruns only the walkthrough: the user-only `walkthrough` action submits a
+**Walk me through Ultimate** (⌘K, from `coding-workflow`) reruns only the walkthrough: the user-only `walkthrough` action submits a
 `walkthrough.start` input to @ultimate, every time, and opens its conversation.
 
 Then @ultimate shows only applicable setup cards one at a time and waits for each choice, then reads the project
@@ -80,7 +91,8 @@ The tool renderer shows a quiet, transcript-width card:
 - **Project:** "Use this project's setup?", chips showing its extensions, settings, agents and skills, and its
   `.ultimate/README.md` behind "What's in it". Use it / Keep global remembers the decision through `decide`.
   The tool refuses this card when there is no project setup or it is already decided.
-- **Git:** why isolation is unavailable, and what Git brings. An empty folder gets Set up Git, through the
+- **Git:** drawn by the `SetupCard` point, which `coding-workflow` provides; without it the card shows nothing and
+  `choose` refuses it. Why isolation is unavailable, and what Git brings. An empty folder gets Set up Git, through the
   workspaces user action `setupGit` (`git init` and an empty first commit). A folder with files gets
   Let @ultimate do it: the choice input asks the agent to write a fitting `.gitignore` and choose the first commit's
   contents without secrets, dependencies or generated output, adding no remote and pushing nothing. The tool refuses
@@ -97,12 +109,13 @@ across settings reloads. If applying succeeds but notification fails, the button
 same idempotent setting and admits exactly one input. Only the matching typed choice entry settles the original card
 as **Chosen: …**, never the current settings or a local success flag. A quiet input card displays the summary.
 
-The status line keeps **project setup** while the project decision is open and **set up git** while isolation is
-unavailable, until Start here is dismissed: then both stay quiet, and ⌘K **Get ready…** and the Extensions panel
-still reach the decision. Clicking calls `help { card: 'project' | 'git' }`, which submits "Help me decide whether to use this
+The status line keeps **project setup** while the project decision is open and, with `coding-workflow`, **set up git**
+while isolation is unavailable, until Start here is dismissed: then both stay quiet, and ⌘K **Get ready…** and the Extensions panel
+still reach the decision. With `coding-workflow`, clicking calls `help { card: 'project' | 'git' }`, which submits "Help me decide whether to use this
 project's setup." or "Help me set up git for this folder." directly in @ultimate's standing conversation and returns
 its id. The browser opens that conversation on the Agent surface. First-run Continue also selects the Agent surface.
-The Extensions panel's About this setup routes there too rather than opening a setup dialog.
+The Extensions panel's About this setup routes there too rather than opening a setup dialog. Without
+`coding-workflow`, **project setup** opens the Extensions panel at the project decision.
 The Git status is read again whenever the shown conversation finishes a run, including an agent's first Git commit.
 
 ## Extensions panel
@@ -133,8 +146,8 @@ cannot apply them through codemode `ultimate.action`.
 - `decide { local }`: saves the project choice through Pi's `ProjectTrustStore` and reloads extensions/web facets.
   Linked worktrees share their main checkout's choice.
 - `choose { card, toolCallId, extensions? | local? | initialize? }`: applies the card's payload and notifies the
-  conversation as one retryable operation, as described above. Requires a conversation. Git initialization uses the
-  workspaces service behind the user-only `workspaces/setupGit` action.
+  conversation as one retryable operation, as described above. Requires a conversation. The Git card goes through
+  `onboarding.workflow`, whose `setupGit` uses the workspaces service behind the user-only `workspaces/setupGit` action.
 - `setExtension { name, enabled, scope }`: updates user or project settings, preserving other keys. Project writes
   require a local decision.
 - `adoptProjectSetup`: merges project enable/disable lists into user settings.

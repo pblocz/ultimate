@@ -2,6 +2,8 @@
 import type { ReactNode } from 'react'
 import { definePoint } from '@/sdk'
 
+export { useShell, useSidebarState } from './state.tsx'
+
 /**
  * Rows nested under @ultimate's row (`side-chat` lists its open side chats, `voice-live` the Voice conversation); several
  * extensions may provide it and their rows show in discovery order. Input is @ultimate's conversation id.

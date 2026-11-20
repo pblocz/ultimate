@@ -27,6 +27,8 @@ export async function prepareDefinition(
   base: Agent,
   name: string | null,
   overrides: Parameters<typeof definitionAgent>[3] = {},
+  /** Keep `base`'s model, thinking level and preset when the definition names none of them (a persona change). */
+  keepSelection = false,
 ) {
   if (name !== null && (typeof name !== 'string' || !name.trim()))
     throw new ChannelError('invalid_input', 'Expected definition name')
@@ -37,11 +39,21 @@ export async function prepareDefinition(
   const definition = discovered?.definitions.find((candidate) => candidate.name === name)
   if (name !== null && !definition)
     throw new ChannelError('invalid_input', `Unknown agent definition: ${name}`)
-  const change = definitionAgent(definition, base, host.modelRuntime, overrides)
+  // A definition without a model, family or thinking level configures no model, so the current selection stays.
+  const keep = keepSelection && !definition?.model && !definition?.family && !definition?.thinking
+  const change = definitionAgent(
+    definition,
+    base,
+    host.modelRuntime,
+    keep
+      ? { ...overrides, ...(base.model && { model: base.model }), thinking: base.thinkingLevel }
+      : overrides,
+  )
   return {
     definition,
     change,
-    family: overrides.model ? null : definitionFamily(definition, change),
+    // Undefined leaves the recorded preset as it is.
+    family: keep ? undefined : overrides.model ? null : definitionFamily(definition, change),
     isolate: definition?.isolate ?? 'none',
   }
 }
@@ -57,5 +69,5 @@ export async function applyDefinition(
   if (prepared.definition) profile.definition = prepared.definition.name
   else delete profile.definition
   delete profile.adhoc
-  ;(await tx.doc(Family, id)).name = prepared.family
+  if (prepared.family !== undefined) (await tx.doc(Family, id)).name = prepared.family
 }

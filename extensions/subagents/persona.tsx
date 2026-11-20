@@ -19,7 +19,7 @@ const row =
 
 /**
  * The persona of an ordinary conversation: one of the existing agent definitions, or none. The model control stays
- * separate, so a persona keeps the chosen preset unless the definition itself sets a model.
+ * separate, so a persona keeps the chosen preset unless the definition itself sets a model, family or thinking level.
  */
 export function PersonaButton() {
   const { id, busy, loading } = useConversation()

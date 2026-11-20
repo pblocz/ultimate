@@ -24,8 +24,9 @@ A project is a forest of conversation trees, like commit histories.
 - **A branch** is a feature, a fix, an experiment. @ultimate picks a root by reading its tally, then starts a
   coordinator branch that starts from its memory brief (or, without memories, its tally) before its prompt. A branch is never a subagent.
 - **Talk to @ultimate in its conversation.** The user's standing agent starts and steers branches there.
-  The first sidebar row (on phones, the top-bar **@ultimate** button) opens it; its messages and questions to you appear in that transcript.
-  Conversations and roots are not created by hand.
+  Its row in the coding workflow's project tree, below the ordinary conversations (on phones, the top-bar **@ultimate**
+  button), opens it; its messages and questions to you appear in that transcript. Roots and branches are not created by
+  hand. **New conversation** creates an ordinary chat, which shares the workspace files but not the history.
 - **Branches ask you in their own conversation.** A coordinator sends its decisions to @ultimate, which weighs in
   (its picks, or deciding itself on a hands-off goal); the branch then asks you with a card there. @ultimate's
   conversation shows a pointer to it, and your answer reaches @ultimate as a note.

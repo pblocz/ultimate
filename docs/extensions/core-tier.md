@@ -13,7 +13,8 @@ extension fills. `test/e2e/disable-each.test.ts` boots with each optional extens
 clean catalogue.
 
 Today's core tier: agent, prompt, coding-tools, conversations, models, documents, notices, secrets, theme,
-workspaces, subagents, lineage, messages, onboarding (the first run and @ultimate's setup cards need it) and sidebar.
+workspaces, subagents, lineage, messages, onboarding (the first run, the Extensions panel and the `setup` tool) and
+sidebar.
 
 Dependencies point one way. A core-tier extension imports (runtime or type), needs and wants only core-tier
 extensions; lint's `core-tier-deps` enforces the imports, and the catalogue has no cycles. `pnpm deps`
@@ -28,14 +29,16 @@ extension depending on an optional one. The core layers, lowest first, each depe
 5. subagents: child conversations and standing agents.
 6. lineage: roots, branches, tallies, notes.
 7. messages: delivery, replies, and optional workflow points.
-8. onboarding and agent.
-9. sidebar: the sidebar and the @ultimate button, the UI that brings the core together.
+8. onboarding and agent. Onboarding depends only on models and secrets; its coding parts come from `coding-workflow`.
+9. sidebar: the ordinary conversation list and the sidebar's points. It depends on no other extension; the coding
+   workflow adds the project tree and the @ultimate button.
 
 Where a lower extension needs something a higher one knows, it declares the contract and the higher one fills it:
 server extension points (`conversations.trees`, `conversations.release`, and `conversations.worktrees` from
 conversations, `workspaces.branches` from workspaces, `messages.workflow` from messages, `subagents.workflow` from
-subagents), web points (`conversations.phase`, `conversations.task`, `conversations.unsummarized`,
-`messages.answers`, `lineage.memory-header`, `workspaces.review`), or durable events (`workspaces.landed`,
+subagents, `onboarding.workflow` from onboarding), web points (`conversations.phase`, `conversations.task`, `conversations.unsummarized`,
+`messages.answers`, `lineage.memory-header`, `workspaces.review`, `subagents.child-badge`, `subagents.child-result`,
+`messages.agent-name`, `onboarding.setup-workflow`, `onboarding.setup-card`, `sidebar.unlisted`), or durable events (`workspaces.landed`,
 `models.login-changed`). Optional extensions plug into the core the same way: phase, plan, questions, and
 `coding-workflow` provide points and react to events; the core never imports them. A web point is `definePoint` in the owner's `ui.tsx`,
 rendered with `<Provided>` and filled by `provides` in another facet (see

@@ -23,11 +23,17 @@ vi.mock('@/sdk', () => ({
   useSystem: () => ({ project: { config: true, decision: null } }),
   useTranscript: () => [],
   useUltimate: () => ({}),
+  // No coding workflow help in this render: the links fall back to the Extensions panel.
+  Provided: ({ children }: { children: (value: undefined) => unknown }) => children(undefined),
+  definePoint: (point: string) => ({ point }),
+  provide: () => ({}),
 }))
 vi.mock('../../pages.tsx', () => ({}))
-vi.mock('../../survey.tsx', () => ({ StartComposer: () => null }))
 vi.mock('../../panel.tsx', () => ({ ExtensionsPanel: () => null }))
 vi.mock('../../../workspaces/ui.tsx', () => ({ IsolationAction: {} }))
+vi.mock('../../../lineage/ui.tsx', () => ({ MemoryDoc: {}, useRoots: () => undefined }))
+vi.mock('../../../subagents/ui.tsx', () => ({ StandingDoc: {} }))
+vi.mock('@/components/ui/button', () => ({ Button: () => null }))
 vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: { children: unknown }) => children,
   TooltipTrigger: ({ children }: { children: unknown }) => children,
@@ -37,11 +43,13 @@ vi.mock('@/components/ui/tooltip', () => ({
 async function statusLine(dismissed: boolean, off = false) {
   state.dismissed = dismissed
   state.off = off
+  // The Git link moved to the coding workflow; it still renders before onboarding's project setup link.
+  const { NoGit } = await import('../../../coding-workflow/onboarding.tsx')
   const facet = (await import('../../web.tsx')).default as unknown as {
     slots: { 'statusline.right': { component: ComponentType }[] }
   }
-  return facet.slots['statusline.right']
-    .map(({ component }) => renderToStaticMarkup(createElement(component)))
+  return [NoGit, ...facet.slots['statusline.right'].map(({ component }) => component)]
+    .map((component) => renderToStaticMarkup(createElement(component)))
     .join('')
 }
 

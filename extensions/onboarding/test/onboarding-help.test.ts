@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { Messages } from '../../messages/api.ts'
-import { Starts } from '../server.ts'
+import { Starts } from '../api.ts'
 import { Standing } from '../../subagents/api.ts'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { context } from '../../../server/harness.ts'

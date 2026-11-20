@@ -32,9 +32,12 @@ are watched with `useDocOf` (the shown one included), replays their changes, and
 | `useStore(select)`                                                        | Any slice of the client state (`State`), re-rendering when it changes                                                                                                                                                    |
 | `useTranscriptScroll()`                                                   | In `transcript.*` slots: `{ scrollRef, contentRef, atBottom }`, the transcript's scroller, the element whose children are its rows (`data-entry-id`), and whether it follows its newest row                              |
 
-`api` sends commands: `submit(text, whenBusy?)`, `abort()`, `configure({ model, thinkingLevel })`, `compact()`,
-`createConversation()`, `restart()`, and `action(extension, name, args?)`. Conversation commands default to the shown
-conversation.
+`api` sends commands: `submit(text, whenBusy?)`, `abort()`, `configure({ model?, thinkingLevel?, definition?, preset? })`,
+`compact()`, `createConversation({ title?, definition?, preset?, model?, thinkingLevel? })`, `restart()`, and
+`action(extension, name, args?)`. Conversation commands default to the shown conversation. With no conversation
+shown, a chat write (`submit`, `abort`, `cancelSubmission`, `configure`, `compact`) rejects with
+`Select a conversation` and sends no request; it never falls back to
+conversation 1. The selectors are described in [channel host](channel-host.md#stop-cancellation-and-configuration).
 
 `api.cancelSubmission(submissionId, conversationId?)` withdraws one queued input without stopping the run.
 

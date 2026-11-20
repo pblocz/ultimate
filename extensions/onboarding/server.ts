@@ -7,22 +7,18 @@ import {
   defineEntry,
   defineExtension,
   defineTool,
-  LiveDoc,
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import { obj } from '@earendil-works/pi-schema'
 import { strEnum } from '../../lib/schema.ts'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import type { Conversation, ConversationId, Cursor, EntryId, Tx } from '@earendil-works/pi-durable'
+import type { ConversationId } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { isolatable } from '../../lib/git.ts'
 import { writeJson } from '../../lib/json-file.ts'
 import { readSettings, updateSettings, userSettingsPath } from '../../lib/settings.ts'
 import type { JsonObject } from '@earendil-works/pi-durable'
 import type { ExtensionAction } from '../../server/actions.ts'
-import { SubagentsApi } from '../subagents/api.ts'
-import { LineageApi } from '../lineage/api.ts'
-import { WorkspacesApi } from '../workspaces/api.ts'
+import { OnboardingWorkflow, Starts } from './api.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { contractOutline } from '../../lib/api-files.ts'
 import {
@@ -36,20 +32,10 @@ import {
   HelpAction,
   SetExtensionAction,
   StartAction,
-  StartsDoc,
   StatusAction,
   WalkthroughAction,
 } from './refs.ts'
 
-export const Starts = defineDoc<{ roots: Record<string, number>; dismissed?: boolean }>({
-  kind: StartsDoc.kind,
-  checkpointWhen: () => false,
-  version: 1,
-  scope: 'conversation',
-  history: 'latest',
-  fork: 'initial',
-  initial: () => ({ roots: {} }),
-})
 const ChoiceRequests = defineDoc<{ payloads: Record<string, JsonObject> }>({
   kind: 'onboarding.choice-requests',
   checkpointWhen: () => false,
@@ -60,20 +46,14 @@ const ChoiceRequests = defineDoc<{ payloads: Record<string, JsonObject> }>({
   initial: () => ({ payloads: {} }),
 })
 export const docs = [Starts]
-export const StartEntry = defineEntry<{
-  root: number
-  instructions?: string
-  facts: {
-    project: { name: string; path: string }
-    firstRun: boolean
-    projectUndecided: boolean
-    gitReason?: string
-    root: number
-    rootEmpty: boolean
-  }
-}>('onboarding.start')
-export const WalkthroughEntry = defineEntry<Record<string, never>>('walkthrough.start')
 
+/** The coding onboarding, or a clear failure before anything changes when the coding workflow is off. */
+function workflow(host: ExtensionHost) {
+  const provided = host.want(OnboardingWorkflow)
+  if (!provided)
+    throw new Error('Coding onboarding is not available: enable the coding-workflow extension')
+  return provided
+}
 function lists(value: JsonObject) {
   const extensions = value.extensions ?? {}
   if (typeof extensions !== 'object' || Array.isArray(extensions))
@@ -149,42 +129,6 @@ async function declared(path: string) {
 
 const marker = (userHome: string) => join(userHome, '.ultimate/onboarding.json')
 
-/** Whether the conversation answered anything after entry `from`: a reply that is no error or abort. */
-async function answeredSince(tx: Tx, conversationId: ConversationId, from: EntryId) {
-  let cursor: Cursor | undefined
-  do {
-    const page = await tx.scanEntries(
-      { conversationId, minEntryId: from, order: 'ascending' },
-      100,
-      cursor,
-    )
-    if (
-      page.items.some((entry) => {
-        const message = entry.model?.[0]
-        return (
-          message?.role === 'assistant' &&
-          message.stopReason !== 'error' &&
-          message.stopReason !== 'aborted'
-        )
-      })
-    )
-      return true
-    cursor = page.next
-  } while (cursor)
-  return false
-}
-
-/** The walkthrough's model fact: @ultimate's model and context window, so beat 4 can recommend 1M+. */
-async function modelLine(host: ExtensionHost, conversation: Conversation) {
-  const ref = (await conversation.agent(context)).model
-  const model = (await host.models()).find(
-    (candidate) => candidate.provider === ref?.provider && candidate.id === ref?.modelId,
-  )
-  return model
-    ? `Model: ${model.provider}/${model.id}, context window ${model.contextWindow} tokens`
-    : 'Model: unknown'
-}
-
 export const userActions = [
   'start',
   'dismiss',
@@ -199,23 +143,11 @@ export const userActions = [
 ]
 
 export const actions: Record<string, ExtensionAction> = {
+  // The coding workflow runs these; without it they fail before they change state.
   help: implementAction(HelpAction, async (args, { host }) => {
     const card = args && typeof args === 'object' && !Array.isArray(args) ? args.card : undefined
     if (card !== 'project' && card !== 'git') throw new Error('Expected project or git card')
-    const id = await host.need(SubagentsApi).standing('ultimate', context)
-    const conversation = (await host.harness().conversation(id, context))!
-    await conversation.submit(
-      {
-        type: 'input',
-        content:
-          card === 'project'
-            ? "Help me decide whether to use this project's setup."
-            : 'Help me set up git for this folder.',
-        whenBusy: 'followUp',
-      },
-      context,
-    )
-    return { id }
+    return workflow(host).help(card)
   }),
   start: implementAction(StartAction, async (args, { host, conversationId }) => {
     const input = args as { root?: number; instructions?: string } | null
@@ -227,82 +159,10 @@ export const actions: Record<string, ExtensionAction> = {
         (input.instructions !== undefined && typeof input.instructions !== 'string'))
     )
       throw new Error('Expected root id and optional instructions')
-    const lineage = host.need(LineageApi)
-    const root =
-      input?.root ??
-      (conversationId === undefined ? undefined : await lineage.rootOf(conversationId, context)) ??
-      1
-    const harness = host.harness()
-    const requestId = `onboarding:${root}`
-    const existing = (await harness.snapshot(Starts, ROOT_CONVERSATION_ID, context))?.roots[
-      String(root)
-    ]
-    if (existing !== undefined) {
-      // A start whose run failed before answering (no model, an expired login, a provider error) never began. While
-      // @ultimate's newest run failed that way and nothing since the start was answered (inputs typed meanwhile may
-      // have failed too), continue it. Checked and admitted in one commit, so a second call finds it busy (#552022: a
-      // start without a model was a dead end).
-      const conversation = (await harness.conversation(existing as ConversationId, context))!
-      await harness.commit(async (tx) => {
-        const sent = await tx.submissionByRequest(conversation.id, requestId)
-        const { run, runFailure } = await tx.doc(LiveDoc, conversation.id)
-        if (
-          sent?.status !== 'unanswered' ||
-          sent.entry === undefined ||
-          run !== undefined ||
-          !['no_model', 'model_error'].includes(runFailure?.reason ?? '') ||
-          (await answeredSince(tx, conversation.id, sent.entry))
-        )
-          return
-        await conversation.submit(tx, { type: 'continue' })
-      }, context)
-      return { id: existing }
-    }
-    if ((await lineage.rootOf(root, context)) !== root) throw new Error('Expected a project root')
-    const id = await host.need(SubagentsApi).standing('ultimate', context)
-    const project = await host.projectSetup()
-    const checkout = await isolatable(host.projectRoot)
-    const facts = {
-      project: { name: basename(host.projectRoot), path: host.projectRoot },
-      firstRun: !existsSync(marker(host.userHome)),
-      projectUndecided: project.config && project.decision === null,
-      ...('reason' in checkout ? { gitReason: checkout.reason } : {}),
-      root,
-      rootEmpty: await harness.commit(
-        async (tx) =>
-          !(await tx.scanEntries({ conversationId: root as ConversationId }, 1)).items.length,
-        context,
-      ),
-    }
-    const instructions = input?.instructions
-    const conversation = (await harness.conversation(id, context))!
-    await conversation.submit(
-      {
-        type: 'input',
-        content: [
-          'Onboarding started.',
-          await modelLine(host, conversation),
-          `Project: ${facts.project.name}`,
-          `Path: ${facts.project.path}`,
-          `First run: ${facts.firstRun}`,
-          `Project setup undecided: ${facts.projectUndecided}`,
-          `Git isolation: ${facts.gitReason ?? 'ready'}`,
-          `Root: ${root}; empty: ${facts.rootEmpty}`,
-          ...(instructions === undefined ? [] : [`User instructions:\n${instructions}`]),
-        ].join('\n'),
-        entry: {
-          kind: StartEntry.kind,
-          data: { root, ...(instructions === undefined ? {} : { instructions }), facts },
-        },
-        requestId,
-        whenBusy: 'followUp',
-      },
-      context,
+    return workflow(host).start(
+      { ...input, firstRun: !existsSync(marker(host.userHome)) },
+      conversationId,
     )
-    await harness.commit(async (tx) => {
-      ;(await tx.doc(Starts, ROOT_CONVERSATION_ID)).roots[String(root)] = id
-    }, context)
-    return { id }
   }),
   dismiss: implementAction(DismissAction, async (_args, { host }) => {
     await host.harness().commit(async (tx) => {
@@ -310,20 +170,9 @@ export const actions: Record<string, ExtensionAction> = {
     }, context)
     return { dismissed: true }
   }),
-  walkthrough: implementAction(WalkthroughAction, async (_args, { host }) => {
-    const id = await host.need(SubagentsApi).standing('ultimate', context)
-    const conversation = (await host.harness().conversation(id, context))!
-    await conversation.submit(
-      {
-        type: 'input',
-        content: `Walkthrough started: run how-ultimate-works, without project setup.\n${await modelLine(host, conversation)}`,
-        entry: { kind: WalkthroughEntry.kind, data: {} },
-        whenBusy: 'followUp',
-      },
-      context,
-    )
-    return { id }
-  }),
+  walkthrough: implementAction(WalkthroughAction, async (_args, { host }) =>
+    workflow(host).walkthrough(),
+  ),
   choose: implementAction(ChooseAction, async (args, actionContext) => {
     const { host, conversationId } = actionContext
     if (conversationId === undefined) throw new Error('A conversation is required')
@@ -362,6 +211,7 @@ export const actions: Record<string, ExtensionAction> = {
       payload = { card, local: args.local }
       summary = args.local ? 'Using project setup' : 'Keeping global setup'
     } else if (card === 'git' && typeof args.initialize === 'boolean') {
+      workflow(host)
       payload = { card, initialize: args.initialize }
       summary = args.initialize
         ? 'Git is ready'
@@ -385,7 +235,7 @@ export const actions: Record<string, ExtensionAction> = {
         if (card === 'extensions')
           await actions.applyFirstRun({ extensions: payload.extensions! }, actionContext)
         else if (card === 'project') await actions.decide({ local: payload.local! }, actionContext)
-        else if (payload.initialize) await host.need(WorkspacesApi).setupGit()
+        else if (payload.initialize) await workflow(host).setupGit()
         // Persist the payload before admission: queued submissions have no transcript entry yet.
         await harness.commit(async (tx) => {
           ;(await tx.doc(ChoiceRequests, id)).payloads[toolCallId] = payload
@@ -567,10 +417,6 @@ export const ChoiceEntry = defineEntry<{ card: string; summary: string; toolCall
 )
 
 export default function onboarding(host: ExtensionHost) {
-  // Core, always on; resolved where they are called, declared here so the catalogue lists them.
-  host.need(LineageApi)
-  host.need(SubagentsApi)
-  host.need(WorkspacesApi)
   return defineExtension({
     name: 'onboarding',
     tools: [
@@ -592,12 +438,12 @@ export default function onboarding(host: ExtensionHost) {
                 ? 'This project has no .ultimate/ setup'
                 : 'Project setup is already decided',
             )
-          const checkout = card === 'git' ? await isolatable(host.projectRoot) : undefined
-          if (checkout && !('reason' in checkout))
+          const reason = card === 'git' ? await workflow(host).gitReason() : undefined
+          if (card === 'git' && reason === undefined)
             throw new Error('This folder is already isolatable')
           const text =
-            card === 'git' && checkout && 'reason' in checkout
-              ? checkout.reason
+            card === 'git'
+              ? reason!
               : card === 'project'
                 ? `Project has a .ultimate/ setup; undecided. ${JSON.stringify(await adds(host.projectRoot))}`
                 : 'Choose recommended extensions. Settings apply only when the user continues.'

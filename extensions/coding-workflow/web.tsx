@@ -1,6 +1,7 @@
 /**
  * The coding workflow in the browser: the project tree with @ultimate, its branches, roots and landings in the
- * sidebar, the title bar's @ultimate button, Talk to @ultimate, and error reports for @ultimate to debug.
+ * sidebar, the title bar's @ultimate button, Talk to @ultimate, error reports for @ultimate to debug, and the coding
+ * onboarding (Start here, the Git setup card, the walkthrough).
  */
 import {
   api,
@@ -11,6 +12,13 @@ import {
   useUltimate,
 } from '@/sdk'
 import { StandingAction, talkToUltimate } from '../subagents/ui.tsx'
+import {
+  NoGit,
+  onboardingCommands,
+  onboardingEntries,
+  onboardingProvides,
+  StartComposer,
+} from './onboarding.tsx'
 import { Conversations, Seen } from './sidebar.tsx'
 import { UltimateButton, UltimateWordmark } from './ultimate.tsx'
 
@@ -33,6 +41,9 @@ function useErrorReport() {
 }
 
 export default defineWebExtension({
+  // Until onboarding has run, @ultimate's composer carries the card that starts it.
+  composer: StartComposer,
+  entries: onboardingEntries,
   slots: {
     // Below the ordinary conversations, which the sidebar extension lists first.
     sidebar: [{ component: Conversations, order: 100 }],
@@ -40,10 +51,13 @@ export default defineWebExtension({
     'titlebar.brand': [UltimateWordmark],
     'titlebar.left': [{ component: UltimateButton, order: 100 }],
     overlay: [Seen],
+    // Before onboarding's project setup link, as before the move.
+    'statusline.right': [{ component: NoGit, phone: true, order: -1 }],
   },
   // Later in discovery order than agent's report into the selected conversation, so this one wins.
-  provides: [provide(ErrorReport, useErrorReport)],
+  provides: [provide(ErrorReport, useErrorReport), ...onboardingProvides],
   commands: [
+    ...onboardingCommands,
     {
       id: 'subagents.ultimate',
       title: 'Talk to @ultimate',

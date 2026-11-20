@@ -89,8 +89,12 @@ pnpm start          # Ultimate on its own repository; opens http://127.0.0.1:474
 cd ~/Projects/app && ultimate  # or Ultimate on one of your projects
 ```
 
-- **First start** on a machine shows Get ready: log in to a provider and choose a model. Continue opens @ultimate,
-  which offers inline setup cards, reads the project and writes the root's first context.
+- **First start** on a machine shows Get ready: log in to a provider and choose a model. With the coding workflow on
+  (the default), Continue opens @ultimate, which offers inline setup cards, reads the project and writes the root's
+  first context. A page opens the latest ordinary conversation, or the empty new-chat screen when there is none.
+- **Ordinary conversations** start from **New conversation** at the top of the sidebar. Each one has its own history
+  and shares the workspace files. Its **Persona** button selects one of the agent definitions (or none), and the model
+  button selects a model preset or a model, independently of the persona.
 - **Logins** happen inside the UI: Get ready, or later the command palette (`Ctrl+K`, `⌘K` on macOS) → "Log in to a
   provider". Claude Code logs in with its own `claude auth login` (see "Recommended models"). Logins are shared with
   `pi`, and so is logging out; already logged in to `pi`, you skip this step. Log in on each machine; never copy
@@ -118,7 +122,7 @@ other agents are your choice. Both run on the default family, and the model you 
 family's model with thinking high, so it is what @ultimate, new conversations and branches start on. Get ready
 pre-selects Opus 5.5 when Claude Code is logged in, otherwise `openai-codex/gpt-6-astra` with a ChatGPT login,
 otherwise the first model you are logged in for. Later, the model picker changes only the conversation it is opened
-in; the default family is changed in the Agents panel (⌘K → **Model families…**). (This repository puts its
+in, to a model preset (a family) or a direct model; the default family is changed in the Agents panel (⌘K → **Model families…**). (This repository puts its
 coordinator on the `lead` family, set to Opus 5.5 with high thinking in `.ultimate/settings.json`.) To set Claude Code
 up, install the CLI (`npm install -g @anthropic-ai/claude-code`) and run `claude auth login`; ⌘K → **Claude Code
 setup…** shows the login status. The
@@ -208,7 +212,7 @@ stays docked on every surface, and the choice is durable: reloads, other tabs, a
 - Press `Ctrl+Alt+B` for the right panel: To-dos, Tasks, Activity, Automations (schedules and watching scripts),
   Agents, Documents (the plan, the codemode store, and every other extension document), Info (workspace, model,
   build, machine, skills) and Extensions, each a tab; Secrets and Claude Code open from ⌘K.
-- Use @ultimate's row at the top of the sidebar (on phones, the top-bar **@ultimate** button) to ask for work, explore an idea, or start an independent line of work. Its messages and questions appear in its transcript, with answer cards beneath questions; open questions also wait at the top of the right panel's To-dos tab until you answer or dismiss them, and @ultimate's mark turns amber meanwhile.
+- Use @ultimate's row in the project tree, below the ordinary conversations (on phones, the top-bar **@ultimate** button) to ask for work, explore an idea, or start an independent line of work. Its messages and questions appear in its transcript, with answer cards beneath questions; open questions also wait at the top of the right panel's To-dos tab until you answer or dismiss them, and @ultimate's mark turns amber meanwhile.
 
 ## How it is put together
 

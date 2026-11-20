@@ -1,6 +1,6 @@
 ## Subagents
 
-Definitions with `resident: true` have one standing conversation per project, reached by the subagents service and pinned in the sidebar's agents group; deferred tools explicitly named in a definition are offered only to conversations configured from it.
+Definitions with `resident: true` have one standing conversation per project, reached by the subagents service and pinned in the coding workflow's agents group; deferred tools explicitly named in a definition are offered only to conversations configured from it.
 
 A `watchdog.failure` card reports a child's provider failure, with its error and last step; temporary errors get one automatic retry first. Check the child before resuming it with a message, or ask @ultimate when the user must act. A successful retry's answer arrives as a normal subagent report.
 
@@ -8,6 +8,10 @@ Use `subagent` to delegate bounded research, recon, review, or isolated implemen
 extension, subject to the parent's tool subset. Coordinator behaviour lives in `extensions/coding-workflow/agents/coordinator.md`.
 
 Definitions live in `agents/`, enabled extensions' `agents/` folders, `~/.ultimate/agents/`, and the project root's `.ultimate/agents/` (later wins by name; a later file marked by `addTools`, an overlay, extends the earlier one instead: it may override any setting such as `model` or `thinking`, adds tools with `addTools`, adds denied tools with `denyTools` and appends its body, but never replaces the instructions or the `tools` list), and are reread at every start; the Agents panel lists them under the model family each runs on. `tools` is an optional YAML list selecting the parent's tools; omitted, it inherits them. `denyTools` is a YAML list of strings removed from either that explicit list or inherited tools; overlays add their entries to the base deny list, and unknown tool names are silently ignored. `summaries: false` turns off the automatic summary model for every conversation the definition configures (no generated title, sidebar summary, reply activity, spawn refresh or abstract; explicit `askSummaryModel` calls still work), as standing agents, the lander and side chats are: use it for agents whose conversations are temporary or keep a fixed title. See `extensions/subagents/README.md` for frontmatter. Shipped definitions name a model family instead of a model (`family: fast`; see "Model families" in `extensions/models/README.md`): `ultimate` and `coordinator` default, `reviewer` review, `worker` and `dream-pass` fast, `scout`, `watcher` and `voice` tiny, `designer` design. A definition's own `model` pins it to one model; moving an agent to another family in the Agents panel saves its definition (an overlay for a built-in).
+
+The same definitions are the personas of ordinary conversations. A user selects one with the composer's **Persona**
+button, which applies all of its fields in one commit; a typed input later refreshes only its instructions. A model
+preset or model choice keeps the persona and its tools. See "Personas" in `extensions/subagents/README.md`.
 
 Review goes through one `reviewer`. When any `reviewer-*` definition exists, the shipped reviewer leads them: it starts
 every one in parallel and returns one merged verdict; otherwise it reviews alone. Add a reviewer by adding a

@@ -10,6 +10,7 @@ import { RunsDoc, StandingAction } from './refs.ts'
 import type { Run } from './refs.ts'
 
 export { DefinitionAction, DefinitionsAction, StandingAction, StandingDoc } from './refs.ts'
+export { Tag } from './parts.tsx'
 
 /** A badge on a child's call card, by the child's id (workspaces shows its worktree). Nothing while nothing provides it. */
 export const ChildBadge = definePoint<number, ReactNode>('subagents.child-badge')

@@ -340,7 +340,12 @@ export async function createConversationHost(
     }
   }
 
-  async function prepareChange(base: Agent, change: ConfigureConversationRequest) {
+  async function prepareChange(
+    base: Agent,
+    change: ConfigureConversationRequest,
+    // On an existing conversation a persona change keeps its model selection; a new one starts from the default.
+    existing = false,
+  ) {
     if (!change || typeof change !== 'object' || Array.isArray(change))
       throw new ChannelError('invalid_input', 'Invalid configuration')
     if (
@@ -382,7 +387,13 @@ export async function createConversationHost(
     const profile =
       change.definition === undefined
         ? undefined
-        : await prepareDefinition(host, base, change.definition, { model, thinking })
+        : await prepareDefinition(
+            host,
+            base,
+            change.definition,
+            { model, thinking },
+            existing && model === undefined && thinking === undefined,
+          )
     let fields: AgentChange = { ...profile?.change, ...(model && { model }) }
     if (thinking !== undefined || model) {
       const ref = fields.model ?? base.model
@@ -749,7 +760,7 @@ export async function createConversationHost(
             model: current.model,
             thinkingLevel: current.thinkingLevel,
           }
-          const prepared = await prepareChange(base, change)
+          const prepared = await prepareChange(base, change, true)
           if (
             prepared.profile &&
             (await prepared.services.isolation?.get(conversationId, hostContext))

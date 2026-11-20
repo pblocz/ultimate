@@ -18,6 +18,8 @@ vi.mock('react', async (original) => ({
 vi.mock('@/sdk', () => ({
   api: { action: shell.action },
   defineWebExtension: (extension: unknown) => extension,
+  // subagents/ui.tsx declares its points when imported.
+  definePoint: (point: string) => ({ point }),
   useToolDuration: () => undefined,
   formatKeys: () => [],
   useEvent: () => {},

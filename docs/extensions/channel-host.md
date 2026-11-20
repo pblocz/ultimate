@@ -13,20 +13,20 @@ belong to the adapter. Advanced extensions keep `harness()`; the port is not a s
 
 ## Operations
 
-| Operation                                           | Result                                                                                 |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `conversations.list()`                              | The current conversation summaries, the same list as `host.conversations()`.           |
-| `conversations.create({ title?, cwd? })`            | `{ id }`. The defaults are the workspace and the default model.                        |
-| `conversations.get(id)`                             | The summary and the model and thinking configuration.                                  |
-| `conversations.configure(id, change)`               | The configuration after validation and commit.                                         |
-| `conversations.submit(id, input)`                   | A receipt `{ conversationId, submissionId }`: durable admission, not an answer.        |
-| `conversations.submission(id, submissionId)`        | `queued`, `active`, `answered` with `answerRef`, or `unanswered` with a reason.        |
-| `conversations.cancelQueuedInput(id, submissionId)` | Withdraws queued input, or fails with `conflict` when it has started or finished.      |
-| `conversations.stop(id)`                            | Stops the conversation's own foreground work, and returns when it has settled.         |
-| `conversations.compact(id, { instructions? })`      | `{ operationId }`, an opaque string.                                                   |
-| `conversations.history(id, page)`                   | Safe history items, a scan position, and a continuation cursor when more remain.       |
-| `conversations.watch(id, { signal? })`              | An async stream of complete output snapshots.                                          |
-| `models.list()`                                     | Model descriptors with availability, limits, thinking levels and cost; no credentials. |
+| Operation                                           | Result                                                                                                                     |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `conversations.list()`                              | The current conversation summaries, the same list as `host.conversations()`.                                               |
+| `conversations.create(request)`                     | `{ id }`. See [configuration](#stop-cancellation-and-configuration). The defaults are the workspace and the default model. |
+| `conversations.get(id)`                             | The summary, the model and thinking, and the selected `definition` and `preset`.                                           |
+| `conversations.configure(id, change)`               | The configuration after validation and commit.                                                                             |
+| `conversations.submit(id, input)`                   | A receipt `{ conversationId, submissionId }`: durable admission, not an answer.                                            |
+| `conversations.submission(id, submissionId)`        | `queued`, `active`, `answered` with `answerRef`, or `unanswered` with a reason.                                            |
+| `conversations.cancelQueuedInput(id, submissionId)` | Withdraws queued input, or fails with `conflict` when it has started or finished.                                          |
+| `conversations.stop(id)`                            | Stops the conversation's own foreground work, and returns when it has settled.                                             |
+| `conversations.compact(id, { instructions? })`      | `{ operationId }`, an opaque string.                                                                                       |
+| `conversations.history(id, page)`                   | Safe history items, a scan position, and a continuation cursor when more remain.                                           |
+| `conversations.watch(id, { signal? })`              | An async stream of complete output snapshots.                                                                              |
+| `models.list()`                                     | Model descriptors with availability, limits, thinking levels and cost; no credentials.                                     |
 
 IDs are positive integers, opaque to the caller and valid in this installation only. Which conversation a browser
 shows is UI state; there is no server-wide selection.
@@ -80,6 +80,22 @@ never stops a run: call `stop` or `cancelQueuedInput` for that.
 
 `configure` uses the web's validation. An unavailable model or an unsupported thinking level is `invalid_input`. A
 model change without a thinking level keeps the current level, or clamps it to the new model.
+
+`create` and `configure` take the same selectors: `definition` (an agent definition name, or `null` for none),
+`preset` (a model family name), `model` and `thinkingLevel`. `create` also takes `title` and `cwd`, and marks the new
+conversation as an ordinary chat (label `chat`). A request applies its selectors in one commit, so a failure changes
+nothing:
+
+- A `definition` applies every field of that definition, as for a child: instructions, tools, model, thinking and
+  summaries. Discovery, overlays, scope precedence and trust are the same as for `subagent`. An explicit `preset` or
+  `model` in the same request wins over the definition's model. In `configure`, a definition (or `null`) that names
+  no `model`, `family` or `thinking` keeps the conversation's model, thinking level and preset.
+- A `preset` sets its model and thinking and keeps the definition and its tools. A direct `model` clears the preset.
+  A request with both a `preset` and a `model` is `invalid_input`.
+- An unknown definition or preset is `invalid_input`. A definition that needs worktree isolation or summary control
+  is `unavailable` when that optional support is absent.
+- A definition change is a `conflict` on a conversation that is not an ordinary chat, during a run, or on an isolated
+  conversation.
 
 ## History and cursors
 

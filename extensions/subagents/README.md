@@ -124,10 +124,32 @@ Another extension opens a config view with `events.emit('subagents:open-definiti
 and hears `subagents:definition-closed { name }` when it closes. Codemode's `ultimate.agents()` lists every definition
 with its source, path and fields.
 
+## Personas
+
+A persona is an agent definition selected for an ordinary conversation. There is no second format or registry: the
+**Persona** button (`persona.tsx`, in the composer toolbar of conversations labelled `chat`) lists the definitions
+from `definitions` and calls `api.configure({ definition })`, or `{ definition: null }` for none. The server applies
+the definition as for a child, in one commit (`server/conversation-configuration.ts`): instructions, tools, model,
+thinking and summaries, with the same discovery, overlays, scope precedence and trust. The selection is recorded in
+the `Profile` document (`ultimate.agent-profile`, `ProfileDoc` in `refs.ts`), which children and standing agents
+already use.
+
+- **Model choices.** A preset or model choice keeps the definition and its tools. A preset or model in the same
+  request as the definition wins over the definition's model. On an existing chat, a definition that names no
+  `model`, `family` or `thinking` keeps the chat's model, thinking level and preset; so does **No persona**.
+- **Refusals.** The server refuses a change during a run, on a conversation that is not a chat, and on an isolated
+  conversation. A definition that needs worktree isolation fails when that support is absent; nothing changes.
+- **Refresh.** When a chat or standing agent takes typed input, the prompt extension refreshes only the selected
+  definition's instructions (`extensions/prompt/README.md`). Model, thinking and tools stay as chosen. Forks and
+  children keep what they started with. If the definition is gone, the conversation keeps its configuration and
+  shows a notice.
+
+Existing conversations keep their stored configuration; nothing migrates.
+
 ## Standing agents
 
 A `resident: true` definition is a standing agent: one ownerless conversation in the project directory (whatever its
-`isolate`), pinned in the sidebar's agents group as `@name`. It starts on the default model and the root's thinking
+`isolate`), pinned in the coding workflow's agents group as `@name`. It starts on the default model and the root's thinking
 level, then keeps what is chosen in it; a refresh changes model or thinking only where the definition pins them. A
 standing agent whose definition is gone is retired, once every definition parses: its conversation stays readable as an
 ordinary one.

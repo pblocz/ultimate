@@ -8,7 +8,7 @@ import type { Landing, LandingGroup } from './landings.ts'
 import { CommitCount } from '../workspaces/ui.tsx'
 import { FeatureTag } from '../conversations/ui.tsx'
 import { More, Section } from './section.tsx'
-import { useShell, useSidebarState } from '../sidebar/state.tsx'
+import { useShell, useSidebarState } from '../sidebar/ui.tsx'
 
 /**
  * The latest landings of every root (up to 20 each), newest first. Read again whenever a root's token count changes,

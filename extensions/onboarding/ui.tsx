@@ -1,11 +1,18 @@
-/** Onboarding for other extensions' browser code: the first-run status, starting onboarding, and extension switches. */
-import type { ReactNode } from 'react'
-import { definePoint } from '@/sdk'
-
-export { SetExtensionAction, StartAction, StatusAction } from './refs.ts'
-
 /**
- * More of an open row in the Extensions panel, below its tools and contract (`mcp` lists its servers there). Input is
- * the extension's name; the provider returns null for the others.
+ * Onboarding for other extensions' browser code: the first-run status, starting onboarding, extension switches, and
+ * the points the coding workflow fills (its onboarding start and help, and the Git setup card).
  */
-export const ExtensionDetails = definePoint<string, ReactNode>('onboarding.extension-details')
+export {
+  ChooseAction,
+  DismissAction,
+  HelpAction,
+  SetExtensionAction,
+  StartAction,
+  StartsDoc,
+  StatusAction,
+  WalkthroughAction,
+} from './refs.ts'
+export { firstRunDialog } from './parts.tsx'
+export { onboarded } from './onboarded.ts'
+export { SetupLink } from './setup-link.tsx'
+export { ExtensionDetails, SetupCard, SetupWorkflow } from './points.tsx'

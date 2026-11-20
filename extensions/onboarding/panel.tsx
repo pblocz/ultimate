@@ -36,7 +36,7 @@ import {
   sources,
   useDescribed,
 } from './parts.tsx'
-import { ExtensionDetails } from './ui.tsx'
+import { ExtensionDetails } from './points.tsx'
 import { AdoptProjectSetupAction, DecideAction, DetailsAction, SetExtensionAction } from './refs.ts'
 import { switchScope } from './choices.tsx'
 import { ListAction } from '../secrets/ui.tsx'

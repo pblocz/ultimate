@@ -32,7 +32,8 @@ it('adds a secret under a name the user types, refusing an invalid one inline', 
   cleanup.push(() => browser.close())
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   await page.goto(server.url)
-  await page.locator('#app [data-ui="composer"] textarea').waitFor()
+  // Secrets open from the empty new-chat screen: a page opens no conversation of its own (no implicit @ultimate).
+  await page.locator('#app [data-ui="no-conversation"]').waitFor()
   await page.keyboard.press('ControlOrMeta+k')
   await page.getByPlaceholder('Run a command…').fill('Secrets')
   await page.locator('[data-slot="command-item"]', { hasText: 'Secrets…' }).click()

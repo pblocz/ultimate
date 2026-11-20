@@ -7,14 +7,12 @@ import {
   CheckIcon,
   CircleIcon,
   ChevronRightIcon,
-  GitBranchIcon,
   LoaderCircleIcon,
 } from 'lucide-react'
 import {
   api,
   cn,
   errorMessage,
-  events,
   useCommands,
   useConversation,
   useModels,
@@ -27,7 +25,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { MessageResponse } from '@/components/ai/message'
-import type { Isolation } from '../workspaces/refs.ts'
 import { refreshFamilies, runsOn, SetDefaultAction, useFamilies, usePicks } from '../models/ui.tsx'
 import { DEFAULT_FAMILY, RECOMMENDED_MODELS } from '../../lib/families.ts'
 import { FirstRunDoneAction } from './refs.ts'
@@ -424,59 +421,6 @@ export function ProjectCard({
         </Button>
         <Button disabled={busy} size="sm" onClick={() => void decide(true)}>
           Use it
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-export function GitCard({
-  isolation,
-  onDone,
-}: {
-  isolation?: Isolation
-  onDone: (choice: { initialize: boolean }) => Promise<void>
-}) {
-  const [initializing, setInitializing] = useState<boolean>()
-  // A reload after initialization must retry the same notification, not hand Git back to the agent.
-  const initialize =
-    initializing ?? (isolation?.empty === true || (isolation !== undefined && !isolation.reason))
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string>()
-  const apply = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      setInitializing(initialize)
-      await onDone({ initialize })
-      events.emit('onboarding:git', null)
-    } catch (failure) {
-      setError(errorMessage(failure))
-      setBusy(false)
-    }
-  }
-  return (
-    <div className="space-y-4 p-4">
-      <p className="text-xs text-muted-foreground">{isolation?.reason}</p>
-      <p className="text-sm leading-relaxed">
-        With Git, each conversation gets its own checkout. Finished work lands on your branch
-        through the lander, which runs your checks first. Until then, conversations share this
-        folder.
-      </p>
-      <p className="flex gap-2 rounded-md border border-border bg-sidebar p-3 text-xs leading-relaxed text-muted-foreground">
-        <GitBranchIcon className="size-4 shrink-0 text-brand" />
-        {initialize
-          ? 'The folder is empty, so Ultimate runs git init and makes an empty first commit.'
-          : 'The folder has files. @ultimate chooses what the first commit holds, without secrets, dependencies or build output. No remote, no push.'}
-      </p>
-      {error && <p className="text-xs text-error">{error}</p>}
-      <div className="flex justify-end">
-        <Button
-          disabled={busy || (!isolation && initializing === undefined)}
-          size="sm"
-          onClick={() => void apply()}
-        >
-          {initialize ? 'Set up Git' : 'Let @ultimate do it'}
         </Button>
       </div>
     </div>

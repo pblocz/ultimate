@@ -142,6 +142,33 @@ it('rejects profile changes during a turn and does not allow a profile selector 
   await channel.conversations.stop(chat.id)
 })
 
+it('keeps the chosen preset when a persona that names no model is selected or cleared', async () => {
+  const { f, channel } = await fixture()
+  const chat = await channel.conversations.create({ preset: 'deliberate' })
+  // `writer` names no model, family or thinking level: the persona changes, the model selection stays.
+  await channel.conversations.configure(chat.id, { definition: 'writer' })
+  expect((await channel.conversations.get(chat.id)).configuration).toEqual({
+    definition: 'writer',
+    preset: 'deliberate',
+    model: { provider: 'faux', modelId: 'faux-2' },
+    thinkingLevel: 'high',
+  })
+  expect((await agent(f, chat.id)).instructions).toContain('Writer instructions.')
+  await channel.conversations.configure(chat.id, { definition: null })
+  expect((await channel.conversations.get(chat.id)).configuration).toEqual({
+    preset: 'deliberate',
+    model: { provider: 'faux', modelId: 'faux-2' },
+    thinkingLevel: 'high',
+  })
+  // `helper` pins a model, so selecting it applies that model and the preset no longer describes the chat.
+  await channel.conversations.configure(chat.id, { definition: 'helper' })
+  expect((await channel.conversations.get(chat.id)).configuration).toMatchObject({
+    definition: 'helper',
+    model: { provider: 'faux', modelId: 'faux-1' },
+  })
+  expect((await channel.conversations.get(chat.id)).configuration.preset).toBeUndefined()
+})
+
 it('publishes selected names in safe output snapshots and preserves them after reopen', async () => {
   const { f, channel } = await fixture()
   const chat = await channel.conversations.create({ definition: 'helper', preset: 'quick' })
