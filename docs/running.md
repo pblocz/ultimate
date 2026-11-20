@@ -10,7 +10,7 @@
 - A crashed child restarts with backoff. After three failed boots the supervisor serves diagnostics and retries on changes in `server/`, `shared/`, or `extensions/`.
 - With Tailscale enabled, the server logs its HTTPS URL as `Ultimate: https://… (remote)` when Tailscale registers it (usually after startup), and logs again when it is no longer served; under the supervisor these are core log lines. The interactive dashboard also keeps the current remote URL at its top, with the local URL underneath, and updates it when remote access changes.
 - Binds only `127.0.0.1`; `--port` or `ULTIMATE_PORT` overrides selection, otherwise the supervisor chooses the first free port from `4747`.
-- `ULTIMATE_HOME` overrides state storage; the default is `~/.ultimate/projects/<basename>-<sha256(projectRoot) first 8 hex>/`. Different projects can run concurrently, each its own dedicated process, so one Ultimate can manage the others (see [One Ultimate or many](../README.md#one-ultimate-or-many)). Never run two storage owners on the same home.
+- `ULTIMATE_HOME` overrides state storage; the default is `<userHome>/.ultimate/projects/<basename>-<sha256(projectRoot) first 8 hex>/`. `ULTIMATE_USER_HOME` selects the Ultimate user home, else the OS home applies. Different projects can run concurrently, each its own dedicated process. Never run two storage owners on the same home. See [Workspace and state paths](#workspace-and-state-paths).
 - `ULTIMATE_GENERATION` defaults to `1` and labels the process in system info.
 - Pi's models, settings, and auth are shared with `~/.pi/agent`; the `models` extension logs in to providers.
 - `pnpm check` checks format/lint/types; `pnpm test` runs the fast in-process tests with temporary homes (about 60 s today), each scripting its model responses on Pi's faux provider (`prepareHarness({ faux })`, test-only); `pnpm test:e2e` runs the `test/e2e` folders, the tests that spawn real supervisors and instances, on a scripted OpenAI-compatible endpoint (`test/e2e/scripted-model.ts`). The core's and integration tests are in `test/`, each extension's in `extensions/<name>/test/`; pass a path to run a part (`pnpm test extensions/<name>/`). Test servers find no Tailscale CLI (`TAILSCALE_COMMAND`), so they stay off the tailnet.
@@ -29,6 +29,26 @@
 - `tsconfig.json` (server, tests, tooling) references `tsconfig.web.json` (browser: `web/src`, `extensions/**/*.tsx`).
   `pnpm check` type-checks both; with plain `tsc`, run `tsc -b`.
 - The standalone server shuts down on SIGINT/SIGTERM; reopening resumes durable work.
+
+## Workspace and state paths
+
+The workspace argument, user configuration, and runtime state have separate purposes:
+
+| Path               | Selection                                                                          | Contents                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Workspace          | The existing CLI directory or server option, resolved with `realpath`.             | Shared files and trusted `.ultimate/` settings, extensions, definitions, and skills. |
+| Ultimate user home | `HostOptions.userHome`, then `ULTIMATE_USER_HOME`, then `homedir()`.               | User `.ultimate/` configuration and resources.                                       |
+| Runtime home       | `HostOptions.home`, then `ULTIMATE_HOME`, then `projectHome(workspace, userHome)`. | SQLite state, locks, traces, indexes, and generated web files.                       |
+
+`server/project.ts:runtimePaths` resolves relative user and runtime overrides against the launch working directory. The supervisor passes absolute paths to its child before the child changes directory. Direct startup, reset, and restore use the same rules. Empty explicit paths fail before writes.
+
+Older versions could use the OS home despite `ULTIMATE_USER_HOME`, or resolve relative state beneath the workspace in the child. If either old location differs and contains state, startup and maintenance commands refuse before writes. The error names both paths. Set `ULTIMATE_HOME` to the intended absolute path; nothing moves automatically. An explicit absolute choice also resolves two existing copies.
+
+These paths do not change Pi's credential directory or `HOME`. Reset and restore keep their existing backup location under the OS home's `.ultimate/backups`. Restore reads Ultimate cloud settings and secrets from the selected Ultimate user configuration.
+
+State selection does not grant workspace trust. Discovery and model-preset scope rules stay unchanged, including linked-worktree sharing. Existing chapter metadata and pending switches still recover without Dream; ordinary homes create no chapter manifest.
+
+The installed application remains writable by its runtime user. Extension and web edits retain live reloads, and core edits retain the existing restart rules. A working directory is not a filesystem sandbox. In a container, edits to unmounted application files survive process restarts but not container recreation. Mounted workspace and state files persist.
 
 ## Starting fresh
 

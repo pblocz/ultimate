@@ -9,7 +9,7 @@ import { parseArgs } from 'node:util'
 import { git } from '../lib/git.ts'
 import { readJson, writeJson } from '../lib/json-file.ts'
 import { acquireLock, readOwner } from '../server/lock.ts'
-import { projectHome } from '../server/project.ts'
+import { runtimePaths } from '../server/project.ts'
 import type { BackupFile } from '../extensions/cloud/backup.ts'
 
 /**
@@ -196,7 +196,7 @@ async function main() {
   if (positionals.length > 1) throw new Error('Usage: pnpm reset [dir] [--dry-run] [--yes]')
   const user = homedir()
   const project = await realpath(positionals[0] ?? process.env.INIT_CWD ?? process.cwd())
-  const home = process.env.ULTIMATE_HOME || projectHome(project, user)
+  const { home } = runtimePaths(project)
   const p = await plan(home, join(user, '.ultimate', 'backups'))
   const work = await unlanded(home, project)
 

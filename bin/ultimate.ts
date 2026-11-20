@@ -4,7 +4,7 @@ import type { ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdir, realpath } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
-import { projectHome } from '../server/project.ts'
+import { runtimePaths } from '../server/project.ts'
 import { acquireLock, readOwner, retireStorageOwner, pause } from '../server/lock.ts'
 import { watch, existsSync } from 'node:fs'
 import { watchRoots } from '../server/watch-roots.ts'
@@ -66,7 +66,14 @@ const projectRoot = await realpath(positionals[0] ?? process.cwd()).catch((error
   )
   process.exit(1)
 })
-const home = process.env.ULTIMATE_HOME ?? projectHome(projectRoot)
+const { userHome, home } = (() => {
+  try {
+    return runtimePaths(projectRoot)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    return process.exit(1)
+  }
+})()
 const requestedPort = values.port ?? process.env.ULTIMATE_PORT
 let port = Number(requestedPort ?? 4747)
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port')
@@ -286,6 +293,7 @@ function boot(previousBuild?: BuildInfo): Core {
       ...process.env,
       MIMALLOC_ALLOW_THP: '0', // Avoid huge-page amplification in Rolldown's allocator.
       ULTIMATE_HOME: home,
+      ULTIMATE_USER_HOME: userHome,
       ULTIMATE_PROJECT: projectRoot,
       ULTIMATE_SUPERVISED: '1',
       ULTIMATE_GENERATION: String(++generation),

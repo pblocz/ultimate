@@ -6,7 +6,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
-import { projectHome } from '../../server/project.ts'
+import { projectHome, runtimePaths } from '../../server/project.ts'
+import { projectDecision } from '../../server/project-setup.ts'
+import { readFamilies, writeFamilies } from '../../lib/families-settings.ts'
+import { git } from '../../lib/git.ts'
 import { attach, temp, sourceCopy, cleanEnv, until, post as requestPost } from '../helpers.ts'
 
 const children: ChildProcess[] = []
@@ -31,6 +34,36 @@ export default defineExtension({ name: '${name}' })
 export const actions = { hello: async (args, ctx) => ({ args, value: '${value}', cwd: (await ctx.exec(process.execPath, ['-e', 'process.stdout.write(process.cwd())'])).stdout }) }`,
   )
 }
+
+it('keeps linked-worktree trust and preset sharing independent of explicit runtime state', async () => {
+  const userHome = await temp('ultimate-worktree-config-')
+  const main = join(userHome, 'main')
+  const linked = join(userHome, 'linked')
+  await mkdir(main)
+  await git(main, 'init', '--initial-branch=main')
+  await git(
+    main,
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.com',
+    'commit',
+    '--allow-empty',
+    '-m',
+    'Initial fixture',
+  )
+  await git(main, 'worktree', 'add', '-b', 'linked', linked)
+  new ProjectTrustStore(join(userHome, '.ultimate')).set(main, true)
+  await writeFamilies(userHome, main, { families: { local: { model: 'faux/first' } } })
+  expect(projectDecision(linked, userHome)).toBe(true)
+  expect((await readFamilies(userHome, linked)).families.local.model).toBe('faux/first')
+  const state = runtimePaths(linked, { userHome, home: join(userHome, 'separate-state') })
+  expect(state.home).toBe(join(userHome, 'separate-state'))
+  await writeFamilies(state.userHome, linked, { families: { local: { model: 'faux/second' } } })
+  expect((await readFamilies(userHome, main)).families.local.model).toBe('faux/second')
+  expect(projectDecision(main, userHome)).toBe(true)
+  expect(existsSync(state.home)).toBe(false)
+})
 
 it('prints a single-line error for a missing project', async () => {
   const userHome = await temp()

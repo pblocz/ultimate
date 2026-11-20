@@ -70,6 +70,9 @@ it('renders only enabled guidance, lists off building blocks, and adds self guid
     for (const useEnv of [true, false]) {
       const isolated = await render(checkout, useEnv)
       expect(isolated.cwd).toBe(checkout)
+      expect(isolated.environment).toContain(`Effective working directory: ${checkout}`)
+      expect(isolated.environment).toContain(`Shared workspace: ${projectRoot}`)
+      expect(isolated.environment).toContain(`Installed application: ${server.host.ultimateRoot}`)
       expect(isolated.project_context).toContain('Isolated project instructions.')
       expect(isolated.project_context).toContain('Ultimate personal instructions.')
       expect(isolated.project_context).not.toContain('Pi personal instructions.')

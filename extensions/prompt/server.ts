@@ -371,7 +371,7 @@ export default function prompt(host: ExtensionHost) {
       section('environment', (input) => {
         const cwd = input.env?.cwd ?? input.agent.cwd ?? host.projectRoot
         const os = process.platform === 'darwin' ? 'macOS' : process.platform
-        return `OS: ${os} ${process.arch}\nWork checkout (effective cwd): ${cwd}\nHost project: ${host.projectRoot}\nRunning Ultimate host: ${host.ultimateRoot}\nUI: ${host.system().process.url} (shared host)\nDirect project edits to the effective cwd. Host-scoped config and extensions remain loaded from the host project and Ultimate clone; edits in a separate checkout do not hot-reload the running host.`
+        return `OS: ${os} ${process.arch}\nEffective working directory: ${cwd}\nShared workspace: ${host.projectRoot}\nInstalled application: ${host.ultimateRoot}\nUI: ${host.system().process.url} (shared host)\nCommands and paths use the server process environment, including when the server runs in a container. Use the effective working directory for task files. Workspace configuration and installed extensions remain loaded from the shared workspace and installed application; edits in another directory do not hot-reload the running host.`
       }),
       section('cwd', (input) => input.env?.cwd ?? input.agent.cwd ?? host.projectRoot),
     ],

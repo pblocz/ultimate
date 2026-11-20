@@ -42,7 +42,10 @@ background compaction 32k below the blocking threshold), which suit a ~200k wind
 recent context and start compacting in the background earlier. `compaction.modelOverrides` in those settings files, keyed by exact `"provider/modelId"` (fields
 `reserveTokens`, `keepRecentTokens`, `backgroundTokens`, `enabled`), replaces them field by field. Pi's settings files
 are read when the server starts.
-User config is independent of `ULTIMATE_HOME`. A project's `isolates.worktree` sets its checkouts' `setup` commands and, optionally, where they live (`path`) and
+`ULTIMATE_USER_HOME` selects Ultimate's user configuration; it does not redirect Pi credentials or change `HOME`.
+`ULTIMATE_HOME` selects runtime state without changing configuration scopes or trust. Relative overrides resolve against
+the launch directory; startup and maintenance commands share these rules. See [Workspace and state paths](running.md#workspace-and-state-paths).
+A project's `isolates.worktree` sets its checkouts' `setup` commands and, optionally, where they live (`path`) and
 how they are made and removed (`add`, `remove`); see `extensions/workspaces/README.md`.
 This repository's `.ultimate/settings.json` holds its isolate setup,
 lander checks and preview model.

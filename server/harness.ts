@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs'
 import { mkdir, realpath } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { projectHome } from './project.ts'
+import { runtimePaths } from './project.ts'
 import type { Source } from './project.ts'
 import { compareExtensions } from './discovery.ts'
 import { acquireLock } from './lock.ts'
@@ -128,9 +127,8 @@ export async function prepareHarness(options: HostOptions) {
   const { ultimateRoot } = options
   const projectRoot = await realpath(options.projectRoot ?? ultimateRoot)
   // ULTIMATE_USER_HOME: where `.ultimate/` user config lives when it is not HOME's (a preview's private copy).
-  const userHome = options.userHome ?? process.env.ULTIMATE_USER_HOME ?? homedir()
+  const { userHome, home } = runtimePaths(projectRoot, options)
   const builds = createBuild(ultimateRoot)
-  const home = options.home ?? process.env.ULTIMATE_HOME ?? projectHome(projectRoot, userHome)
   await mkdir(home, { recursive: true })
   /** The active chapter's files, read again each time storage opens, after a journaled switch finished. */
   let chapter = await activeChapter(home)

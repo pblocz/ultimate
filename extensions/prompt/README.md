@@ -1,4 +1,8 @@
-Ultimate's system prompt: coding guidelines, project context, skills, and the source reload layers.
+Ultimate's system prompt: runtime guidance, project context, skills, and the source reload layers.
+
+The environment section names the effective working directory, shared workspace, and installed application. Its paths
+and commands refer to the server process environment, which can be a container, not necessarily the physical host.
+These labels impose no new file-access restriction and do not require a Git checkout.
 
 The system prompt stays the same across builds, so a reload of an extension keeps the prompt cache. Instead, the input that starts a
 conversation's run gets a `prompt.build` note when the build differs from the one its last run started on: "Build

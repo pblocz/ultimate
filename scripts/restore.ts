@@ -12,7 +12,7 @@ import type { Register } from '../lib/cloud.ts'
 import { moveDatabase } from '../lib/database-files.ts'
 import { projectIdentity } from '../lib/project-identity.ts'
 import { readSecret } from '../lib/secrets.ts'
-import { projectHome } from '../server/project.ts'
+import { runtimePaths } from '../server/project.ts'
 import { writeJson } from '../lib/json-file.ts'
 import { chapterKey, writeBackup } from '../extensions/cloud/backup.ts'
 import {
@@ -229,7 +229,7 @@ export async function main(args = process.argv.slice(2)) {
   const [query] = positionals
   const user = homedir()
   const dir = await realpath(values.dir ?? process.env.INIT_CWD ?? process.cwd())
-  const home = process.env.ULTIMATE_HOME || projectHome(dir, user)
+  const { userHome, home } = runtimePaths(dir)
   const backups = join(user, '.ultimate', 'backups')
   if (existsSync(home) && (await readJournal(home))?.restore) {
     console.log(`Finishing an interrupted restore into ${home}.`)
@@ -242,14 +242,14 @@ export async function main(args = process.argv.slice(2)) {
   if (!identity)
     throw new Error(`${dir} has no GitHub origin remote; pass --dir <project checkout>`)
   const cloud = await cloudConfig({
-    userHome: user,
+    userHome,
     notice: (message) => {
       throw new Error(message)
     },
   })
   if (!cloud)
     throw new Error('Cloud backups are off: set cloud.url (⌘K → Join cloud backups) and try again.')
-  const secret = process.env[SNAPSHOT_KEY] ?? (await readSecret(user, SNAPSHOT_KEY))
+  const secret = process.env[SNAPSHOT_KEY] ?? (await readSecret(userHome, SNAPSHOT_KEY))
   if (!secret)
     throw new Error(`Missing ${SNAPSHOT_KEY}. Add it in the Secrets panel (⌘K → Secrets).`)
   const chapter = chapterName(

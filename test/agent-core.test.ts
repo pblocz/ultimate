@@ -5,6 +5,9 @@ import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/provid
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import type { ChannelHost } from '../shared/channel-host.ts'
 import type { JsonValue } from '@earendil-works/chord/json'
+import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { FIRST_CHAPTER, finishChapterSwitch, requestChapter } from '../lib/chapters.ts'
+import { context } from '../server/harness.ts'
 import type { Automation } from '../extensions/automations/types.ts'
 import { pendingAgentCore, recoveredAgentCore, recoveryModel } from './agent-core-recovery.ts'
 import { discoverAgents } from '../lib/agents.ts'
@@ -154,6 +157,63 @@ it('loads only the retained services and neutral definitions, without coding mod
   expect(await historyText(channel, chat.id)).toContain('Answer: Ordinary chat')
   expect(f.notices).toEqual([])
 })
+it.each([false, true])(
+  'recovers chapter state and native receipts without Dream: interrupted = %s',
+  async (interrupted) => {
+    const f = await agentCoreFixture()
+    fixtures.push(f)
+    await expect(access(join(f.source, 'extensions/dream'))).rejects.toThrow('ENOENT')
+    await f.open(answer)
+    const home = f.prepared.home
+    for (const path of ['chapters.json', 'chapters', 'pending-chapter.json'])
+      await expect(access(join(home, path))).rejects.toThrow('ENOENT')
+    const first = await f.channel.conversations.create({ definition: 'neutral' })
+    const receipt = await submit(
+      f.channel,
+      first.id,
+      'Retain the first history',
+      'retained-receipt',
+    )
+    const entries = await history(f.channel, first.id)
+    await f.release()
+    await requestChapter(home, 'next')
+    let failure = ''
+    if (interrupted)
+      await finishChapterSwitch(home, async (file) => {
+        await (await openNodeSqliteStorage(file)).close(context)
+        throw new Error('Test interruption after database creation')
+      }).catch((error: unknown) => {
+        failure = String(error)
+      })
+    expect(failure).toBe(interrupted ? 'Error: Test interruption after database creation' : '')
+    await f.open(answer)
+    expect(f.prepared.database).toBe(join(home, 'chapters/next/state.sqlite'))
+    await expect(access(join(home, 'pending-chapter.json'))).rejects.toThrow('ENOENT')
+    const later = await f.channel.conversations.create({ definition: 'neutral' })
+    expect(later.id).toBeGreaterThan(first.id)
+    await submit(f.channel, later.id, 'Retain the next history')
+    await f.release()
+    // Existing metadata, with no new journal, must reopen the selected chapter rather than an empty first one.
+    await f.open(answer)
+    expect(f.prepared.database).toBe(join(home, 'chapters/next/state.sqlite'))
+    expect((await f.channel.conversations.get(later.id)).configuration.definition).toBe('neutral')
+    expect(await historyText(f.channel, later.id)).toContain('Answer: Retain the next history')
+    await f.release()
+    await requestChapter(home, FIRST_CHAPTER)
+    await f.open(answer)
+    expect(f.prepared.database).toBe(join(home, 'state.sqlite'))
+    expect((await f.channel.conversations.get(first.id)).configuration.definition).toBe('neutral')
+    expect(await history(f.channel, first.id)).toEqual(entries)
+    expect(
+      await submit(f.channel, first.id, 'Retain the first history', 'retained-receipt'),
+    ).toEqual(receipt)
+    expect(await history(f.channel, first.id)).toEqual(entries)
+    const next = await f.channel.conversations.create({})
+    expect(next.id).toBeGreaterThan(later.id)
+    expect(f.extensions.catalogue()).toMatchObject({ missing: [], cycles: [] })
+  },
+)
+
 it('keeps histories separate while file tools, child agents and messages share the workspace', async () => {
   const f = await agentCoreFixture()
   fixtures.push(f)

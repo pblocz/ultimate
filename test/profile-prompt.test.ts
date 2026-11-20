@@ -108,6 +108,11 @@ it('composes selected instructions, refreshes only at the next turn, and retains
     expect(request.system).toContain('Persona A instructions.')
     expect(request.system).not.toContain('Persona B instructions.')
     expect(request.system).not.toContain('You are Ultimate, a coding agent')
+    expect(request.system).toContain(`Effective working directory: ${f.server.host.projectRoot}`)
+    expect(request.system).toContain(`Shared workspace: ${f.server.host.projectRoot}`)
+    expect(request.system).toContain(`Installed application: ${f.server.host.ultimateRoot}`)
+    expect(request.system).toContain('Commands and paths use the server process environment')
+    expect(request.system).not.toContain('Work checkout (effective cwd):')
     // The helper has no `branch` tool, so the optional coding workflow adds nothing.
     expect(request.system).not.toContain('For coding work, build, verify, and report')
   }

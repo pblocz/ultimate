@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
-import { basename, join } from 'node:path'
+import { existsSync, realpathSync } from 'node:fs'
+import { basename, isAbsolute, join, resolve } from 'node:path'
 import { readFile, readdir, writeFile, rename } from 'node:fs/promises'
 import type { ConversationSummary } from '../shared/protocol.ts'
 import { alive, readOwner } from './lock.ts'
@@ -121,4 +122,37 @@ export function discoveryRoots(ultimateRoot: string, projectRoot: string, userHo
 export function projectHome(projectRoot: string, userHome = homedir()) {
   const hash = createHash('sha256').update(projectRoot).digest('hex').slice(0, 8)
   return join(userHome, '.ultimate', 'projects', `${basename(projectRoot)}-${hash}`)
+}
+
+/** Resolve before a child changes cwd; select paths only, without creating directories or opening storage. */
+export function runtimePaths(
+  projectRoot: string,
+  options: { userHome?: string; home?: string } = {},
+) {
+  const user = options.userHome ?? process.env.ULTIMATE_USER_HOME ?? homedir()
+  const state = options.home ?? process.env.ULTIMATE_HOME
+  if (user === '') throw new Error('ULTIMATE_USER_HOME must not be empty')
+  if (state === '') throw new Error('ULTIMATE_HOME must not be empty')
+  const userHome = resolve(user)
+  const home = state === undefined ? projectHome(projectRoot, userHome) : resolve(state)
+  // Before path normalization, the supervisor default ignored ULTIMATE_USER_HOME and a relative home was interpreted
+  // again in the child's project cwd. Never hide state at either old location by opening a fresh database instead.
+  const legacy =
+    state === undefined
+      ? projectHome(projectRoot)
+      : !isAbsolute(state)
+        ? resolve(projectRoot, state)
+        : home
+  if (
+    legacy !== home &&
+    ['state.sqlite', 'chapters.json', 'pending-chapter.json'].some((name) =>
+      existsSync(join(legacy, name)),
+    ) &&
+    // Different spellings through symlinks can still name the same existing state directory.
+    (!existsSync(home) || realpathSync(home) !== realpathSync(legacy))
+  )
+    throw new Error(
+      `Existing state at ${legacy} differs from selected state ${home}. Set ULTIMATE_HOME to an explicit absolute path.`,
+    )
+  return { userHome, home }
 }
