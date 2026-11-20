@@ -3,14 +3,14 @@ import type { Dirent } from 'node:fs'
 import { access, appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { InboxDoc } from '@earendil-works/pi-durable'
+import { InboxDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { discoverAgents } from '../../lib/agents.ts'
+import { discoverAgents, hostDefault } from '../../lib/agents.ts'
 import { closeOutput, readPidFile, spawnGroup, stopGroup } from '../../lib/process-group.ts'
 import type { Group } from '../../lib/process-group.ts'
 import { readSecret, validateName } from '../../lib/secrets.ts'
-import { SubagentsApi } from '../subagents/api.ts'
+import { SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { Done, Escalated, Exited, Started } from './refs.ts'
 import type { Automations as Ledger } from './server.ts'
 import {
@@ -23,7 +23,8 @@ import {
   trimLog,
   WatcherLabel,
 } from './types.ts'
-import type { Manifest, Automation, Effect } from './types.ts'
+import type { Manifest, Automation, Destination, Effect, Subscriber } from './types.ts'
+import { destinationAddress } from './destinations.ts'
 import {
   automationRecord,
   MANIFEST,
@@ -47,11 +48,12 @@ const exists = (path: string) =>
 /** A project automation's committed manifest, or undefined when the file is missing or malformed. */
 function manifest(value: unknown): Manifest | undefined {
   if (!value || typeof value !== 'object') return undefined
-  const { name, ask, once, secrets, to } = value as Record<string, unknown>
+  const { name, ask, once, secrets, to, destination } = value as Record<string, unknown>
   if (typeof ask !== 'string' || !ask.trim()) return undefined
   if (name !== undefined && (typeof name !== 'string' || !name.trim())) return undefined
   if (once !== undefined && typeof once !== 'boolean') return undefined
   if (to !== undefined && (typeof to !== 'string' || !STANDING.test(to))) return undefined
+  if (to !== undefined && destination !== undefined) return undefined
   if (
     secrets !== undefined &&
     (!Array.isArray(secrets) || secrets.some((s) => typeof s !== 'string'))
@@ -62,21 +64,17 @@ function manifest(value: unknown): Manifest | undefined {
     ask: ask.trim(),
     once: once ?? true,
     ...(secrets?.length ? { secrets: secrets as string[] } : {}),
-    // A committed script wakes someone on every machine: a standing agent, @ultimate unless it names another.
-    to: to ?? '@ultimate',
+    ...(to !== undefined ? { to } : {}),
+    ...(destination !== undefined ? { destination: destination as Destination } : {}),
   }
 }
-/** The manifest as committed: `to` only when it is not the default. */
-const committedManifest = ({ to, ...rest }: Manifest) => ({
-  ...rest,
-  ...(to === '@ultimate' ? {} : { to }),
-})
 
 export function supervisor(
   host: ExtensionHost,
   Automations: typeof Ledger,
   fireAutomation: (tx: Tx, a: Automation, firedAt: number, text?: string) => Promise<unknown>,
   deliver: ReturnType<typeof notifications>['deliver'],
+  checkSubscriber: (value: unknown) => Promise<Subscriber>,
 ) {
   // Only process state is reload-stable: running children and in-flight work. The functions below are rebuilt on each
   // install, so they always use the current ledger token and fire callback.
@@ -92,17 +90,43 @@ export function supervisor(
   const projectDir = (id: string) => projectDirectory(host, id)
   const runPath = (sub: Pick<Automation, 'id' | 'scope'>) => scriptRunPath(host, sub)
   const trusted = async () => (await host.projectSetup()).decision === true
+  const configurationErrors = new Map<string, string>()
+  const configurationError = (id: string, error: unknown) => {
+    const message = `Automation ${id}: ${projectDir(id)}/${MANIFEST}: ${String(error)}`
+    if (configurationErrors.get(id) !== message) host.notice(message)
+    configurationErrors.set(id, message)
+  }
+  /** Keep file syntax separate from runtime defaults and locally saved recipients. */
+  async function resolveManifest(m: Manifest, previous?: Automation, caller?: number) {
+    const explicit = m.destination === undefined ? m.to : destinationAddress(m.destination)
+    if (explicit !== undefined) {
+      const address = await checkSubscriber(explicit)
+      return { to: address, subscribers: [address] }
+    }
+    // Saved recipients are not checked again: delivery already skips a missing conversation.
+    const stored = previous?.script?.to
+    if (stored !== undefined) return { to: stored, subscribers: [stored] }
+    if (previous?.subscribers.length) return { to: undefined, subscribers: previous.subscribers }
+    const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
+    if (coordinator) {
+      const address = await checkSubscriber(`@${coordinator}`)
+      return { to: address, subscribers: [address] }
+    }
+    if (caller !== undefined) return { to: undefined, subscribers: [await checkSubscriber(caller)] }
+    throw new Error('A destination is required without a request conversation or coding default')
+  }
   /** Manifests under `<project>/.ultimate/automations/<slug>/`, only in a project chosen as local. */
   async function manifests() {
     const found = new Map<string, Manifest>()
-    if (!(await trusted())) return found
+    const present = new Set<string>()
+    if (!(await trusted())) return { found, present }
     let entries: Dirent[]
     try {
       entries = await readdir(join(host.projectRoot, '.ultimate/automations'), {
         withFileTypes: true,
       })
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return found
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { found, present }
       throw error
     }
     for (const entry of entries) {
@@ -114,6 +138,7 @@ export function supervisor(
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
         throw error
       }
+      present.add(entry.name)
       let parsed: Manifest | undefined
       try {
         parsed = manifest(JSON.parse(text))
@@ -123,50 +148,65 @@ export function supervisor(
         parsed = undefined
       }
       if (parsed) found.set(entry.name, parsed)
-      else host.notice(`Automation ${entry.name}: invalid ${MANIFEST}`)
+      else configurationError(entry.name, `invalid ${MANIFEST}`)
     }
-    return found
+    return { found, present }
   }
   /**
    * Bring project records in line with the committed manifests: a new folder becomes a stopped automation that
    * never starts by itself, a changed manifest updates its fields, and a removed folder (or an untrusted project)
    * stops and forgets its record. The only place project records are made: a create publishes its manifest and
-   * discovers it. A new record wakes the manifest's `to`; a changed `to` replaces the old one among the subscribers.
+   * discovers it. A changed explicit target replaces the old one among subscribers; unresolved files keep their records.
    * Commits only when something changed.
    */
-  async function discover() {
-    const found = await manifests()
-    const gone = (s: Automation) => s.scope === 'project' && !found.has(s.id)
-    const fields = (sub: Automation) =>
-      JSON.stringify([
-        sub.name,
-        sub.script!.ask,
-        sub.script!.once,
-        sub.script!.secrets,
-        sub.script!.to,
-      ])
+  async function discover(request?: { id: string; caller: number }) {
+    const { found: files, present } = await manifests()
+    const gone = (s: Automation) => s.scope === 'project' && !present.has(s.id)
+    for (const id of configurationErrors.keys())
+      if (!present.has(id)) configurationErrors.delete(id)
+    const current =
+      (await host.harness().snapshot(Automations, BACKGROUND_CONTEXT))?.automations ?? {}
+    const found = new Map<
+      string,
+      { manifest: Manifest; target: Awaited<ReturnType<typeof resolveManifest>> }
+    >()
+    const prepared = new Map<string, Prepared>()
+    for (const [id, m] of files) {
+      try {
+        const caller = request?.id === id ? request.caller : undefined
+        const target = await resolveManifest(m, current[id], caller)
+        if (!current[id]) prepared.set(id, await agentFor(caller))
+        found.set(id, { manifest: m, target })
+        configurationErrors.delete(id)
+      } catch (error) {
+        configurationError(id, error)
+      }
+    }
     const differs = (subs: Record<string, Automation>) =>
-      [...found].some(([id, m]) => {
+      [...found].some(([id, { manifest: m, target }]) => {
         const sub = subs[id]
         return (
           !sub ||
           (sub.scope === 'project' &&
-            fields(sub) !== JSON.stringify([m.name, m.ask, m.once, m.secrets, m.to]))
+            JSON.stringify([
+              sub.name,
+              sub.script!.ask,
+              sub.script!.once,
+              sub.script!.secrets,
+              sub.script!.to,
+            ]) !== JSON.stringify([m.name, m.ask, m.once, m.secrets, target.to]))
         )
       }) || Object.values(subs).some(gone)
-    const current =
-      (await host.harness().snapshot(Automations, BACKGROUND_CONTEXT))?.automations ?? {}
     if (!differs(current)) return
-    // A new automation gets its idle agent conversation now, so every record has one.
-    const prepared = [...found.keys()].some((id) => !current[id]) ? await agentFor() : undefined
     const trust = await trusted()
     const removed = await host.harness().commit(async (tx) => {
       const state = await tx.doc(Automations)
       const stops: Effect[] = []
       const now = Date.now()
-      for (const [id, m] of found) {
+      for (const [id, { manifest: m, target }] of found) {
         const sub = state.automations[id]
-        if (!sub && prepared)
+        const agent = prepared.get(id)
+        if (!sub && agent)
           state.automations[id] = {
             id,
             scope: 'project',
@@ -176,11 +216,11 @@ export function supervisor(
               ask: m.ask,
               once: m.once,
               ...(m.secrets ? { secrets: m.secrets } : {}),
-              to: m.to,
-              conversationId: await agentConversation(tx, prepared, id, m.name, host.projectRoot),
+              ...(target.to !== undefined ? { to: target.to } : {}),
+              conversationId: await agentConversation(tx, agent, id, m.name, host.projectRoot),
               state: 'stopped',
             },
-            subscribers: [m.to],
+            subscribers: target.subscribers,
             runs: [],
             createdAt: now,
             updatedAt: now,
@@ -188,13 +228,17 @@ export function supervisor(
           }
         else if (sub?.scope === 'project') {
           const before = sub.script!.to
-          sub.subscribers = [...new Set([...sub.subscribers.filter((s) => s !== before), m.to])]
+          if (target.to !== undefined)
+            sub.subscribers = [
+              ...new Set([...sub.subscribers.filter((s) => s !== before), target.to]),
+            ]
           delete sub.script!.secrets
+          delete sub.script!.to
+          if (target.to !== undefined) sub.script!.to = target.to
           sub.name = m.name
           Object.assign(sub.script!, {
             ask: m.ask,
             once: m.once,
-            to: m.to,
             ...(m.secrets ? { secrets: m.secrets } : {}),
           })
           sub.updatedAt = now
@@ -235,19 +279,29 @@ export function supervisor(
     })
     return child.id
   }
-  /** The agent a new automation conversation is configured from, and whose model and tools it copies: the caller, else @ultimate. */
+  /** Copy an explicit caller, an optional coding coordinator, or the current runtime defaults. */
   async function agentFor(caller?: number): Promise<Prepared> {
     const profile = (
       await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
     ).definitions.find((d) => d.name === 'watcher')
     if (!profile) throw new Error('Missing watcher agent definition')
+    const coordinator =
+      caller === undefined ? host.want(SubagentsWorkflow)?.coordinatorName?.() : undefined
     const parentId =
-      caller ?? (await host.need(SubagentsApi).standing('ultimate', BACKGROUND_CONTEXT))
+      caller ??
+      (coordinator
+        ? await host.need(SubagentsApi).standing(coordinator, BACKGROUND_CONTEXT)
+        : ROOT_CONVERSATION_ID)
     const conversation = await host
       .harness()
       .conversation(parentId as ConversationId, BACKGROUND_CONTEXT)
     if (!conversation) throw new Error(`Unknown caller #${parentId}`)
-    return { profile, parent: await conversation.agent(BACKGROUND_CONTEXT) }
+    const parent = await conversation.agent(BACKGROUND_CONTEXT)
+    return {
+      profile,
+      parent:
+        caller === undefined && !coordinator ? { ...parent, ...(await hostDefault(host)) } : parent,
+    }
   }
   /** What a watcher is told about its automation, at creation and on each failure. */
   const brief = (sub: Automation) =>
@@ -402,6 +456,8 @@ export function supervisor(
     }
   }
   async function launchRun(id: string, previousPid?: number) {
+    const configuration = configurationErrors.get(id)
+    if (configuration) throw new Error(configuration)
     if (shared.closing) throw new Error('Automation supervisor is closing')
     const sub = await snapshot(id)
     if (!sub.enabled || sub.script!.state !== 'running') return
@@ -630,11 +686,12 @@ export function supervisor(
       const pid = await readPid(entry.name)
       if (pid) await cleanup(entry.name, pid, runs.get(entry.name))
     }
-    // A project automation whose folder is gone, or whose project is no longer chosen, is forgotten before restarts.
+    // Preserve records for bad configuration, but do not restart them until their file is usable.
     await discover()
     const state = await host.harness().snapshot(Automations, BACKGROUND_CONTEXT)
     for (const sub of Object.values(state?.automations ?? {})) {
-      if (sub.script?.state !== 'running' || !sub.enabled) continue
+      if (sub.script?.state !== 'running' || !sub.enabled || configurationErrors.has(sub.id))
+        continue
       try {
         await launch(sub.id)
       } catch (error) {
@@ -655,7 +712,8 @@ export function supervisor(
     agentFor,
     projectDir,
     manifest,
-    committedManifest,
+    resolveManifest,
+    configurationError: (id: string) => configurationErrors.get(id),
     agentConversation,
     tail,
   }

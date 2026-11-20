@@ -2,11 +2,14 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
+import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
 import { limits } from '../comments.ts'
 import type { ReviewComment } from '../comments.ts'
+import { git } from '../../../lib/git.ts'
 import { context } from '../../../server/harness.ts'
+import { Standing } from '../../subagents/api.ts'
 import { fauxServer, post, removeTemp, temp } from '../../../test/helpers.ts'
 
 const comment = (overrides: Partial<ReviewComment> = {}): ReviewComment => ({
@@ -142,6 +145,60 @@ it('sends one review input to a conversation, refuses bad reviews, and is user-o
       (entry) => entry.kind === 'pi.tool-result',
     )
     expect(JSON.stringify(result?.model)).toContain('review/send is a user-only action')
+  } finally {
+    await server.close()
+    await removeTemp(home)
+  }
+})
+
+it('keeps known owners and explicit sends without the coding workflow', async () => {
+  const home = await temp('ultimate-review-no-coding-')
+  const project = join(home, 'project')
+  await mkdir(join(project, '.ultimate'), { recursive: true })
+  await mkdir(join(home, '.ultimate'), { recursive: true })
+  await writeFile(join(project, '.ultimate/settings.json'), '{}')
+  await writeFile(
+    join(home, '.ultimate/settings.json'),
+    JSON.stringify({ extensions: { disable: ['coding-workflow'] } }),
+  )
+  const server = await fauxServer({
+    ultimateRoot: resolve('.'),
+    projectRoot: project,
+    userHome: home,
+    home: join(home, 'state'),
+    localSetup: false,
+  })
+  try {
+    const recipient = async (spec: string) =>
+      (await post(server, '/api/extensions/review/actions/recipient', { args: { spec } })).data
+        .result
+    const target = (await post(server, '/api/conversations', { title: 'Owner' })).data.id as number
+    await git(project, 'init', '-q', '-b', 'main')
+    await writeFile(join(project, 'file.txt'), 'one\n')
+    await git(project, 'add', 'file.txt')
+    await git(
+      project,
+      '-c',
+      'user.name=T',
+      '-c',
+      'user.email=t@example.com',
+      'commit',
+      '-q',
+      '-m',
+      `Change\n\nUltimate-Conversation: ${target}`,
+    )
+    const head = await git(project, 'rev-parse', 'HEAD')
+    const before = await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)
+    expect(await recipient(head)).toEqual({ conversation: target })
+    for (const spec of ['uncommitted', 'deadbeef', 'a...b'])
+      expect(await recipient(spec)).toEqual({})
+    expect(await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)).toEqual(before)
+    server.host.faux!.setResponses([fauxAssistantMessage('Looking at it.')])
+    const sent = await post(server, '/api/extensions/review/actions/send', {
+      args: { conversation: target, spec: head, comments: [comment()] },
+    })
+    expect(sent.data.result).toEqual({ conversation: target })
+    await server.harness.waitForIdle(context)
   } finally {
     await server.close()
     await removeTemp(home)

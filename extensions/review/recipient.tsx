@@ -44,7 +44,7 @@ export function Recipient({ value, onChange }: { value?: number; onChange: (id: 
           <SendIcon className="size-3 shrink-0" />
           <span className="max-md:hidden">to</span>
           <span className="flex min-w-0 truncate text-foreground/90">
-            {value === undefined ? '…' : <Address id={value} />}
+            {value === undefined ? 'choose conversation' : <Address id={value} />}
           </span>
           <ChevronDownIcon className="size-3 shrink-0 opacity-60" />
         </button>

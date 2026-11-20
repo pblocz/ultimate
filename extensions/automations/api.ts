@@ -3,6 +3,7 @@ import type { Context } from '@earendil-works/chord/context'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '../../shared/extension-api.ts'
 import type { Automation, AutomationListItem, CreateArgs } from './types.ts'
+export type { Destination } from './types.ts'
 export type AutomationsService = {
   /** Create an automation as the tool's create does; `subscribers` stand in for a caller. Commits. */
   create(args: CreateArgs): Promise<Automation>

@@ -11,7 +11,7 @@ messages, and schedules continue to work when this extension is absent.
 - Permission for `@ultimate` and branches to message the user and settle questions for the user.
 - Remote-project messages and the `messages.remote` and `messages.remoteReply` implementation.
 - Primary-agent notices, side-chat notes, and extra automation escalation messages.
-- On-demand startup of `@ultimate` through `subagents.workflow`.
+- On-demand startup of `@ultimate` through `subagents.workflow`, and its name through `coordinatorName()`. Automations, update merge, and review use that name as an optional default.
 - The bundled `ultimate`, `coordinator`, `worker`, `designer`, and `reviewer` definitions in `agents/`.
 
 The `messages` extension keeps the web action names. Its thin handlers call `messages.workflow` only after the current

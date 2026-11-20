@@ -500,7 +500,10 @@ export default function ReviewSurface() {
   }, [moved, setSpec])
   const parsed = useMemo(() => (data ? parse(data) : new Map<string, FileDiffMetadata>()), [data])
   const send = async () => {
-    if (to === undefined) return
+    if (to === undefined) {
+      setSent({ error: 'Choose a conversation for this review' })
+      return
+    }
     setSending(true)
     setSent(undefined)
     // What goes out: drafts added or a note changed while it is on its way stay pending.

@@ -20,7 +20,7 @@ a reload and other tabs keep them. A draft holds only its lines and text; its ex
 read from the diff on screen when the review is sent. One spec's drafts may take 96 KB of the 256 KiB UI state: past
 that the composer stays open and says it is too long to keep, and a write the server refuses shows a notice. While any are pending, a footer reads
 `N comments pending · + note · Discard · Send review (N)` and the header has a **to** picker (standing agents and
-recent conversations). Its default comes from `recipient`. Sending posts one `review.comments` input into that
+recent conversations). Its default comes from `recipient`; with no default, Send asks for a conversation. Sending posts one `review.comments` input into that
 conversation; the drafts it sent clear (ones added meanwhile stay), and the footer links to it (`Sent to #id`), or
 says why it was not sent. The recipient's transcript shows a review card on the user's side (`card.tsx`), each
 comment's `file:line` chip opening Review there. The model reads `reviewText` (`comments.ts`):
@@ -45,7 +45,9 @@ Actions (`refs.ts`):
   being one is listed as `typeChanged`, without hunks.
 - `ranges` → recent specs: uncommitted, open `ultimate/*` branches with their conversation, the last ten landings
   (`workspaces.landed` events) and the last fifteen commits; branches and landings carry their `conversation`.
-- `recipient { spec }` → `{ conversation }`: a `branch:` spec's worktree owner, a landing range's submitter (by its
-  tip in `workspaces.landed`), a commit's `Ultimate-Conversation` trailer, else the primary agent.
+- `recipient { spec }` → `{ conversation? }`: a `branch:` spec's worktree owner, a landing range's submitter (by its
+  tip in `workspaces.landed`), a commit's `Ultimate-Conversation` trailer, else the optional `coding-workflow`
+  coordinator. Without that extension, the result is `{}`: the picker reads `choose conversation`, and no standing
+  agent is created for a suggestion.
 - `send { conversation, spec, comments, note? }` (user only) → `{ conversation }`. At most 50 comments, each text up
   to 4,000 characters and excerpt up to 40 lines and 8 KB, to an existing conversation; it steers a busy one.

@@ -15,7 +15,7 @@ import { fastForward, Refusal } from '../../lib/fast-forward.ts'
 import type { Git } from '../../lib/fast-forward.ts'
 import { githubRepo } from '../../lib/project-identity.ts'
 import { ConversationsApi } from '../conversations/api.ts'
-import { SubagentsApi } from '../subagents/api.ts'
+import { SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { SubmissionLanded, WorkspacesApi } from '../workspaces/api.ts'
 import { PauseApi } from '../pause/api.ts'
 import {
@@ -529,7 +529,9 @@ export const actions = {
     const latest = state(host).latest!
     if (!latest.merge) throw new Error(latest.refused ?? `${latest.branch} has not diverged`)
     const { head, remoteHead } = await cloneState(gitIn(host.ultimateRoot), host.ultimateRoot)
-    const id = await host.need(SubagentsApi).standing('ultimate', context)
+    const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
+    if (!coordinator) throw new Error('Merge assistance needs the coding-workflow coordinator')
+    const id = await host.need(SubagentsApi).standing(coordinator, context)
     const conversation = (await host.harness().conversation(id, context))!
     await conversation.submit(
       {

@@ -34,7 +34,19 @@ async function diverged(home: string) {
   return root
 }
 
-async function serve(home: string, ultimateRoot: string, projectRoot: string) {
+async function serve(
+  home: string,
+  ultimateRoot: string,
+  projectRoot: string,
+  disable: string[] = [],
+) {
+  if (disable.length) {
+    await mkdir(join(home, '.ultimate'), { recursive: true })
+    await writeFile(
+      join(home, '.ultimate/settings.json'),
+      JSON.stringify({ extensions: { disable } }),
+    )
+  }
   const server = await fauxServer({
     ultimateRoot,
     projectRoot,
@@ -75,6 +87,21 @@ it.concurrent('asks @ultimate once to merge origin into a diverged clone that is
   const refused = await post(server, '/api/extensions/update/actions/merge', {})
   expect(refused.status).not.toBe(200)
   expect(JSON.stringify(refused.data)).toContain('The checkout has uncommitted changes')
+})
+
+it.concurrent('refuses merge assistance without the coding workflow and starts no coordinator', async () => {
+  const home = await temp()
+  const root = await diverged(home)
+  const server = await serve(home, root, root, ['coding-workflow'])
+  const before = await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)
+  const conversations = server.api.conversations().length
+  const merge = await post(server, '/api/extensions/update/actions/merge', {})
+  expect(merge.status).not.toBe(200)
+  expect(JSON.stringify(merge.data)).toContain(
+    'Merge assistance needs the coding-workflow coordinator',
+  )
+  expect(await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)).toEqual(before)
+  expect(server.api.conversations()).toHaveLength(conversations)
 })
 
 it.concurrent('offers no merge while the lander is landing into the clone', async () => {

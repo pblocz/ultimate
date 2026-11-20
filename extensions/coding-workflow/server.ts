@@ -43,7 +43,10 @@ export default function codingWorkflow(host: ExtensionHost) {
   host.need(SubagentsApi)
   host.need(LineageApi)
   host.need(WorkspacesApi)
-  host.implement(SubagentsWorkflow, { onDemand: (name) => name === 'ultimate' })
+  host.implement(SubagentsWorkflow, {
+    onDemand: (name) => name === 'ultimate',
+    coordinatorName: () => 'ultimate',
+  })
   host.implement(OnboardingWorkflow, onboardingWorkflow(host))
   host.implement(Branches, {
     starter: (id, ctx) => starterOf(host, id, ctx),

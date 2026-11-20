@@ -7,7 +7,7 @@ import { formatAgo } from '../../lib/ago.ts'
 import { UserInputEvent } from '../../shared/events.ts'
 import { git, isolatable } from '../../lib/git.ts'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { SubagentsApi } from '../subagents/api.ts'
+import { SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { SubmissionLanded, WorkspacesApi } from '../workspaces/api.ts'
 import { checkReview, reviewText } from './comments.ts'
 import type { ReviewComments } from './comments.ts'
@@ -149,7 +149,7 @@ const known = (host: ExtensionHost, id: number) =>
   host.conversations().some((conversation) => conversation.id === id)
 
 /** Who a review of `spec` goes to unless the user picks another: see `RecipientAction`. */
-async function recipient(host: ExtensionHost, spec: string): Promise<number> {
+async function recipient(host: ExtensionHost, spec: string): Promise<number | undefined> {
   const owner = async () => {
     const worktree = worktreeOf(spec)
     if (worktree !== undefined) return worktree
@@ -183,11 +183,12 @@ async function recipient(host: ExtensionHost, spec: string): Promise<number> {
     return Number(trailer.split('\n')[0]) || undefined
   }
   const found = await owner().catch(
-    // An unknown ref or a missing repository has no owner: the review goes to the primary agent.
+    // An unknown ref or a missing repository has no owner: optional coding settings or the user choose.
     () => undefined,
   )
   if (found !== undefined && known(host, found)) return found
-  return host.need(SubagentsApi).standing('ultimate', context)
+  const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
+  return coordinator ? host.need(SubagentsApi).standing(coordinator, context) : undefined
 }
 
 export const userActions = ['send']
@@ -214,7 +215,8 @@ export const actions = {
   recipient: implementAction(RecipientAction, async (args, { host }) => {
     const spec = args && typeof args === 'object' && !Array.isArray(args) ? args.spec : undefined
     if (typeof spec !== 'string') throw new Error('Expected { spec }')
-    return { conversation: await recipient(host, spec) }
+    const conversation = await recipient(host, spec)
+    return conversation === undefined ? {} : { conversation }
   }),
   send: implementAction(SendAction, async (args, { host, device }) => {
     const id =

@@ -20,6 +20,10 @@ export type Run = {
 }
 /** A conversation an automation wakes: `#id` as a number, or a standing agent's `@name`, resolved at each delivery. */
 export type Subscriber = number | string
+/** A notification recipient. Channel delivery is reserved for Phase 6 and is refused before execution. */
+export type Destination =
+  | { kind: 'conversation'; address: Subscriber }
+  | { kind: 'channel'; channel: string; instanceId: string; address: string; threadId?: string }
 export type Automation = {
   id: string
   scope?: 'project'
@@ -51,7 +55,7 @@ export type Automation = {
     once: boolean
     secrets?: string[]
     /** A project script's committed `to`: the subscriber its manifest names. */
-    to?: string
+    to?: Subscriber
     conversationId: number
     state: 'writing' | 'running' | 'investigating' | 'failed' | 'stopped' | 'done'
     /** Unplanned exits in a row; the third escalates. A FIRE or an hour of running resets it. */
@@ -95,9 +99,11 @@ export type CreateArgs = {
   model?: { provider: string; modelId: string }
   thinking?: ModelThinkingLevel
   subscribers?: Subscriber[]
+  /** An alternative to subscribers or the project `to` field. Conversation destinations normalize to subscribers. */
+  destination?: Destination
   scope?: 'user' | 'project'
   slug?: string
-  /** A project script's standing agent to wake on every machine, `@name`; default `@ultimate`. */
+  /** A project's legacy named recipient. Without one, an optional coding default or the request conversation applies. */
   to?: string
   key?: string
 }
@@ -109,7 +115,14 @@ export type Args = Partial<CreateArgs> & {
   lines?: number
   reason?: string
 }
-export type Manifest = { name: string; ask: string; once: boolean; secrets?: string[]; to: string }
+export type Manifest = {
+  name: string
+  ask: string
+  once: boolean
+  secrets?: string[]
+  to?: string
+  destination?: Destination
+}
 /** A standing agent's name as a subscriber or target: `@ultimate`. */
 export const STANDING = /^@[a-zA-Z0-9_-]+$/
 /** How many unplanned script exits in a row escalate instead of waking the watcher again. */

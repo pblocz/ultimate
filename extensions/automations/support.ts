@@ -18,6 +18,7 @@ export type Prepared = {
   subscriber?: Subscriber
   subscribers?: Subscriber[]
   manifest?: Manifest
+  manifestTarget?: Subscriber
   previousAsk?: string
   keyed?: boolean
 }

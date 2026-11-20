@@ -28,7 +28,7 @@ import { discoverAgents } from '../../lib/agents.ts'
 import { validateName } from '../../lib/secrets.ts'
 import { groupAlive } from '../../lib/process-group.ts'
 import { writeJson } from '../../lib/json-file.ts'
-import { SubagentsApi } from '../subagents/api.ts'
+import { SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { MessagesApi } from '../messages/api.ts'
 import { AutomationsApi, AutomationsWorkflow } from './api.ts'
 import {
@@ -51,6 +51,7 @@ import { describeSchedule, nextAt, parseSchedule } from './schedule.ts'
 import { scheduler } from './scheduler.ts'
 import { triggers, TRIGGER_EVENTS, describeTrigger } from './triggers.ts'
 import { notifications } from './delivery.ts'
+import { destinationAddress, destinationSchema } from './destinations.ts'
 import {
   automationRecord,
   MANIFEST,
@@ -154,7 +155,9 @@ function backend(host: ExtensionHost) {
   const runPath = (sub: Pick<Automation, 'id' | 'scope'>) => scriptRunPath(host, sub)
   async function scripts() {
     loading ??= import('./supervisor.ts')
-      .then(({ supervisor }) => supervisor(host, Automations, schedule.fire, deliver))
+      .then(({ supervisor }) =>
+        supervisor(host, Automations, schedule.fire, deliver, (value) => subscriber(value, true)),
+      )
       .catch(async (error: unknown) => {
         loading = undefined
         const missing = error as { code?: string }
@@ -209,10 +212,10 @@ function backend(host: ExtensionHost) {
         return true
     return false
   }
-  async function discover() {
+  async function discover(request?: { id: string; caller: number }) {
     if (!(await scriptWork())) return
     try {
-      await (await scripts()).discover()
+      await (await scripts()).discover(request)
     } catch (error) {
       if (!(error instanceof ScriptSupportUnavailable)) throw error
       // Keep stored script records when support is absent; ordinary schedules still work.
@@ -241,7 +244,7 @@ function backend(host: ExtensionHost) {
       await (await scripts()).close()
   }
   /** A subscriber as stored: `#id` and numbers become the conversation id, `@name` stays the standing agent's name. */
-  async function subscriber(value: unknown): Promise<Subscriber> {
+  async function subscriber(value: unknown, checkOnly = false): Promise<Subscriber> {
     if (typeof value === 'number' || (typeof value === 'string' && /^#[1-9]\d*$/.test(value))) {
       const id = typeof value === 'number' ? value : Number(value.slice(1))
       if (
@@ -253,6 +256,8 @@ function backend(host: ExtensionHost) {
       return id
     }
     if (typeof value === 'string' && STANDING.test(value)) {
+      // Discovery checks only the name format, as before; delivery resolves the agent later.
+      if (checkOnly) return value
       // Throws for a name that is no standing agent; stored by name, it follows the agent across chapters.
       await host
         .need(SubagentsApi)
@@ -264,8 +269,14 @@ function backend(host: ExtensionHost) {
     }
     throw new Error('subscribers must be #id or @name')
   }
+  /** The file form: the optional coding default stays implicit, as before. */
+  function fileManifest({ to, ...rest }: Manifest): Manifest {
+    const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
+    return { ...rest, ...(to === undefined || to === `@${coordinator}` ? {} : { to }) }
+  }
   async function prepareScript(args: Args, caller?: number): Promise<Prepared> {
-    const { trusted, agentFor, projectDir, manifest, committedManifest } = await scripts()
+    const { trusted, agentFor, projectDir, manifest, resolveManifest, configurationError } =
+      await scripts()
     if (args.action === 'create') {
       if (!caller) throw new Error('create requires a caller conversation')
       if (args.scope !== 'project') {
@@ -276,7 +287,7 @@ function backend(host: ExtensionHost) {
         throw new Error("Choose this project's local setup before creating project automations")
       if (args.to !== undefined && !STANDING.test(args.to))
         throw new Error('A project automation wakes a standing agent: to must be @name')
-      // The caller becomes a subscriber; discovery configures the watcher from @ultimate.
+      // Keep the caller locally. Shared files never gain its machine-local ID implicitly.
       if (!(await host.harness().conversation(caller as ConversationId, BACKGROUND_CONTEXT)))
         throw new Error(`Unknown caller #${caller}`)
       const slug =
@@ -296,7 +307,8 @@ function backend(host: ExtensionHost) {
         ask: required(args.ask, 'ask'),
         once: args.once ?? true,
         ...(args.secrets?.length ? { secrets: args.secrets } : {}),
-        to: args.to ?? '@ultimate',
+        ...(args.to !== undefined ? { to: args.to } : {}),
+        ...(args.destination !== undefined ? { destination: args.destination } : {}),
       }
       const path = join(projectDir(slug), MANIFEST)
       const existing = await readFile(path, 'utf8').then(
@@ -313,17 +325,29 @@ function backend(host: ExtensionHost) {
           return undefined
         },
       )
-      // An equal manifest is this create's own, published before a crash: it is adopted. A different one is another
-      // automation.
+      const previous = (await host.harness().snapshot(Automations, BACKGROUND_CONTEXT))
+        ?.automations[slug]
+      const resolved = await resolveManifest(committed, previous, caller)
+      // Compare effective recipients too: old files can omit an optional workflow's default.
+      const same = (m: Manifest) =>
+        JSON.stringify([
+          m.name,
+          m.ask,
+          m.once,
+          m.secrets,
+          m.destination === undefined
+            ? (m.to ?? resolved.to ?? resolved.subscribers)
+            : destinationAddress(m.destination),
+        ])
       const taken = () => new Error(`Automation ${slug} already exists; pass another slug`)
-      if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(committed))
+      if (existing !== undefined && (existing === null || same(existing) !== same(committed)))
         throw taken()
       if (existing === undefined) {
         await mkdir(projectDir(slug), { recursive: true })
         // Written whole to a temporary file, then linked into place: the link is atomic and exclusive, so a crash never
         // leaves a partial manifest, and of two creates racing for one slug only one publishes.
         const draft = `${path}.${process.pid}.${randomUUID()}`
-        await writeFile(draft, `${JSON.stringify(committedManifest(committed), null, 2)}\n`, {
+        await writeFile(draft, `${JSON.stringify(fileManifest(committed), null, 2)}\n`, {
           flush: true,
         })
         try {
@@ -331,14 +355,16 @@ function backend(host: ExtensionHost) {
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
           const found = manifest(JSON.parse(await readFile(path, 'utf8')))
-          if (JSON.stringify(found) !== JSON.stringify(committed)) throw taken()
+          if (!found || same(found) !== same(committed)) throw taken()
         } finally {
           await rm(draft, { force: true })
         }
       }
       // Discovery alone makes project records: the create then takes the record it made.
-      await discover()
-      return { slug, manifest: committed }
+      await discover({ id: slug, caller })
+      const error = configurationError(slug)
+      if (error) throw new Error(error)
+      return { slug, manifest: committed, manifestTarget: resolved.to }
     }
     const id = validId(args.id)
     if (!id.startsWith('A')) await discover()
@@ -347,25 +373,53 @@ function backend(host: ExtensionHost) {
     if (
       args.action === 'update' &&
       sub.scope === 'project' &&
-      [args.name, args.ask, args.once, args.secrets].some((value) => value !== undefined)
+      [args.name, args.ask, args.once, args.secrets, args.destination].some(
+        (value) => value !== undefined,
+      )
     ) {
       const script = sub.script!
       // The record's own fields change with the update's commit; a discovery before then must not hide the old ask.
       prepared.previousAsk = script.ask
-      await writeJson(
-        join(projectDir(id), MANIFEST),
-        committedManifest({
-          name: args.name?.trim() ?? sub.name,
-          ask: args.ask?.trim() ?? script.ask,
-          once: args.once ?? script.once,
-          ...((args.secrets ?? script.secrets)?.length
-            ? { secrets: args.secrets ?? script.secrets }
-            : {}),
-          to: script.to ?? '@ultimate',
-        }),
+      const path = join(projectDir(id), MANIFEST)
+      // A broken file is rewritten from the record, as before.
+      const existing = await readFile(path, 'utf8').then(
+        (text) => {
+          try {
+            return manifest(JSON.parse(text))
+          } catch {
+            return undefined
+          }
+        },
+        () => undefined,
       )
+      const route =
+        args.destination !== undefined
+          ? { destination: args.destination }
+          : existing?.destination !== undefined
+            ? { destination: existing.destination }
+            : existing?.to !== undefined
+              ? { to: existing.to }
+              : typeof script.to === 'string'
+                ? { to: script.to }
+                : script.to !== undefined
+                  ? { destination: { kind: 'conversation' as const, address: script.to } }
+                  : {}
+      const next: Manifest = {
+        name: args.name?.trim() ?? sub.name,
+        ask: args.ask?.trim() ?? script.ask,
+        once: args.once ?? script.once,
+        ...((args.secrets ?? script.secrets)?.length
+          ? { secrets: args.secrets ?? script.secrets }
+          : {}),
+        ...route,
+      }
+      const resolved = await resolveManifest(next, sub, caller)
+      prepared.manifestTarget = resolved.to
+      await writeJson(path, fileManifest(next))
     }
     if ((args.action === 'resume' || args.action === 'run') && sub.script) {
+      const error = configurationError(id)
+      if (error) throw new Error(error)
       try {
         await access(runPath(sub), constants.X_OK)
       } catch {
@@ -421,7 +475,7 @@ function backend(host: ExtensionHost) {
           sub.name === m.name &&
           sub.script!.ask === m.ask &&
           sub.script!.once === m.once &&
-          sub.script!.to === m.to
+          sub.script!.to === prepared.manifestTarget
         if (!same || sub.script!.state !== 'stopped' || sub.script!.startedAt || sub.fires)
           throw new Error(`Automation ${prepared.slug} already exists; pass another slug`)
         Object.assign(sub, runProfile, {
@@ -546,7 +600,13 @@ function backend(host: ExtensionHost) {
         throw new Error('slug is only for project automations')
       if (args.schedule !== undefined) parseSchedule(args.schedule)
       if (args.ask !== undefined) required(args.ask, 'ask')
-      if (!args.prompt && !args.subscribers?.length && !caller && args.scope !== 'project')
+      if (
+        !args.prompt &&
+        !args.subscribers?.length &&
+        !args.destination &&
+        !caller &&
+        args.scope !== 'project'
+      )
         throw new Error('At least one of prompt or subscribers is required')
       if (args.subscribers !== undefined && !Array.isArray(args.subscribers))
         throw new Error('subscribers must be #id or @name')
@@ -601,6 +661,13 @@ function backend(host: ExtensionHost) {
     }
   }
   async function prepare(args: Args, caller?: number): Promise<Prepared> {
+    if (args.destination !== undefined && (args.subscribers !== undefined || args.to !== undefined))
+      throw new Error('destination cannot be combined with subscribers or to')
+    // Validate before key lookup, discovery, name resolution, or project-file publication.
+    const destination =
+      args.destination === undefined ? undefined : destinationAddress(args.destination)
+    if (destination !== undefined && args.action !== 'create' && args.action !== 'update')
+      throw new Error('destination is only supported for create or update')
     // A key that already made an automation is answered from it before anything else runs: validation may make a
     // standing agent's conversation, and preparation may publish a manifest. The transaction checks it is still there.
     if (
@@ -614,9 +681,12 @@ function backend(host: ExtensionHost) {
     await validate(args, caller)
     if (args.action === 'create') {
       if (args.ask !== undefined) await scripts()
-      const subscribers = args.subscribers?.length
-        ? [...new Set(await Promise.all(args.subscribers.map(subscriber)))]
-        : undefined
+      const subscribers =
+        destination !== undefined
+          ? [await subscriber(destination)]
+          : args.subscribers?.length
+            ? [...new Set(await Promise.all(args.subscribers.map((value) => subscriber(value))))]
+            : undefined
       const prepared: Prepared = {
         ...(args.ask !== undefined ? await prepareScript(args, caller) : {}),
         ...(subscribers ? { subscribers } : {}),
@@ -638,6 +708,7 @@ function backend(host: ExtensionHost) {
       args.condition ??
       (args.action === 'resume' ? (await status(required(args.id, 'id'))).condition : undefined)
     if (condition) prepared.target = await trigger.resolve(condition.of)
+    if (destination !== undefined) prepared.subscribers = [await subscriber(destination)]
     return prepared
   }
   async function change(
@@ -712,6 +783,7 @@ function backend(host: ExtensionHost) {
     }
     let effect: Effect | undefined
     if (args.action === 'create' || args.action === 'update') {
+      if (prepared.subscribers) a.subscribers = prepared.subscribers
       if (args.name !== undefined) a.name = required(args.name, 'name')
       if (args.prompt !== undefined) {
         if (args.prompt) a.prompt = required(args.prompt, 'prompt')
@@ -749,6 +821,8 @@ function backend(host: ExtensionHost) {
         if (args.ask !== undefined) a.script.ask = required(args.ask, 'ask')
         if (args.once !== undefined) a.script.once = args.once
         if (args.secrets !== undefined) a.script.secrets = args.secrets
+        if (args.destination !== undefined && prepared.manifestTarget !== undefined)
+          a.script.to = prepared.manifestTarget
       }
       if (args.agent !== undefined) {
         if (args.agent) a.agent = args.agent
@@ -1015,6 +1089,7 @@ export default function automations(host: ExtensionHost) {
             strEnum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const),
           ),
           subscribers: opt(arr(union([int({ minimum: 1 }), str()]))),
+          destination: opt(destinationSchema),
           scope: opt(strEnum(['user', 'project'])),
           slug: opt(str()),
           key: opt(str()),

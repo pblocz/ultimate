@@ -59,6 +59,7 @@ const facets = {
   automations: [
     'api',
     'delivery',
+    'destinations',
     'refs',
     'schedule',
     'scheduler',

@@ -36,6 +36,12 @@ Each automation has one or both:
 - `subscribers` wakes existing conversations with an `automations.fired` input `{id, name, text}`. A subscriber is
   `#12` or a standing agent's `@name`, resolved at delivery, so `@ultimate` follows it across chapters.
 
+`destination` is the explicit form of one subscriber. `{kind:"conversation", address}` takes `12`, `#12` or `@name`
+and uses the same subscriber path. `{kind:"channel", channel, instanceId, address, threadId?}` passes format checks,
+then fails with `Channel delivery is not supported` before any write; channel delivery is reserved for Phase 6.
+`destination` cannot be combined with `subscribers` or `to`. On update, a conversation destination replaces the
+subscriber list.
+
 Without either, create subscribes the caller; nothing may leave an automation with neither. To be reminded, subscribe:
 a prompt run costs a whole agent turn per fire. The seventh fire within an hour pauses the automation instead,
 escalating with `Fired more than 6 times in an hour; paused`. Subscribers receive this notification without a
@@ -56,9 +62,9 @@ override either. Enabled automations add a line each to the prompt, such as `whe
 `abort`, `escalate`, `subscribe`, `unsubscribe`, `delete`.
 
 - `create {name, schedule?|ask?|event?|condition?, once?, secrets?, prompt?, agent?, model?, thinking?, subscribers?,
-  scope?, slug?, to?, key?}`. `key` makes it idempotent: a key an automation already has returns that automation.
+  scope?, slug?, to?, destination?, key?}`. `key` makes it idempotent: a key an automation already has returns that automation.
   New ids are `A<n>`; project scripts use slugs.
-- `update {id, …}` may switch between schedule, event and condition; a script stays a script.
+- `update {id, …, destination?}` may switch between schedule, event and condition; a script stays a script.
 - `pause` / `resume`; `run` fires now, or relaunches a script; `runs {id}`; `abort {id, runId}`; `log {id, lines?}`
   (default 50, at most 2000); `subscribe` / `unsubscribe {id, to?}` (default the caller); `escalate {id, reason}`;
   `delete` keeps files and conversations.
@@ -85,8 +91,20 @@ Commit shared scripts as:
   automation.json     {"name":"…","ask":"…","once":false,"secrets":["GH_TOKEN"]}
 ```
 
-`ask` is required; `name` defaults to its first 80 characters, `once` to true, `to` (the standing agent woken on every
-machine) to `@ultimate`. Slugs match `^[a-z][a-z0-9-]*$`, at most 63 characters. Runtime state stays machine-local.
+`ask` is required; `name` defaults to its first 80 characters and `once` to true. A file can name its recipient with
+`to` (`@name`) or `destination`, but not both. Slugs match `^[a-z][a-z0-9-]*$`, at most 63 characters. Runtime state
+stays machine-local.
+
+Without a recipient in the file, discovery uses, in order: the target stored on this machine, the optional
+`coding-workflow` coordinator (`@ultimate`, kept implicit in the file as before), and the caller of the create that
+published the file. The caller stays in local runtime data; it is never written to the shared file. Otherwise
+discovery keeps any existing record, reports a notice that names the missing destination, and refuses `run` and
+`resume` until the file is usable. An unsupported channel destination is handled the same way. Old files are never
+rewritten, and a bad recipient is never treated as a removed file.
+
+A watcher copies its model and tools from the caller, else the optional coding coordinator, else the runtime template
+with the host's default model. Discovery checks a named recipient's format only; delivery resolves it, as before. Saved recipients are not checked
+again, and an update rewrites a broken file from the record, as before.
 Discovery runs only in a project chosen as local: a new manifest becomes a stopped record with an idle watcher, never
 starting itself; changed manifests update it; a removed folder or revoked trust forgets it. `delete` forgets the record,
 not the folder. `run` executes from the host checkout; a watcher's repairs edit the committed file, and a branch's
