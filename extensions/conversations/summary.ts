@@ -7,6 +7,7 @@ import {
   hook,
   InboxDoc,
   LiveDoc,
+  ProviderDoc,
   UsageDoc,
 } from '@earendil-works/pi-durable'
 import type {
@@ -228,6 +229,7 @@ export async function askSummaryModel(
   signal: AbortSignal,
   receipt: SummaryReceipt,
   capture?: CaptureSummary,
+  providerSessionId?: string,
 ): Promise<ResponseReceipt> {
   if (receipt.response) return receipt.response
   const { provider, id, thinking } = receipt.model
@@ -279,6 +281,12 @@ export async function askSummaryModel(
         ...(thinking === 'off' ? {} : { reasoning: thinking }),
         maxTokens: Math.min(receipt.maxTokens ?? 2048, model.maxTokens || Infinity),
         signal,
+        // Let Pi route the request without continuing or caching the chat session.
+        ...(providerSessionId && {
+          sessionId: providerSessionId,
+          disableContinuation: true,
+          cacheRetention: 'none' as const,
+        }),
         ...(capture && {
           onPayload: (payload: unknown) => {
             request = payload
@@ -309,6 +317,7 @@ export async function generateSummary(
   root = false,
   withAbstract = false,
   capture?: CaptureSummary,
+  providerSessionId?: string,
 ): Promise<SummaryResult> {
   // A title names the goal; a step or status ("Resubmitted…", "Awaiting review") belongs in the activity line.
   const titleField =
@@ -337,6 +346,7 @@ export async function generateSummary(
     signal,
     receipt,
     capture,
+    providerSessionId,
   )
   if (response.stopReason !== 'stop') throw new Error('Summary request did not finish')
   const parsed: unknown = JSON.parse(response.text)
@@ -771,6 +781,9 @@ export function summaryBehavior(host: SummaryHost, generate = generateSummary) {
         }
         try {
           if (!result && model) {
+            const providerSessionId = response
+              ? undefined
+              : (await runtime.snapshot(ProviderDoc, runtime.conversationId, context))?.sessionId
             result = await generate(
               runtime.models,
               checkpoint.input,
@@ -799,6 +812,7 @@ export function summaryBehavior(host: SummaryHost, generate = generateSummary) {
                       .want?.(SummaryExchanges)
                       ?.record(() => ({ ...exchange, conversationId: runtime.conversationId }))
                 : undefined,
+              providerSessionId,
             )
             result = await runtime.memo('reply', result, context)
           }

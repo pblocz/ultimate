@@ -71,7 +71,9 @@ export function guardToolArguments<T extends Models>(models: T, trace?: ModelTra
       model,
       options?.signal,
     )
-    if (trace) record(trace, stream, model, options?.sessionId)
+    // An isolated call can use the session ID for routing without being part of agent generation.
+    const isolated = options?.disableContinuation === true && options.cacheRetention === 'none'
+    if (trace) record(trace, stream, model, isolated ? undefined : options?.sessionId)
     return stream
   }
   // The target's own completeSimple calls its streamSimple on itself, past this proxy: route it through ours.
@@ -100,7 +102,7 @@ function record(
   const { finish } = trace.begin(
     {
       kind: 'model',
-      // Pi's generation and compaction send the conversation's provider session; extension calls send none.
+      // Pi's generation and compaction use the conversation's provider session.
       caller: sessionId === undefined ? 'extension' : 'agent',
       callee: model.provider,
       name: `${model.provider}/${model.id}`,

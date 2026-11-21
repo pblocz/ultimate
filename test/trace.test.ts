@@ -306,6 +306,59 @@ it('records a failed model call by classification only, never the provider messa
   trace.close()
 })
 
+it('keeps an isolated model call under its extension trace even with a session ID', async () => {
+  const trace = callTrace(join(await temp(), 'trace.sqlite'))
+  trace.open()
+  try {
+    const faux = fauxProvider()
+    const collection = createModels()
+    collection.setProvider(faux.provider)
+    const models = guardToolArguments(collection, {
+      begin: trace.begin,
+      conversationOf: (session) => (session === 'same-session' ? 7 : undefined),
+    })
+    faux.setResponses([fauxAssistantMessage('summary'), fauxAssistantMessage('chat')])
+    const model = faux.getModel()
+    await trace.run(
+      {
+        kind: 'service',
+        caller: 'task',
+        callee: 'conversations',
+        name: 'summarize',
+        conversationId: 7,
+      },
+      async () => {
+        await models
+          .streamSimple(
+            model,
+            { messages: [] },
+            {
+              sessionId: 'same-session',
+              disableContinuation: true,
+              cacheRetention: 'none',
+            },
+          )
+          .result()
+        await models.streamSimple(model, { messages: [] }, { sessionId: 'same-session' }).result()
+      },
+    )
+    await until(() => trace.reader.query().length === 3)
+    const [parent, summaryCall, chat] = trace.reader.query()
+    expect(summaryCall).toMatchObject({
+      kind: 'model',
+      caller: 'extension',
+      trace: parent.trace,
+      parent: parent.id,
+      conversation: 7,
+    })
+    expect(chat).toMatchObject({ kind: 'model', caller: 'agent', conversation: 7 })
+    expect(chat.trace).not.toBe(parent.trace)
+    expect(chat).not.toHaveProperty('parent')
+  } finally {
+    trace.close()
+  }
+})
+
 it('writes a repeated trace-starting action or service call once a minute and counts the rest; failures always', async () => {
   const trace = callTrace(join(await temp(), 'trace.sqlite'))
   trace.open()
