@@ -1,5 +1,7 @@
 Keeps @ultimate's Claude prompt cache warm while you are away for a while, so your next message reads the whole conversation from the cache instead of writing it again. On by default; the `warm` chip in the status line turns it off.
 
+Keep-warm uses the existing default conversation. It does not open a resident to warm its cache. New activity and pings record the conversation so that a change of default does not count activity from another conversation.
+
 ## Why
 
 Claude Code caches @ultimate's prompt for an hour after each request (`ttl: "1h"` in `@earendil-works/pi-claude-code`). The Anthropic API does too when `PI_CACHE_RETENTION=long` is set; keep-warm never sets it, and it applies to every Anthropic request Ultimate makes. A cache read costs a tenth of the input price, a one-hour cache write twice the input price. After a break of over an hour the next answer writes the whole context again: at ~550k tokens that is ~1.1M input-equivalent, against ~55k for a read. Each request that reads the cache renews its hour (Anthropic: "the cache is refreshed for no additional cost each time the cached content is used").

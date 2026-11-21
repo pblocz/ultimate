@@ -95,11 +95,9 @@ Commit shared scripts as:
 `to` (`@name`) or `destination`, but not both. Slugs match `^[a-z][a-z0-9-]*$`, at most 63 characters. Runtime state
 stays machine-local.
 
-Without a recipient in the file, discovery uses, in order: the target stored on this machine, the optional
-`coding-workflow` coordinator (`@ultimate`, kept implicit in the file as before), and the caller of the create that
-published the file. The caller stays in local runtime data; it is never written to the shared file. Otherwise
-discovery keeps any existing record, reports a notice that names the missing destination, and refuses `run` and
-`resume` until the file is usable. An unsupported channel destination is handled the same way. Old files are never
+Without a recipient in the file, discovery uses the target stored on this machine first. Next it uses `defaultDestination` or, if unset, the optional coding coordinator. As a last choice, it uses the caller that published the file. Implicit recipients stay local. Explicit `to` and `destination` values stay in the file. The condition form uses the configured address as its initial value.
+
+If no usable recipient is available, discovery keeps any existing record and reports a notice. It refuses `run` and `resume` until the file is usable. An unsupported channel destination is handled the same way. Old files are never
 rewritten, and a bad recipient is never treated as a removed file.
 
 A watcher copies its model and tools from the caller, else the optional coding coordinator, else the runtime template

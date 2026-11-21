@@ -40,6 +40,16 @@ the "Summary model…" command, and it applies to the next request. `fastModels`
 user) runs those models on the priority tier through the `fast` extension, at a higher usage rate. `instance.model`
 (`"provider/id"`, project over user, default the previews family's model, the fast family's `openai-codex/gpt-6.1-sol`; `null` turns it off) is the one model every
 agent in a preview (`instance start`) runs on, fast tier included; see `extensions/instance/README.md`.
+`defaultDestination` supplies a fallback for background work that has no recipient. Set it in `~/.ultimate/settings.json` or in a trusted project's `.ultimate/settings.json`. The trusted project value takes precedence.
+
+```json
+{
+  "defaultDestination": { "kind": "conversation", "address": "@neutral" }
+}
+```
+
+Use the name of an existing resident definition, a conversation ID such as `12`, or `"#12"`. This setting does not select a model or change a conversation's persona. Without the setting, `coding-workflow` supplies its coordinator when enabled. An invalid setting reports a notice without falling back to another recipient. A `channel` destination is not supported yet. Existing automation recipients and bound goals do not move when the default changes.
+
 `remotes` (user settings only, `{ "<machine>": { "<project>": "<url>" } }`) names other machines' Ultimate instances,
 for example `{ "laptop": { "my-app": "https://laptop.tail1234.ts.net:4747" } }`: codemode's `{ project }` reads and
 `ultimate.tell` reach a project on another machine at that URL (its Tailscale Serve address; the caller's tailnet login

@@ -50,6 +50,7 @@ function fakeTx(
         )
       return overlay(docs.get(key)!)
     },
+    conversation: async (id: number) => (id === ULTIMATE ? { id } : undefined),
     entry: async (id: number) => entries.find((entry) => entry.id === id),
     scanEntries: async ({ conversationId }: { conversationId: number }) => ({
       items: entries.filter((entry) => entry.conversationId === conversationId),
@@ -84,7 +85,7 @@ function fakeHost(tx: ReturnType<typeof fakeTx>) {
   }
   const host = {
     harness: () => ({ commit: (fn: (tx: Tx) => unknown) => fn(tx) }),
-    need: () => service,
+    need: () => ({ defaultConversation: () => Promise.resolve(ULTIMATE) }),
     want: () => service,
     doc: () => undefined,
     invoke: async () => structuredClone([...ledger.values()]),

@@ -23,6 +23,7 @@ vi.mock('../../web/src/sdk/client.ts', async () => {
   const { createApi } = await import('../../web/src/sdk/api.ts')
   const { createRegistry } = await import('../../web/src/sdk/registry.ts')
   const { createUiState } = await import('../../web/src/sdk/ui-state.ts')
+  const { createReads } = await import('../../web/src/sdk/reads.ts')
   const { FakeSource } = await import('./fake-source.ts')
   const store = createStore({
     eventSource: (url) => {
@@ -37,6 +38,7 @@ vi.mock('../../web/src/sdk/client.ts', async () => {
   return {
     store,
     api,
+    reads: createReads(api, store),
     registry: createRegistry(),
     uiState: createUiState(api.updateUi),
     replaceNextSelection() {},
@@ -102,7 +104,13 @@ beforeEach(() => {
   harness.fetch.mockImplementation(
     async (url, init) =>
       server.handle(url as string, init) ??
-      Response.json((url as string) === '/api/models' ? modelList : { rev: 1 }),
+      Response.json(
+        url === '/api/models'
+          ? modelList
+          : url === '/api/extensions/subagents/actions/defaultDestination'
+            ? { result: { address: '@ultimate' } }
+            : { rev: 1 },
+      ),
   )
   harness.sources.length = 0
   server.subscriptions.length = 0

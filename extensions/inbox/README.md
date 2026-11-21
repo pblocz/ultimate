@@ -18,7 +18,7 @@ items are exactly the messages `waiting` (questions) returns over the Messages l
   and the card's own keys (1–9, letters, ↵, ⇧↵) answer the shown item: the Inbox passes `keys` to the card. A
   branch's transcript keeps its own rule (`keyCard`) when the Inbox is not on screen.
 - **Phone**: the list full width; a tap shows the item full screen with a back arrow, the answer card after the text.
-- **Zero**: "Nothing waits on you", the questions answered or dismissed today, and **Back to @ultimate**.
+- **Zero**: "Nothing waits on you", the questions answered or dismissed today, and a link to the default conversation when configured.
 
 `?inbox=<message>` on load opens the surface at that item and leaves the address; the `inbox:open {message}` event
 does the same at runtime (a push notification's tap, `extensions/push`).

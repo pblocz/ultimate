@@ -30,7 +30,7 @@ import { Body, emptyMessages, MessageImages, MessagesDoc, stateTone } from '../m
 import type { Message } from '../messages/refs.ts'
 import { MessageQuestions } from '../questions/ui.tsx'
 import { UnderUltimate } from '../sidebar/ui.tsx'
-import { talkToUltimate } from '../subagents/ui.tsx'
+import { openDefaultConversation, useDefaultConversation } from '../subagents/ui.tsx'
 import { answeredToday, inboxItems, lead, previewUrl, selection } from './items.tsx'
 
 const SURFACE = 'inbox'
@@ -286,6 +286,7 @@ function Reading({
 
 function Zero({ messages, now }: { messages: readonly Message[]; now: number }) {
   const actions = useUltimate()
+  const { address, label } = useDefaultConversation()
   const today = answeredToday(messages, now)
   return (
     <div className="flex min-h-0 flex-1 overflow-y-auto" data-inbox-zero>
@@ -295,13 +296,15 @@ function Zero({ messages, now }: { messages: readonly Message[]; now: number }) 
         </span>
         <h2 className="mt-4 text-[17px] font-semibold tracking-[-0.01em]">Nothing waits on you</h2>
         <p className="mt-1 text-[14px] text-muted-foreground">Every branch has what it needs.</p>
-        <Button
-          className="mt-6"
-          // oxlint-disable-next-line typescript/no-floating-promises -- an uncaught action failure becomes a notice.
-          onClick={() => void talkToUltimate(actions)}
-        >
-          Back to @ultimate
-        </Button>
+        {address !== undefined && (
+          <Button
+            className="mt-6"
+            // oxlint-disable-next-line typescript/no-floating-promises -- an uncaught action failure becomes a notice.
+            onClick={() => void openDefaultConversation(actions)}
+          >
+            Back to {label}
+          </Button>
+        )}
         {today.length > 0 && (
           <div className="mt-10 w-full text-left">
             <div className="section-label px-1 pb-2">Answered today · {today.length}</div>

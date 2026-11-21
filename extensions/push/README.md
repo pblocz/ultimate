@@ -9,7 +9,7 @@ with `extensions.enable: ["push"]` in user or project settings.
   service worker without opening the app; a failure replaces the notification with the reason. Answering on any card
   closes the notification on open devices.
 - **A landing** (`workspaces.landed`).
-- **@ultimate's failed run**, read from the conversation overview as the sounds do (`extensions/sounds/cues.ts`).
+- **A failed run in the default conversation**, read from the conversation overview as the sounds do (`extensions/sounds/cues.ts`).
 
 A browser that reported the app on screen in the last 15 s gets nothing. Tapping a notification opens its
 conversation, a question's at the question.

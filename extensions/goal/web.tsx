@@ -1,6 +1,6 @@
 import { FlagIcon } from 'lucide-react'
 import { defineWebExtension, useDocOf, useUltimate } from '@/sdk'
-import { talkToUltimate } from '../subagents/ui.tsx'
+import { StandingDoc } from '../subagents/ui.tsx'
 import { GoalCall } from './call.tsx'
 import { ReportCard, StartedCard } from './cards.tsx'
 import { GoalDialog, goalDialog } from './dialog.tsx'
@@ -10,12 +10,19 @@ import { GoalDoc } from './refs.ts'
 function HandsOff() {
   const goal = useDocOf(1, GoalDoc)?.goals.find((item) => !item.ended)
   const actions = useUltimate()
+  const legacy = useDocOf(1, StandingDoc)?.ultimate
+  const conversation = goal?.conversation ?? legacy
   if (!goal) return null
   return (
     <button
       className="-mx-1 flex cursor-pointer items-center gap-1.5 rounded-sm px-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       data-goal-status
-      onClick={() => void talkToUltimate(actions)}
+      disabled={conversation === undefined}
+      onClick={() => {
+        if (conversation === undefined) return
+        actions.showSurface('agent')
+        actions.switchConversation(conversation)
+      }}
       title={`Hands-off: ${goal.text}`}
       type="button"
     >

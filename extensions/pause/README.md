@@ -9,6 +9,8 @@ Pause the whole Ultimate host and continue it with Play. This is a soft pause: r
 
 ## Rate limits
 
+Rate-limit cards and autoplay entries use the existing conversation at `defaultDestination`. If no such conversation exists, Pause still holds and resumes work. The card records a notice instead of starting a conversation or a model turn.
+
 A model answer that is a rate limit Pi retries (HTTP 429, "rate limit", "too many requests": `lib/rate-limit.ts`) pauses the host by itself, the first time, whichever provider sent it. Quota, usage-limit and billing errors are on Pi's no-retry list: they end the run at once, so they fail as usual instead, with nothing for Play to continue. Retrying sooner only hits the limit again, so it stays paused until the user says so:
 
 - The extension watches commits for assistant error entries. On the first rate-limited one it holds the scheduler at once, inside that commit's publication, before Pi's own retry backoff (2 s) can fire, then records the pause with `limit` (`{ provider, model, error, at, conversationId }`), also into a pause the user started. If that commit fails, it releases the hold again rather than hold work with nothing showing Play.

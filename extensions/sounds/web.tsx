@@ -19,7 +19,7 @@ import {
 import type { LiveState } from '@/sdk'
 import { MessagesDoc, emptyMessages } from '../messages/ui.tsx'
 import { OverviewDoc } from '../conversations/ui.tsx'
-import { StandingDoc } from '../subagents/ui.tsx'
+import { StandingDoc, useDefaultConversation } from '../subagents/ui.tsx'
 import { Committed } from '../coding-tools/ui.tsx'
 import { CheckRan, SubmissionLanded } from '../workspaces/ui.tsx'
 import { Branched } from '../lineage/ui.tsx'
@@ -109,7 +109,7 @@ function narratorOfTab() {
 function Player() {
   const overview = useDocOf(1, OverviewDoc)
   const log = useDocOf(1, MessagesDoc)
-  const agent = useDocOf(1, StandingDoc)?.ultimate
+  const { id: agent } = useDefaultConversation()
   const landings = useEvents({ events: [SubmissionLanded], limit: 20 })
   const branched = useEvents({ events: [Branched], limit: 20 })
   const conversations = useConversations()
@@ -431,7 +431,7 @@ function Control() {
             </div>
           ))}
           <div className="px-2 pt-0.5 pb-1 text-[11px] text-muted-foreground">
-            Landings from any branch; the rest from @ultimate only
+            Landings from any branch; other sounds from the default conversation
           </div>
         </div>
       </PopoverContent>

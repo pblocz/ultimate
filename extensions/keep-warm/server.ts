@@ -21,7 +21,7 @@ import { implementAction } from '../../lib/actions.ts'
 import type { ResponseReceipt } from '../conversations/summary.ts'
 import { ConversationsApi } from '../conversations/api.ts'
 import { PauseApi } from '../pause/api.ts'
-import { Standing } from '../subagents/api.ts'
+import { SubagentsApi } from '../subagents/api.ts'
 import { due, LEAD, TTL } from './due.ts'
 import { SetAction, StateAction, WarmDoc } from './refs.ts'
 import type { Ping, WarmDocState, WarmState } from './refs.ts'
@@ -48,8 +48,7 @@ const QUESTION = 'Cache keep-warm check from Ultimate, not from the user. Reply 
 const read = async (host: ExtensionHost) =>
   (await host.harness().snapshot(State, ROOT_CONVERSATION_ID, context)) ?? {}
 
-const ultimateOf = async (host: ExtensionHost) =>
-  (await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate
+const destinationOf = (host: ExtensionHost) => host.need(SubagentsApi).defaultConversation(context)
 
 /** The last ping, if it was on `model`: the same model id on another provider has another cache. */
 export const lastOn = (last: Ping | undefined, model: ModelRef) =>
@@ -85,13 +84,16 @@ async function answeredAt(host: ExtensionHost, id: ConversationId, model: ModelR
 
 /** @ultimate, its model and the times that decide a ping; undefined while its provider does not cache for an hour. */
 async function activity(host: ExtensionHost, doc: WarmDocState, now: number) {
-  const id = await ultimateOf(host)
+  const id = await destinationOf(host)
   const conversation = id === undefined ? undefined : await host.harness().conversation(id, context)
   if (!conversation) return undefined
   const model = (await conversation.agent(context)).model
   if (!model || !hourLong(model.provider)) return undefined
   const answered = await answeredAt(host, id!, model, now)
-  const last = lastOn(doc.last, model)
+  const last =
+    doc.last?.conversation === undefined || doc.last.conversation === id
+      ? lastOn(doc.last, model)
+      : undefined
   const pinged = last && !last.error ? last.at : undefined
   const lastRequest = Math.max(answered ?? 0, pinged ?? 0) || undefined
   return {
@@ -100,7 +102,8 @@ async function activity(host: ExtensionHost, doc: WarmDocState, now: number) {
     model: model.modelId,
     lastRequest,
     failedAfter: last?.error ? last.at : undefined,
-    inputAt: doc.inputAt,
+    inputAt:
+      doc.inputConversation === undefined || doc.inputConversation === id ? doc.inputAt : undefined,
   }
 }
 
@@ -115,8 +118,14 @@ export const open = (paused: boolean | undefined, lastRequest: number, now: numb
 async function claim(host: ExtensionHost, id: ConversationId, attempt: Ping, previous?: number) {
   return host.harness().commit(async (tx) => {
     const doc = await tx.doc(State, ROOT_CONVERSATION_ID)
-    if (doc.off || doc.last?.at !== previous || (await tx.doc(LiveDoc, id)).run) return false
-    doc.last = attempt
+    if (
+      doc.off ||
+      doc.last?.at !== previous ||
+      (await tx.doc(LiveDoc, id)).run ||
+      (await host.need(SubagentsApi).defaultConversation(context, tx)) !== id
+    )
+      return false
+    doc.last = { ...attempt, conversation: id }
     doc.pings = (doc.pings ?? 0) + 1
     return true
   }, context)
@@ -130,7 +139,7 @@ async function record(
   answer?: AssistantMessage,
 ) {
   await host.harness().commit(async (tx) => {
-    ;(await tx.doc(State, ROOT_CONVERSATION_ID)).last = last
+    ;(await tx.doc(State, ROOT_CONVERSATION_ID)).last = { ...last, conversation: id }
     if (answer)
       await host.need(ConversationsApi).accountResponse(tx, id, {
         provider: answer.provider,
@@ -273,8 +282,11 @@ export default function keepWarm(host: ExtensionHost) {
     'user-input',
     [UserInputEvent],
     async (tx, { data, at }) => {
-      if ((await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate !== data.conversation) return
-      ;(await tx.doc(State, ROOT_CONVERSATION_ID)).inputAt = Date.parse(at)
+      if ((await host.need(SubagentsApi).defaultConversation(context, tx)) !== data.conversation)
+        return
+      const doc = await tx.doc(State, ROOT_CONVERSATION_ID)
+      doc.inputAt = Date.parse(at)
+      doc.inputConversation = data.conversation
     },
     { from: 'now' },
   )

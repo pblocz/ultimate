@@ -27,7 +27,8 @@ import { PauseApi } from '../api.ts'
 import { apis, removeTemps, temp, until } from '../../../test/helpers.ts'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Standing } from '../../subagents/api.ts'
+import { Standing, SubagentsApi } from '../../subagents/api.ts'
+import type { SubagentsService } from '../../subagents/api.ts'
 
 const hosts: OpenHost[] = []
 afterEach(async () => {
@@ -94,6 +95,10 @@ async function fixture(home?: string, retry: { maxRetries?: number } = {}) {
   )
   let opened: OpenHost | undefined
   const services = apis()
+  services.provided.set(SubagentsApi.name, {
+    defaultConversation: async (ctx) =>
+      (await opened!.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate,
+  } satisfies Partial<SubagentsService>)
   const openers: (() => Promise<void>)[] = []
   const host = {
     ...services,
@@ -108,6 +113,7 @@ async function fixture(home?: string, retry: { maxRetries?: number } = {}) {
     onOpen: (callback: () => Promise<void>) => void openers.push(callback),
     onClose: () => {},
     onRelease: () => {},
+    notice: () => {},
     conversations: () => [],
   } as unknown as ExtensionHost
   prepared.registry.install(pauseExtension(host))

@@ -21,7 +21,7 @@ import {
 import { SYSTEM_TAB_KEY, SystemTab } from './ui.tsx'
 import { MessagesDoc, conversationState, emptyMessages } from '../messages/ui.tsx'
 import { useConcludedSince, useOverview } from '../conversations/ui.tsx'
-import { StandingDoc } from '../subagents/ui.tsx'
+import { useDefaultConversation } from '../subagents/ui.tsx'
 import { LaneTree } from './hierarchy.tsx'
 import { Axis, laneState } from './lanes.tsx'
 import { windows } from './layout.ts'
@@ -47,7 +47,7 @@ function useStates(parked: ReadonlySet<number>) {
   const log = useDocOf(1, MessagesDoc) ?? emptyMessages
   const overview = useOverview()
   const conversations = useConversations()
-  const primary = useDocOf(1, StandingDoc)?.ultimate
+  const { id: primary } = useDefaultConversation()
   const concludedSince = useConcludedSince()
   return (lane: Lane) => {
     const id = lane.conversation

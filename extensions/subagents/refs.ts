@@ -5,6 +5,17 @@
 import { actionRef, docRef } from '../../shared/extension-api.ts'
 import { defineEvent } from '../../shared/events.ts'
 
+export type DestinationAddress = number | string
+/** Read the current default address without opening a conversation. */
+export const DefaultDestinationAction = actionRef<null, { address?: DestinationAddress }>(
+  'subagents',
+  'defaultDestination',
+)
+/** A conversation can be addressed by ID, #id or @name. Channel delivery is not supported yet. */
+export type Destination =
+  | { kind: 'conversation'; address: DestinationAddress }
+  | { kind: 'channel'; channel: string; instanceId: string; address: string; threadId?: string }
+
 /** Where a definition file lives: shipped with Ultimate, in the user's home, or in the project. */
 export type Source = 'builtin' | 'user' | 'project'
 /** Where a definition can be saved. */

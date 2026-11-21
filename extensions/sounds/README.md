@@ -9,6 +9,8 @@ variants and demo, and a checkbox and a play button for each notification; the c
 
 ## Notifications
 
+Question, answer, and failure sounds follow the default conversation. Landing sounds still cover every branch.
+
 Only the primary standing agent sounds, read from the root's documents:
 
 - **Needs input:** any reply-expected `message` to the user (`messages`), from @ultimate or a branch.

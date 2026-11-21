@@ -3,6 +3,8 @@
 The project's short list of open loops, each owned by the user or @ultimate. No priorities, due dates, tags or
 nesting: for planned work with tasks and reviews, use `plan`.
 
+The existing default conversation receives the to-do note and can use the `todo` tool when its definition enables it. The panel sends work to the same destination. The stored owner `ultimate` still means the agent role and is not migrated.
+
 ## State
 
 The `todos` document on conversation 1 (conversation scope, latest history, initial on fork) holds

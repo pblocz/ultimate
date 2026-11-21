@@ -1,4 +1,4 @@
-Hands-off goals: put @ultimate on a goal and go away; it decides what it would otherwise ask you, records each decision with its reason, and leaves a report.
+A hands-off goal belongs to the conversation where you start it. That conversation records decisions, receives the reminder, and leaves the report. If no conversation is selected, Start uses the existing default conversation. Old goals without a saved conversation keep their coding coordinator.
 
 ## Flow
 

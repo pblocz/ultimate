@@ -34,7 +34,7 @@ import {
   useUltimate,
 } from '@/sdk'
 import { clock, full, until, words } from './parts.tsx'
-import { DefinitionsAction } from '../subagents/ui.tsx'
+import { DefaultDestinationAction, DefinitionsAction } from '../subagents/ui.tsx'
 import { CreateAction, DescribeAction, EventsAction, UpdateAction } from './refs.ts'
 import type { Automation } from './refs.ts'
 
@@ -45,7 +45,7 @@ interface Draft {
   event: string
   filters: Record<string, string>
   filterTypes: Record<string, 'string' | 'number' | 'boolean'>
-  of: string
+  of?: string
   /** The number fields hold what was typed, so a cleared field stays empty instead of reading 0. */
   above: string
   cooldownMinutes: string
@@ -105,7 +105,6 @@ function draftOf(automation?: Automation): Draft {
     event: '',
     filters: {},
     filterTypes: {},
-    of: '@ultimate',
     above: '80',
     cooldownMinutes: '60',
     idleHours: '0',
@@ -139,7 +138,7 @@ function draftOf(automation?: Automation): Draft {
           typeof value as 'string' | 'number' | 'boolean',
         ]),
       ),
-      of: automation.condition?.of ?? '@ultimate',
+      of: automation.condition?.of,
       above: String(automation.condition?.above ?? 80),
       cooldownMinutes: String((automation.condition?.cooldownMs ?? 3600000) / 60000),
       idleHours: String((automation.condition?.idleFor ?? 0) / 3600000),
@@ -199,7 +198,7 @@ const amount = (text: string) => (text.trim() === '' ? Number.NaN : Number(text)
 
 /** The context condition the draft describes, or undefined while a field is empty or out of range. */
 export function contextCondition(
-  draft: Pick<Draft, 'of' | 'above' | 'cooldownMinutes' | 'idleHours'>,
+  draft: Pick<Draft, 'above' | 'cooldownMinutes' | 'idleHours'> & { of: string },
 ) {
   const above = amount(draft.above)
   const cooldownMinutes = amount(draft.cooldownMinutes)
@@ -466,7 +465,13 @@ export function AutomationForm({
   const ultimate = draft.trigger === 'ultimate'
   const wakeable = script || ultimate
   const schedule = scheduleOf(draft)
-  const condition = contextCondition(draft)
+  const { data: target } = useAction(DefaultDestinationAction, null, {
+    enabled: open,
+    onError: () => {},
+  })
+  const address = target?.address
+  const of = draft.of ?? (typeof address === 'number' ? `#${address}` : (address ?? ''))
+  const condition = contextCondition({ ...draft, of })
   const prompt = draft.prompt.trim()
   // A fire needs something to do: wake a conversation, run a prompt, or both. An edit keeps its subscribers.
   const acts = !!prompt || (automation ? automation.subscribers.length > 0 : wakeable && draft.wake)
@@ -712,7 +717,7 @@ export function AutomationForm({
                         id={`${ids}-of`}
                         onChange={(event) => set({ of: event.target.value })}
                         placeholder="@ultimate or #123"
-                        value={draft.of}
+                        value={of}
                       />
                     </Field>
                     <div className="grid grid-cols-2 gap-2">

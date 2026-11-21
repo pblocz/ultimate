@@ -5,7 +5,7 @@ import type { ConversationId, Cursor, SubmissionId } from '@earendil-works/pi-du
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { rateLimited } from '../../lib/rate-limit.ts'
-import { Standing } from '../subagents/api.ts'
+import { SubagentsApi } from '../subagents/api.ts'
 import { PauseApi } from './api.ts'
 import { lasted } from './lasted.ts'
 import { AutoPlayAction, PauseAction, PauseDoc, PlayAction, StateAction } from './refs.ts'
@@ -32,7 +32,15 @@ export const docs = [State]
 
 type Host = Pick<
   ExtensionHost,
-  'harness' | 'resource' | 'onOpen' | 'onClose' | 'onRelease' | 'implement' | 'conversations'
+  | 'harness'
+  | 'resource'
+  | 'onOpen'
+  | 'onClose'
+  | 'onRelease'
+  | 'implement'
+  | 'conversations'
+  | 'need'
+  | 'notice'
 >
 
 /** The flag timers read synchronously; shared across reloads, set from the doc each time the harness opens. */
@@ -215,10 +223,10 @@ export async function autoPlay(host: Host, now = Date.now()) {
     if (at === undefined || now < at) return false
     const data: AutoPlayed = { since: doc.since!, at: now, minutes: doc.autoPlay! }
     const harness = host.harness()
-    const ultimate = (await harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate
-    if (ultimate !== undefined)
+    const destination = await host.need(SubagentsApi).defaultConversation(context)
+    if (destination !== undefined)
       await (
-        await harness.conversation(ultimate, context)
+        await harness.conversation(destination, context)
       )?.submit(
         {
           type: 'write',
@@ -308,13 +316,15 @@ async function held(host: Host, limit: RateLimit) {
 
 /** The `pause.limit` card for the limit that paused the host, once per pause (its request ID is the pause's start). */
 async function card(host: Host, doc: PauseDocState) {
-  const harness = host.harness()
-  const ultimate = (await harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate
-  if (!doc.paused || !doc.limit || ultimate === undefined) return
-  // Only kind and data, so Pi appends it at once even while @ultimate's own run is held; the model learns of the limit
-  // from the note Play leaves on each held run.
+  if (!doc.paused || !doc.limit) return
+  const destination = await host.need(SubagentsApi).defaultConversation(context)
+  if (destination === undefined) {
+    host.notice('Rate-limit pause: no default conversation for the pause card')
+    return
+  }
+  // This passive entry shows at once without starting a new run.
   await (
-    await harness.conversation(ultimate, context)
+    await host.harness().conversation(destination, context)
   )?.submit(
     {
       type: 'write',

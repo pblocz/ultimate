@@ -11,7 +11,7 @@ import type { ExtensionHost } from '../../server/extensions.ts'
 import type { OverviewState } from '../conversations/types.ts'
 import { Messages, MessageSent } from '../messages/api.ts'
 import { SecretsApi } from '../secrets/api.ts'
-import { Standing } from '../subagents/api.ts'
+import { Standing, SubagentsApi } from '../subagents/api.ts'
 import { SubmissionLanded } from '../workspaces/api.ts'
 import { newKey, publicKey, sendPush } from './push.ts'
 import { KeyAction, PresentAction, SubscribeAction, TestAction, UnsubscribeAction } from './refs.ts'
@@ -115,19 +115,19 @@ export default function pushExtension(host: ExtensionHost) {
     from: 'now',
   })
 
-  // @ultimate's failed run is no domain event but a change of Pi's overview document, as the sounds read it.
+  // A failed run changes Pi's overview document; it is not a domain event.
   let stop: (() => void) | undefined
   let seen: string | undefined
   const failed = async () => {
     const token = host.doc(OVERVIEW)
     if (!token) return undefined
-    const [standing, overview] = await Promise.all([
-      host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, context),
-      host.harness().snapshot(token, ROOT_CONVERSATION_ID, context),
-    ])
-    const ultimate = standing?.ultimate
-    if (ultimate === undefined) return undefined
-    return failedPush((overview as OverviewState | undefined)?.conversations[ultimate], ultimate)
+    const destination = await host.need(SubagentsApi).defaultConversation(context)
+    if (destination === undefined) return undefined
+    const overview = await host.harness().snapshot(token, ROOT_CONVERSATION_ID, context)
+    return failedPush(
+      (overview as OverviewState | undefined)?.conversations[destination],
+      destination,
+    )
   }
   host.onOpen(async () => {
     // What has failed already when the server opens is old news.

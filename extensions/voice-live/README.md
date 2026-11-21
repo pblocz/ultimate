@@ -8,6 +8,8 @@ Nothing is billable until a session starts or the Voice agent receives input. GP
 Secrets (⌘K → Secrets), or Pi's OpenAI **API key**, never its OAuth login. The key stays on the server. The Voice
 agent uses `openai-codex/gpt-6-luna` through Pi's existing ChatGPT login, low thinking and the fast tier.
 
+The relay reads and forwards to the existing default conversation. It does not start a new resident for a relay. The tool name `voice_ask_ultimate` and stored line role `ultimate` stay the same for compatibility.
+
 ## Flow
 
 1. The browser acquires the microphone, adds its track to a peer connection and creates `oai-events` before its

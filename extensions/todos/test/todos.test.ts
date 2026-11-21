@@ -95,6 +95,10 @@ it("keeps the todo tool to @ultimate and the note to @ultimate's inputs", async 
   const extension = todosExtension({
     doc: () => undefined,
     implement: () => {},
+    need: () => ({
+      defaultDestination: () => Promise.resolve('@ultimate'),
+      defaultConversation: () => Promise.resolve(ULTIMATE),
+    }),
   } as unknown as ExtensionHost)
   const tool = extension.tools!.find((candidate) => candidate.name === 'todo')!
   const run = (conversationId: number, args: object) =>

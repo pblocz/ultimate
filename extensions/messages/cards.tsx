@@ -39,7 +39,7 @@ import {
 } from '@/sdk'
 import type { CompactSummaryProps, ToolCallView } from '@/sdk'
 import { AgentMark, AgentTitle, ConversationRef, useAgentTitle } from '../conversations/ui.tsx'
-import { openAgentSource, StandingDoc } from '../subagents/ui.tsx'
+import { openAgentSource, StandingDoc, useDefaultConversation } from '../subagents/ui.tsx'
 import { accentOf } from './accent.tsx'
 import {
   answerTo,
@@ -70,19 +70,19 @@ const Answers = ({ message }: { message: Message }) => (
 )
 
 /** Who settled `question` with `answer`: you, or @ultimate for you from your chat. */
-const settledLabel = (question: Message, answer: Message) =>
+const settledLabel = (question: Message, answer: Message, viaName: string) =>
   question.state === 'dismissed'
     ? answer.via
-      ? '@ultimate dismissed it for you'
+      ? `${viaName} dismissed it for you`
       : 'You dismissed it'
     : answer.via
-      ? '@ultimate answered for you'
+      ? `${viaName} answered for you`
       : 'You answered'
 
 /** The accent of sender `id`: @ultimate's fixed one when the standing agents name it, else `accentOf`. */
 export function useAccentOf(id: number | 'user' | 'remote') {
-  const standing = useDocOf(1, StandingDoc)
-  return accentOf(standing?.ultimate === id ? 'ultimate' : id)
+  const { id: destination } = useDefaultConversation()
+  return accentOf(destination === id ? 'ultimate' : id)
 }
 
 /**
@@ -318,12 +318,17 @@ function AttachedAnswer({ answer, question }: { answer: Message; question: Messa
   const accent = accentOf('user')
   const dismissed = question.state === 'dismissed'
   const { via } = answer
+  const standing = useDocOf(1, StandingDoc)
+  const name = Object.entries(standing ?? {}).find(([, id]) => id === via?.conversation)?.[0]
+  const viaName = name ? `@${name}` : `#${via?.conversation ?? answer.from}`
   const { showSurface, switchConversation } = useUltimate()
   return (
     <div className="border-t border-border/60 px-3 py-2.5" data-compact-answer={answer.id}>
       <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
         <CornerDownRightIcon className={cn('size-3.5 shrink-0', accent.name)} />
-        <span className={cn('font-semibold', accent.name)}>{settledLabel(question, answer)}</span>
+        <span className={cn('font-semibold', accent.name)}>
+          {settledLabel(question, answer, viaName)}
+        </span>
         {via?.entry !== undefined && (
           <button
             className="flex cursor-pointer items-center gap-1 hover:text-foreground"
@@ -333,7 +338,7 @@ function AttachedAnswer({ answer, question }: { answer: Message; question: Messa
               showSurface('agent')
               switchConversation(via.conversation)
             }}
-            title="Show what you said that @ultimate read this from"
+            title="Show the source of this answer"
             type="button"
           >
             <SquareArrowOutUpRightIcon className="size-3" />

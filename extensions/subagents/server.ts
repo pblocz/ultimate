@@ -49,6 +49,7 @@ import {
 } from '../../lib/agents.ts'
 import type { AgentDefinition, DefinitionFields } from '../../lib/agents.ts'
 import { createChild, started } from './children.ts'
+import { defaultDestination, destinationAddress } from './destinations.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { shortTitle } from '../../lib/title.ts'
 import { ConversationsApi, Marks, WorktreeSupport } from '../conversations/api.ts'
@@ -59,6 +60,7 @@ import type { SubagentsService } from './api.ts'
 import { definitionRuns, refName, refOf } from '../../lib/families.ts'
 import { readFamilies } from '../../lib/families-settings.ts'
 import {
+  DefaultDestinationAction,
   DefinitionAction,
   DefinitionsAction,
   DeleteDefinitionAction,
@@ -383,6 +385,15 @@ export const reloadOnSettings = true
 /** Browser actions for the Agents tab. */
 export const actions = {
   /** `{name}`: open the current definition's standing conversation. */
+  defaultDestination: implementAction(DefaultDestinationAction, async (_args, { host }) => {
+    const address = await host.need(SubagentsApi).defaultDestination(BACKGROUND_CONTEXT)
+    if (
+      typeof address === 'number' &&
+      !(await host.harness().conversation(address as ConversationId, BACKGROUND_CONTEXT))
+    )
+      return {}
+    return address === undefined ? {} : { address }
+  }),
   standing: implementAction(StandingAction, async (args, { host }) => {
     const { name } = (args ?? {}) as Record<string, JsonValue>
     if (typeof name !== 'string') throw new Error('name is required')
@@ -636,7 +647,25 @@ export default function subagents(
       return definition?.runs ? definition.runs.model : definition?.model
     },
   })
+  const resolveDestination = defaultDestination(host)
   const service: SubagentsService = {
+    destinationAddress,
+    defaultDestination: resolveDestination,
+    async defaultConversation(ctx, tx) {
+      const address = await resolveDestination()
+      let id: ConversationId | undefined
+      if (typeof address === 'number') id = address as ConversationId
+      else if (address) {
+        const standing = tx
+          ? await tx.doc(Standing, ROOT_CONVERSATION_ID)
+          : await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
+        const name = address.slice(1)
+        if (standing && Object.hasOwn(standing, name)) id = standing[name]
+      }
+      if (id === undefined) return undefined
+      const found = tx ? await tx.conversation(id) : await host.harness().conversation(id, ctx)
+      return found ? id : undefined
+    },
     async createChild(tx, options) {
       const child = await createChild(host, tx, options)
       await started(host, tx, child, options.definition?.name ?? options.label, 'child')

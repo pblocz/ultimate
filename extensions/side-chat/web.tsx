@@ -33,7 +33,7 @@ import {
   useViewport,
 } from '@/sdk'
 import type { ComposerTarget } from '@/sdk'
-import { StandingDoc, talkToUltimate } from '../subagents/ui.tsx'
+import { useDefaultConversation } from '../subagents/ui.tsx'
 import { UnderUltimate, Unlisted } from '../sidebar/ui.tsx'
 import { createEndings, endings, frontSide, openSides, togglesSideMode } from './logic.ts'
 import { DiscardAction, InjectAction, OpenAction, SideChatDoc, SideChatsDoc } from './refs.ts'
@@ -63,9 +63,9 @@ const sideEndings = createEndings(errorMessage)
 
 /** @ultimate's conversation id, and the side chats it has. */
 function useMain() {
-  const main = useDocOf(1, StandingDoc)?.ultimate
+  const { id: main, label } = useDefaultConversation()
   const index = useDocOf(main, SideChatsDoc) ?? undefined
-  return { main, index }
+  return { main, index, label }
 }
 
 const ease = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
@@ -74,10 +74,10 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // ---- composer: Tab toggles, Enter forks ----------------------------------------------------------------------------
 
-function ModeSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+function ModeSwitch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
   return (
     <button
-      aria-label={`Composer sends to ${on ? 'a new side chat' : '@ultimate'} · Tab switches`}
+      aria-label={`Composer sends to ${on ? 'a new side chat' : label} · Tab switches`}
       aria-pressed={on}
       data-ui="side-chat-switch"
       className="relative flex h-5 cursor-pointer items-center rounded-full bg-muted/60 p-0.5 font-mono text-[10.5px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -116,7 +116,7 @@ function ModeSwitch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 /** Wraps @ultimate's composer: the mode switch above it, and Enter forking a side chat while it is on. */
 function SideComposer({ core, dock }: { core: ReactNode; dock?: boolean }) {
   const id = useConversation((conversation) => conversation.id)
-  const { main, index } = useMain()
+  const { main, index, label } = useMain()
   // Keep the editor in the same tree position while the standing conversation's document arrives.
   const active = id !== undefined && id === main && !dock
   const on = useSideMode() && active
@@ -125,7 +125,7 @@ function SideComposer({ core, dock }: { core: ReactNode; dock?: boolean }) {
   const parked = openSides(index).filter((item) => item.id !== shown?.id)
   const target: ComposerTarget | undefined = on
     ? {
-        placeholder: 'Ask on the side — @ultimate keeps running…',
+        placeholder: `Ask on the side (${label} keeps running)…`,
         send: async (text) => {
           const opened = await api.action(OpenAction, { text }, { conversationId: main })
           setSide(false)
@@ -185,7 +185,7 @@ function SideComposer({ core, dock }: { core: ReactNode; dock?: boolean }) {
               </span>
             )}
           </div>
-          <ModeSwitch on={on} onToggle={() => setSide(!on)} />
+          <ModeSwitch label={label} on={on} onToggle={() => setSide(!on)} />
         </div>
         <div
           className={cn(
@@ -537,8 +537,8 @@ function useSideRows(main: number | undefined): ReactNode {
               if (inFront) return setFront(null)
               setFront(item.id)
               if (actions.conversationId === main) return
-              // oxlint-disable-next-line typescript/no-floating-promises -- an uncaught action failure becomes a notice.
-              void talkToUltimate(actions)
+              actions.showSurface('agent')
+              actions.switchConversation(main)
             }}
             type="button"
           >

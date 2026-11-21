@@ -40,6 +40,8 @@ export type UpdateState = {
    * merge origin into it through a branch the lander lands.
    */
   merge?: true
+  /** The coding coordinator that takes the merge request. */
+  mergeCoordinator?: string
   /** Why the last fetch failed; the counts are from the fetch before. */
   error?: string
   /** When origin was last fetched (ms), by any Ultimate on this clone. */

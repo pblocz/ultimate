@@ -5,14 +5,13 @@ import {
   defineTask,
   GenerationTask,
   hook,
-  ROOT_CONVERSATION_ID,
   ToolTask,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { ConversationsApi } from '../conversations/api.ts'
-import { Standing } from '../subagents/api.ts'
+import { SubagentsApi } from '../subagents/api.ts'
 import type { ResponseReceipt } from '../conversations/summary.ts'
 import type { SummaryModel } from '../conversations/summary-model.ts'
 import { DiscardAction, InjectAction, OpenAction, SideChatDoc, SideChatsDoc } from './refs.ts'
@@ -307,13 +306,21 @@ export const actions = {
   open: implementAction(OpenAction, async (args, { host, conversationId }) => {
     const text = args && typeof args === 'object' && !Array.isArray(args) ? args.text : undefined
     if (typeof text !== 'string' || !text.trim()) throw new Error('Expected nonempty text')
-    if (conversationId === undefined) throw new Error('Open a side chat from @ultimate')
+    if (conversationId === undefined)
+      throw new Error('Open a side chat from the default conversation')
     const main = conversationId as ConversationId
     await host.harness().commit(async (tx) => {
       if ((await tx.doc(Side, main)).of !== undefined)
         throw new Error('A side chat cannot open another side chat')
-      if ((await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate !== main)
-        throw new Error('Only @ultimate can open a side chat')
+      if ((await host.need(SubagentsApi).defaultConversation(context, tx)) !== main) {
+        const address = await host.need(SubagentsApi).defaultDestination(context)
+        const label = typeof address === 'number' ? `#${address}` : address
+        throw new Error(
+          label
+            ? `Only ${label} can open a side chat`
+            : 'Choose a default conversation to open a side chat',
+        )
+      }
     }, context)
     const answer = await lastAnswer(host, main)
     const id = await host.harness().commit(async (tx) => {

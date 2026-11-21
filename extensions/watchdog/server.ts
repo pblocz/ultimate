@@ -23,7 +23,7 @@ import type {
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { rateLimited } from '../../lib/rate-limit.ts'
 import { Messages } from '../messages/api.ts'
-import { Standing, Subagents } from '../subagents/api.ts'
+import { Standing, Subagents, SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
 import { idleNote } from './idle.ts'
 import { WatchdogApi } from './api.ts'
 import type { ReportedFailure } from './api.ts'
@@ -223,6 +223,8 @@ export default function watchdog(host: ExtensionHost) {
       report: async (task, runtime, ctx) => {
         const { conversation, title, error, step, hint, retried, failedTask, recipient } =
           task.input
+        const target =
+          recipient === conversation ? undefined : await runtime.conversation(recipient, ctx)
         const data: Failure = {
           conversation,
           title,
@@ -232,11 +234,10 @@ export default function watchdog(host: ExtensionHost) {
           ...(hint ? { hint } : {}),
         }
         const content = `[run failed] #${conversation} "${title}": ${error}. Last step: ${step}.${retried ? ' After one automatic retry.' : ''}${hint ? ` ${hint}.` : ''}`
-        if (recipient === conversation) {
+        if (!target) {
           // Notices are process-local diagnostics, not submissions; a reopened facet retains no old notice.
           host.notice(content)
         } else {
-          const target = (await runtime.conversation(recipient, ctx))!
           await target.submit(
             {
               type: 'input',
@@ -255,14 +256,18 @@ export default function watchdog(host: ExtensionHost) {
           reported.failures.sort((a, b) => b.at - a.at)
           reported.failures.splice(FAILURE_LIMIT)
           // Reporting ends the watchdog's hold on a subagent's provider failure: its action has given up.
-          const actions = Object.values((await tx.doc(Subagents, recipient)).actions)
-          const action = actions.findLast((candidate) => candidate.conversationId === conversation)
-          if (action?.status === 'failed') {
-            const input = await tx.submissionByRequest(
-              conversation as ConversationId,
-              `subagent:${action.reporter}`,
+          if (target) {
+            const actions = Object.values((await tx.doc(Subagents, target.id)).actions)
+            const action = actions.findLast(
+              (candidate) => candidate.conversationId === conversation,
             )
-            if (input && failedInput(input)) action.status = 'given-up'
+            if (action?.status === 'failed') {
+              const input = await tx.submissionByRequest(
+                conversation as ConversationId,
+                `subagent:${action.reporter}`,
+              )
+              if (input && failedInput(input)) action.status = 'given-up'
+            }
           }
           return terminal
         }, ctx)
@@ -314,10 +319,11 @@ export default function watchdog(host: ExtensionHost) {
       )
         return
       const child = (await tx.conversation(task.conversationId))!
-      const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
-      const recipient = child.owner?.conversationId ?? ultimate
-      if (recipient === undefined)
-        throw new Error('Watchdog needs @ultimate to report a failed run')
+      // A failure must not open a new resident or run an agent that was not in use.
+      const recipient =
+        child.owner?.conversationId ??
+        (await host.need(SubagentsApi).defaultConversation(context, tx)) ??
+        child.id
       if (task.state.status !== 'terminal' || task.state.outcome.status !== 'failed') return
       const error = task.state.outcome.error.message
       const { hint, temporary } = diagnose(error, info.assistant)
@@ -416,10 +422,17 @@ export default function watchdog(host: ExtensionHost) {
     tasks: [Watchdog],
     hooks: [
       hook(GenerationTask, {
-        beforeInput: async (_input, { tx, conversationId }) =>
-          (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate === conversationId
-            ? idleNote(tx, host, conversationId, Date.now())
-            : undefined,
+        beforeInput: async (_input, { tx, conversationId }) => {
+          const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
+          const standing = await tx.doc(Standing, ROOT_CONVERSATION_ID)
+          if (
+            coordinator &&
+            Object.hasOwn(standing, coordinator) &&
+            standing[coordinator] === conversationId
+          )
+            return idleNote(tx, host, conversationId, Date.now())
+          return undefined
+        },
       }),
     ],
   })

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { fauxAssistantMessage } from '@earendil-works/pi-ai/providers/faux'
+import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { Metadata } from '../../../../server/metadata.ts'
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
@@ -12,7 +13,7 @@ import { Done, Exited } from '../../refs.ts'
 import type { Automation, AutomationListItem } from '../../types.ts'
 import { requestChapter } from '../../../../lib/chapters.ts'
 import { context } from '../../../../server/harness.ts'
-import { eventHost, fauxServer, temp, until } from '../../../../test/helpers.ts'
+import { eventHost, fauxServer, post, temp, until } from '../../../../test/helpers.ts'
 
 let server: Awaited<ReturnType<typeof fauxServer>> | undefined
 afterEach(async () => {
@@ -62,10 +63,37 @@ function call(app: NonNullable<typeof server>, action: string, id: string) {
   return app.extensions.invoke('automations', action, { id }, new AbortController().signal)
 }
 
+it('keeps an explicit coding recipient even when the configured default is another conversation', async () => {
+  const { app, root, userHome } = await fixture()
+  const caller = await post(app, '/api/conversations')
+  expect(caller.status).toBe(201)
+  const id = caller.data.id as ConversationId
+  await writeFile(
+    join(userHome, '.ultimate/settings.json'),
+    JSON.stringify({ defaultDestination: { kind: 'conversation', address: id } }),
+  )
+  const script = await app.extensions.invoke(
+    'automations',
+    'create',
+    { name: 'Explicit target', ask: 'Watch the project', scope: 'project', to: '@ultimate' },
+    new AbortController().signal,
+    id,
+  )
+  const file = join(root, '.ultimate/automations/explicit-target/automation.json')
+  expect(JSON.parse(await readFile(file, 'utf8'))).toMatchObject({ to: '@ultimate' })
+  expect(script).toMatchObject({ script: { to: '@ultimate' }, subscribers: ['@ultimate', id] })
+})
+
 it('starts a prompt run from script FIRE with its payload', async () => {
   const { app, folder } = await fixture()
-  app.host.faux!.setResponses(Array.from({ length: 4 }, () => fauxAssistantMessage('Complete')))
-  const caller = await app.harness.createConversation({ ownership: { kind: 'ownerless' } }, context)
+  const respond: FauxResponseFactory = () => {
+    app.host.faux!.appendResponses([respond])
+    return fauxAssistantMessage('Complete')
+  }
+  app.host.faux!.setResponses([respond])
+  const chat = await post(app, '/api/conversations')
+  expect(chat.status).toBe(201)
+  const caller = chat.data.id as ConversationId
   const a = (await app.extensions.invoke(
     'automations',
     'create',
@@ -75,13 +103,13 @@ it('starts a prompt run from script FIRE with its payload', async () => {
       prompt: 'Summarize',
     },
     new AbortController().signal,
-    caller.id,
+    caller,
   )) as Automation
   expect(a.subscribers).toEqual([])
   await app.extensions.invoke(
     'automations',
     'subscribe',
-    { id: a.id, to: `#${caller.id}` },
+    { id: a.id, to: `#${caller}` },
     new AbortController().signal,
   )
   await writeRun(folder(a.id), 'echo FIRE hello')
@@ -89,18 +117,21 @@ it('starts a prompt run from script FIRE with its payload', async () => {
   const record = async () => (await app.harness.snapshot(Automations, context))!.automations[a.id]
   await until(async () => !!(await record()).runs[0]?.finishedAt)
   const run = (await record()).runs[0]
-  expect(run.status).toBe('done')
   const child = (await app.harness.conversation(run.conversationId!, context))!
   const entries = (await child.context(context)).entries.filter(
     (e) => e.conversationId === child.id,
   )
+  const error = entries
+    .flatMap((entry) => entry.model ?? [])
+    .findLast((message) => message.role === 'assistant' && message.stopReason === 'error')
+  expect({ status: run.status, error }).toEqual({ status: 'done', error: undefined })
   const first = entries.find((e) => e.kind === 'pi.user')!.model![0]
   expect(first.content).toContain('Summarize')
   expect(first.content).toContain('Fired: hello')
   expect((await app.harness.snapshot(Metadata, child.id, context))?.label).toBe('automation')
   const fired = async () =>
-    (await (await app.harness.conversation(caller.id, context))!.context(context)).entries.filter(
-      (e) => e.conversationId === caller.id && e.kind === 'automations.fired',
+    (await (await app.harness.conversation(caller, context))!.context(context)).entries.filter(
+      (e) => e.conversationId === caller && e.kind === 'automations.fired',
     )
   await until(async () => (await fired()).length === 1)
   expect((await fired())[0].data).toEqual({ id: a.id, name: 'Summary', text: 'hello' })
@@ -110,7 +141,21 @@ it('starts a prompt run from script FIRE with its payload', async () => {
 it('delivers FIRE once, investigates exits only in the owning agent, recovers, and escalates through Messages', async () => {
   const { root, userHome, home, options, app: initial } = await fixture()
   let app = initial
-  const caller = await app.harness.createConversation({ ownership: { kind: 'ownerless' } }, context)
+  // This test repairs scripts by hand. The watcher has no successful turn that can escalate the script.
+  const respond: FauxResponseFactory = ({ messages }) => {
+    app.host.faux!.appendResponses([respond])
+    const prompt = messages.findLast((message) => message.role === 'user')
+    if (
+      typeof prompt?.content === 'string' &&
+      /^(You own automation |Automation .*\bfailed \()/.test(prompt.content)
+    )
+      return fauxAssistantMessage('', { stopReason: 'error', errorMessage: 'Watcher offline' })
+    return fauxAssistantMessage('Complete')
+  }
+  app.host.faux!.setResponses([respond])
+  const chat = await post(app, '/api/conversations')
+  expect(chat.status).toBe(201)
+  const caller = { id: chat.data.id as ConversationId }
   const invoke = (action: string, args: JsonValue = null) =>
     app.extensions.invoke('automations', action, args, new AbortController().signal, caller.id)
   const get = async (id: string) =>
@@ -259,6 +304,7 @@ it('delivers FIRE once, investigates exits only in the owning agent, recovers, a
   server = undefined
   app = await fauxServer(options)
   server = app
+  app.host.faux!.setResponses([respond])
   await until(
     async () =>
       (await get(restart.id)).script!.state === 'done' &&

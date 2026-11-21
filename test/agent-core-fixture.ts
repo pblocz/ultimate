@@ -43,7 +43,7 @@ const facets = {
     'summary-model',
     'summary',
   ],
-  subagents: ['api', 'children', 'refs', 'server'],
+  subagents: ['api', 'children', 'destinations', 'refs', 'server'],
   messages: [
     'addresses',
     'api',

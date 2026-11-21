@@ -370,13 +370,16 @@ async function refresh(host: ExtensionHost, check: boolean, force = false) {
   const summary = await summarize(false)
   // Checked for a diverged clone too: a merge must not be offered while the lander moves the same branch.
   const landingNow = rest.behind ? await landing(host) : undefined
+  const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
   shared.latest = {
     root,
     head,
     ...rest,
     ...(summary ? { summary } : {}),
     refused: rest.refused ?? landingNow,
-    ...(diverged && !landingNow && (await isProject(host)) ? { merge: true as const } : {}),
+    ...(diverged && !landingNow && (await isProject(host))
+      ? { merge: true as const, ...(coordinator ? { mergeCoordinator: coordinator } : {}) }
+      : {}),
     ...(error ? { error } : {}),
     ...(repo && remoteHead ? { compare: compareUrl(repo, head, remoteHead) } : {}),
     install: !!shared.failed || (await installOwed(root)),

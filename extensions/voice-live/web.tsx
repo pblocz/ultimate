@@ -52,7 +52,12 @@ import { ConversationPhase } from '../conversations/ui.tsx'
 import { Body, Bubble } from '../messages/ui.tsx'
 import { SideChatsDoc, useSideChatFront } from '../side-chat/ui.tsx'
 import { UnderUltimate, Unlisted } from '../sidebar/ui.tsx'
-import { openAgentSource, StandingDoc, talkToUltimate } from '../subagents/ui.tsx'
+import {
+  openAgentSource,
+  openDefaultConversation,
+  StandingDoc,
+  useDefaultConversation,
+} from '../subagents/ui.tsx'
 import * as live from './live.tsx'
 import type { VoiceMode } from './live.tsx'
 import { openQuestion } from '../../lib/message-state.ts'
@@ -72,9 +77,9 @@ const KEYS = 'alt+v'
 const useMode = () => useSyncExternalStore(live.subscribe, live.voiceMode)
 /** @ultimate's conversation and the Voice conversation, once start created it. */
 function useIds() {
-  const main = useDocOf(1, StandingDoc)?.ultimate
+  const { id: main, label } = useDefaultConversation()
   const voice = useDocOf(1, StandingDoc)?.voice
-  return { main, voice }
+  return { main, voice, label }
 }
 
 const start = live.start
@@ -84,7 +89,7 @@ function toggleFront(actions: Pick<UltimateActions, 'switchConversation' | 'show
   const front = !live.voiceMode().front
   live.setFront(front)
   // oxlint-disable-next-line typescript/no-floating-promises -- an uncaught action failure becomes a notice.
-  if (front) void talkToUltimate(actions)
+  if (front) void openDefaultConversation(actions)
 }
 
 const clock = (ms: number) => {
@@ -150,7 +155,7 @@ function stateLabel(mode: VoiceMode) {
 /** Beside the dictation mic in @ultimate's composer: starts the relay, or brings Voice forward while it runs. */
 function StartButton() {
   const id = useConversation((conversation) => conversation.id)
-  const { main } = useIds()
+  const { main, label: destination } = useIds()
   const mode = useMode()
   const actions = useUltimate()
   const status = useAction(StatusAction)
@@ -167,7 +172,7 @@ function StartButton() {
       ? mode.front
         ? 'Voice relay is on · send Voice back'
         : 'Voice relay is on · bring Voice to the front'
-      : 'Start voice relay: talk to @ultimate, hear its answers'
+      : `Start voice relay: talk to ${destination}, hear its answers`
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -462,7 +467,7 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 /** In @ultimate's conversation: Voice as a sheet in front, the way side chat shows its copy. */
 function Stage() {
   const id = useConversation((conversation) => conversation.id)
-  const { main, voice } = useIds()
+  const { main, voice, label } = useIds()
   const mode = useMode()
   const [sideFront, setSideFront] = useSideChatFront()
   const sides = useDocOf(main, SideChatsDoc)?.sides
@@ -551,7 +556,7 @@ function Stage() {
           type="button"
         >
           <span className="size-1.5 rounded-full bg-brand motion-safe:animate-pulse" />
-          Voice keeps listening · <span className="text-foreground">show @ultimate</span>
+          Voice keeps listening · <span className="text-foreground">show {label}</span>
         </button>
       )}
       {shown && (
@@ -580,7 +585,7 @@ function Stage() {
               <AudioLinesIcon className="size-3.5 text-brand" />
               <span className="text-[13px] font-semibold">Voice</span>
               <span className="truncate font-mono text-[11px] text-muted-foreground">
-                relay to @ultimate
+                relay to {label}
               </span>
               <span className="ml-auto flex items-center gap-2">
                 <span className="font-mono text-[10.5px] text-muted-foreground/70 pointer-coarse:hidden">
@@ -1129,7 +1134,7 @@ function LineRow({ entry }: { entry: EntryRecord }) {
                 behind ? source : { conversation: entry.conversationId, entry: entry.id },
               )
             }}
-            title="Show @ultimate's full answer"
+            title="Show the full answer"
             type="button"
           >
             <SquareArrowOutUpRightIcon className="size-3" />
@@ -1285,11 +1290,11 @@ function Answer({
                   behind ? source : { conversation: entry.conversationId, entry: entry.id },
                 )
               }}
-              title="Open @ultimate's conversation at this answer"
+              title="Open the conversation at this answer"
               type="button"
             >
               <SquareArrowOutUpRightIcon className="size-3" />
-              Open in @ultimate
+              Open in conversation
             </button>
           )}
         </footer>

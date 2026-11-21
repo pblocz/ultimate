@@ -237,7 +237,9 @@ function Popup({
           <div data-update-diverged>
             {state.branch ?? 'main'} also has {state.ahead}{' '}
             {state.ahead === 1 ? 'commit' : 'commits'} of its own, so it can't fast-forward.
-            @ultimate can merge origin into them on a branch and land it once the checks pass.
+            {state.mergeCoordinator
+              ? `@${state.mergeCoordinator} can merge origin on a branch and land it once the checks pass.`
+              : 'Merge assistance needs the coding-workflow coordinator.'}
           </div>
         ) : (
           state.refused &&
@@ -325,12 +327,16 @@ function Action({
         <Button
           className="h-7 font-sans text-[12px]"
           data-update-merge
-          disabled={busy}
+          disabled={busy || !state.mergeCoordinator}
           onClick={merge}
           size="sm"
           variant="outline"
         >
-          {busy ? 'Asking…' : 'Update with @ultimate'}
+          {busy
+            ? 'Asking…'
+            : state.mergeCoordinator
+              ? `Update with @${state.mergeCoordinator}`
+              : 'Merge assistance unavailable'}
         </Button>
       ) : (
         <Button

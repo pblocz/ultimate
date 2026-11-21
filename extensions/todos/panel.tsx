@@ -5,14 +5,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { api, cn, errorMessage, events, formatAgo, useDocOf, useNow, useUltimate } from '@/sdk'
 import { MessagesDoc, emptyMessages, stateTone } from '../messages/ui.tsx'
 import { waiting } from '../questions/ui.tsx'
-import { StandingAction } from '../subagents/ui.tsx'
+import { openDefaultConversation, useDefaultConversation } from '../subagents/ui.tsx'
 import { AddAction, DoneAction, ReopenAction, TodosDoc } from './refs.ts'
 import type { Todo } from './refs.ts'
-
-const owners: { id: Todo['owner']; label: string }[] = [
-  { id: 'user', label: 'you' },
-  { id: 'ultimate', label: '@ultimate' },
-]
 
 /**
  * The project's to-dos: what waits on you (one Inbox row for the questions asked of you, read live from Messages, then
@@ -42,20 +37,20 @@ export function Todos() {
   }
   const toggle = (todo: Todo) =>
     void run(api.action(todo.done ? ReopenAction : DoneAction, { id: todo.id }))
-  const { showSurface, switchConversation } = useUltimate()
+  const actions = useUltimate()
+  const { address, label: recipient } = useDefaultConversation()
   // Sent as the user, like typing it into @ultimate's composer; a busy @ultimate takes it after its current run.
   const start = (todo: Todo) =>
     void run(
       (async () => {
-        const id = await api.action(StandingAction, { name: 'ultimate' })
+        const id = await openDefaultConversation(actions)
+        if (id === undefined) throw new Error('No default conversation for to-dos')
         events.emit('ultimate:sent', { conversationId: id })
         await api.submit(
           `${todo.owner === 'user' ? 'Help me with' : 'Work on'} to-do #${todo.id}: ${todo.text}`,
           'followUp',
           id,
         )
-        showSurface('agent')
-        switchConversation(id)
       })(),
     )
 
@@ -73,24 +68,41 @@ export function Todos() {
           {open.length ? `${open.length} open` : questions.length ? '' : 'none open'}
         </span>
       </div>
-      <AddTodo add={(text, owner) => run(api.action(AddAction, { text, owner }))} />
+      <AddTodo
+        recipient={recipient}
+        add={(text, owner) => run(api.action(AddAction, { text, owner }))}
+      />
       {error && <p className="px-3 pt-1.5 font-mono text-[11px] break-words text-error">{error}</p>}
       {count === 0 ? (
         <p className="flex items-center gap-2 px-3 py-6 text-xs text-muted-foreground">
           <CheckIcon className="size-3.5 text-success" />
-          Nothing open for you or @ultimate.
+          Nothing open for you or {recipient}.
         </p>
       ) : (
         <>
           <Section title="For you" owner="user" empty={!questions.length && !yours.length}>
             {questions.length > 0 && <InboxRow count={questions.length} />}
             {yours.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} now={now} toggle={toggle} start={start} />
+              <TodoRow
+                key={todo.id}
+                todo={todo}
+                now={now}
+                toggle={toggle}
+                recipient={recipient}
+                start={address === undefined ? undefined : start}
+              />
             ))}
           </Section>
-          <Section title="For @ultimate" owner="ultimate" empty={!ultimate.length}>
+          <Section title={`For ${recipient}`} owner="ultimate" empty={!ultimate.length}>
             {ultimate.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} now={now} toggle={toggle} start={start} />
+              <TodoRow
+                key={todo.id}
+                todo={todo}
+                now={now}
+                toggle={toggle}
+                recipient={recipient}
+                start={address === undefined ? undefined : start}
+              />
             ))}
           </Section>
         </>
@@ -103,7 +115,7 @@ export function Todos() {
           </summary>
           <ul className="px-1">
             {done.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} now={now} toggle={toggle} />
+              <TodoRow key={todo.id} todo={todo} now={now} toggle={toggle} recipient={recipient} />
             ))}
           </ul>
         </details>
@@ -145,8 +157,10 @@ function TodoRow({
   now,
   toggle,
   start,
+  recipient,
 }: {
   todo: Todo
+  recipient: string
   now: number
   toggle: (todo: Todo) => void
   start?: (todo: Todo) => void
@@ -154,7 +168,7 @@ function TodoRow({
   const at = todo.done ?? todo.at
   const age = formatAgo(at, now)
   const label =
-    todo.owner === 'user' ? 'Ask @ultimate to help with this' : 'Have @ultimate work on this'
+    todo.owner === 'user' ? `Ask ${recipient} to help with this` : `Have ${recipient} work on this`
   return (
     <li className="group/todo flex items-start rounded hover:bg-muted/50" data-todo={todo.id}>
       <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 py-1.5 pl-2">
@@ -181,7 +195,7 @@ function TodoRow({
           dateTime={new Date(at).toISOString()}
           title={`${todo.done ? 'Done' : 'Added'} ${new Date(at).toLocaleString()}`}
         >
-          {todo.done && todo.owner === 'ultimate' ? '@ultimate · ' : ''}
+          {todo.done && todo.owner === 'ultimate' ? `${recipient} · ` : ''}
           {age}
         </time>
       </label>
@@ -222,7 +236,17 @@ function InboxRow({ count }: { count: number }) {
 }
 
 /** The add field: text, whose it is, Enter adds; the owner stays as last chosen. */
-function AddTodo({ add }: { add: (text: string, owner: Todo['owner']) => Promise<boolean> }) {
+function AddTodo({
+  add,
+  recipient,
+}: {
+  add: (text: string, owner: Todo['owner']) => Promise<boolean>
+  recipient: string
+}) {
+  const owners: { id: Todo['owner']; label: string }[] = [
+    { id: 'user', label: 'you' },
+    { id: 'ultimate', label: recipient },
+  ]
   const [text, setText] = useState('')
   const [owner, setOwner] = useState<Todo['owner']>('user')
   const [sending, setSending] = useState(false)

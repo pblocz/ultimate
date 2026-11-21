@@ -7,6 +7,7 @@ import { actionRef, docRef } from '../../shared/extension-api.ts'
  */
 export type Ping = {
   at: number
+  conversation?: number
   provider: string
   model: string
   read?: number
@@ -18,7 +19,13 @@ export type Ping = {
  * On conversation 1. `off` when the user turned it off (it is on by default); the user's latest input to @ultimate
  * (ms, from `user.input` events); the last ping and how many ran.
  */
-export type WarmDocState = { off?: true; inputAt?: number; last?: Ping; pings?: number }
+export type WarmDocState = {
+  off?: true
+  inputAt?: number
+  inputConversation?: number
+  last?: Ping
+  pings?: number
+}
 
 export type WarmState = {
   on: boolean

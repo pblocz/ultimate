@@ -1,5 +1,8 @@
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { TaskId, ConversationId } from '@earendil-works/pi-durable'
+import type { Destination, DestinationAddress } from '../subagents/refs.ts'
+
+export type { Destination } from '../subagents/refs.ts'
 
 export type TriggerEvent = { name: string; description: string; fields: Record<string, string> }
 /** The labels automations gives the conversations it creates: a prompt run's, and a script's watcher. */
@@ -19,11 +22,7 @@ export type Run = {
   answer?: string
 }
 /** A conversation an automation wakes: `#id` as a number, or a standing agent's `@name`, resolved at each delivery. */
-export type Subscriber = number | string
-/** A notification recipient. Channel delivery is reserved for Phase 6 and is refused before execution. */
-export type Destination =
-  | { kind: 'conversation'; address: Subscriber }
-  | { kind: 'channel'; channel: string; instanceId: string; address: string; threadId?: string }
+export type Subscriber = DestinationAddress
 export type Automation = {
   id: string
   scope?: 'project'

@@ -17,7 +17,7 @@ import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { actingAs } from '../../lib/acting-as.ts'
 import { implementAction } from '../../lib/actions.ts'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { Standing } from '../subagents/api.ts'
+import { SubagentsApi } from '../subagents/api.ts'
 import { TodosApi } from './api.ts'
 import { AddAction, DoneAction, ReopenAction, TodosDoc } from './refs.ts'
 import type { Todo } from './refs.ts'
@@ -182,9 +182,6 @@ export const actions = {
   ),
 }
 
-const standing = (tx: Tx, id: ConversationId) =>
-  tx.doc(Standing, ROOT_CONVERSATION_ID).then((doc) => doc.ultimate === id)
-
 export default function todosExtension(host: ExtensionHost) {
   host.implement(TodosApi, {
     add: ({ text, owner, key }) =>
@@ -196,8 +193,8 @@ export default function todosExtension(host: ExtensionHost) {
       hook(GenerationTask, {
         // Pi upstream: @earendil-works/pi-durable@1.5.2 — patched transactional beforeInput hook.
         // A per-input note when the list changed, never a system-prompt section, keeps the prompt cached.
-        beforeInput: async (_input, { tx, conversationId }) =>
-          (await standing(tx, conversationId))
+        beforeInput: async (_input, { tx, conversationId }, ctx) =>
+          (await host.need(SubagentsApi).defaultConversation(ctx, tx)) === conversationId
             ? noteFor(tx, conversationId, Date.now())
             : undefined,
       }),
@@ -220,10 +217,15 @@ export default function todosExtension(host: ExtensionHost) {
           const caller = await actingAs(host, api.conversationId, ctx)
           const text = await api.commit(async (tx) => {
             // Deferred only hides it: a branch can still find it with tool_search, so the caller is checked here.
-            if (!(await standing(tx, caller)))
+            if ((await host.need(SubagentsApi).defaultConversation(ctx, tx)) !== caller) {
+              const address = await host.need(SubagentsApi).defaultDestination(ctx)
+              const name = typeof address === 'number' ? `#${address}` : address
               throw new Error(
-                'Only @ultimate keeps the to-dos; ask @ultimate to add one (message, reply: false).',
+                name
+                  ? `Only ${name} keeps the to-dos.`
+                  : 'No default conversation keeps the to-dos.',
               )
+            }
             if (args.action === 'add') {
               const todo = await add(tx, args.text, args.owner)
               return `Added ${todo.id} for ${todo.owner}: ${todo.text}`

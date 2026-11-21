@@ -1,5 +1,9 @@
 Delegate bounded work to child conversations with `subagent`, configure them from Markdown agent definitions, and run standing agents. The full app adds @ultimate through `coding-workflow`.
 
+## Default destination
+
+`SubagentsApi.defaultDestination()` reads the address configured in [settings](../../docs/settings.md). It does not start a resident or submit input. `defaultConversation()` looks up the existing conversation without opening one. A caller can pass its transaction to this lookup. An explicit user action or an existing delivery path can still open a named resident when needed. Child creation and parent reports do not use this setting.
+
 ## The `subagent` tool
 
 - `start {agent, task, background?, fork?, isolate?}` starts a child from a definition and returns its answer

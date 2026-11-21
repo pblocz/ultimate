@@ -28,7 +28,7 @@ import { discoverAgents } from '../../lib/agents.ts'
 import { validateName } from '../../lib/secrets.ts'
 import { groupAlive } from '../../lib/process-group.ts'
 import { writeJson } from '../../lib/json-file.ts'
-import { SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
+import { SubagentsApi } from '../subagents/api.ts'
 import { MessagesApi } from '../messages/api.ts'
 import { AutomationsApi, AutomationsWorkflow } from './api.ts'
 import {
@@ -51,7 +51,7 @@ import { describeSchedule, nextAt, parseSchedule } from './schedule.ts'
 import { scheduler } from './scheduler.ts'
 import { triggers, TRIGGER_EVENTS, describeTrigger } from './triggers.ts'
 import { notifications } from './delivery.ts'
-import { destinationAddress, destinationSchema } from './destinations.ts'
+import { destinationSchema } from './destinations.ts'
 import {
   automationRecord,
   MANIFEST,
@@ -269,11 +269,6 @@ function backend(host: ExtensionHost) {
     }
     throw new Error('subscribers must be #id or @name')
   }
-  /** The file form: the optional coding default stays implicit, as before. */
-  function fileManifest({ to, ...rest }: Manifest): Manifest {
-    const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
-    return { ...rest, ...(to === undefined || to === `@${coordinator}` ? {} : { to }) }
-  }
   async function prepareScript(args: Args, caller?: number): Promise<Prepared> {
     const { trusted, agentFor, projectDir, manifest, resolveManifest, configurationError } =
       await scripts()
@@ -328,26 +323,20 @@ function backend(host: ExtensionHost) {
       const previous = (await host.harness().snapshot(Automations, BACKGROUND_CONTEXT))
         ?.automations[slug]
       const resolved = await resolveManifest(committed, previous, caller)
-      // Compare effective recipients too: old files can omit an optional workflow's default.
-      const same = (m: Manifest) =>
-        JSON.stringify([
-          m.name,
-          m.ask,
-          m.once,
-          m.secrets,
-          m.destination === undefined
-            ? (m.to ?? resolved.to ?? resolved.subscribers)
-            : destinationAddress(m.destination),
-        ])
+      // Resolve each file independently: an explicit recipient is not the fallback for the other file.
+      const signature = (m: Manifest, target: typeof resolved) =>
+        JSON.stringify([m.name, m.ask, m.once, m.secrets, target.to ?? target.subscribers])
+      const expected = signature(committed, resolved)
+      const matches = async (m: Manifest) =>
+        signature(m, await resolveManifest(m, previous, caller)) === expected
       const taken = () => new Error(`Automation ${slug} already exists; pass another slug`)
-      if (existing !== undefined && (existing === null || same(existing) !== same(committed)))
-        throw taken()
+      if (existing !== undefined && (existing === null || !(await matches(existing)))) throw taken()
       if (existing === undefined) {
         await mkdir(projectDir(slug), { recursive: true })
         // Written whole to a temporary file, then linked into place: the link is atomic and exclusive, so a crash never
         // leaves a partial manifest, and of two creates racing for one slug only one publishes.
         const draft = `${path}.${process.pid}.${randomUUID()}`
-        await writeFile(draft, `${JSON.stringify(fileManifest(committed), null, 2)}\n`, {
+        await writeFile(draft, `${JSON.stringify(committed, null, 2)}\n`, {
           flush: true,
         })
         try {
@@ -355,7 +344,7 @@ function backend(host: ExtensionHost) {
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
           const found = manifest(JSON.parse(await readFile(path, 'utf8')))
-          if (!found || same(found) !== same(committed)) throw taken()
+          if (!found || !(await matches(found))) throw taken()
         } finally {
           await rm(draft, { force: true })
         }
@@ -399,11 +388,9 @@ function backend(host: ExtensionHost) {
             ? { destination: existing.destination }
             : existing?.to !== undefined
               ? { to: existing.to }
-              : typeof script.to === 'string'
+              : !existing && typeof script.to === 'string'
                 ? { to: script.to }
-                : script.to !== undefined
-                  ? { destination: { kind: 'conversation' as const, address: script.to } }
-                  : {}
+                : {}
       const next: Manifest = {
         name: args.name?.trim() ?? sub.name,
         ask: args.ask?.trim() ?? script.ask,
@@ -415,7 +402,7 @@ function backend(host: ExtensionHost) {
       }
       const resolved = await resolveManifest(next, sub, caller)
       prepared.manifestTarget = resolved.to
-      await writeJson(path, fileManifest(next))
+      await writeJson(path, next)
     }
     if ((args.action === 'resume' || args.action === 'run') && sub.script) {
       const error = configurationError(id)
@@ -665,7 +652,9 @@ function backend(host: ExtensionHost) {
       throw new Error('destination cannot be combined with subscribers or to')
     // Validate before key lookup, discovery, name resolution, or project-file publication.
     const destination =
-      args.destination === undefined ? undefined : destinationAddress(args.destination)
+      args.destination === undefined
+        ? undefined
+        : host.need(SubagentsApi).destinationAddress(args.destination)
     if (destination !== undefined && args.action !== 'create' && args.action !== 'update')
       throw new Error('destination is only supported for create or update')
     // A key that already made an automation is answered from it before anything else runs: validation may make a

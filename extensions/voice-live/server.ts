@@ -218,16 +218,16 @@ function questionText(host: ExtensionHost, message: Message, main: number | unde
 
 /** The open questions to the user, oldest first (the Inbox's order), one line each, the way their cards head them. */
 export async function openList(host: ExtensionHost, ctx: Context) {
-  const [open, standing] = await Promise.all([
+  const [open, main] = await Promise.all([
     host.need(MessagesApi).openQuestions(ctx),
-    host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx),
+    host.need(SubagentsApi).defaultConversation(ctx),
   ])
   const now = Date.now()
   return open.length
     ? open
         .map(
           (q) =>
-            `- message ${q.message} from ${askerOf(host, { from: q.conversation }, standing?.ultimate)}: ${q.text} (asked ${formatAgo(q.at, now, { ago: true })})`,
+            `- message ${q.message} from ${askerOf(host, { from: q.conversation }, main)}: ${q.text} (asked ${formatAgo(q.at, now, { ago: true })})`,
         )
         .join('\n')
     : 'No open questions.'
@@ -473,12 +473,12 @@ export const actions = {
     if (!key) throw new Error(NO_KEY)
     const id = await host.need(SubagentsApi).standing('voice', context)
     // Put together while the session connects; a failure becomes a brief that says so, never a failed start.
-    const main = (await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate
+    const main = await host.need(SubagentsApi).defaultConversation(context)
     const started = performance.now()
     const brief = (
       main
         ? voiceBrief(host, main, context)
-        : Promise.reject(new Error('@ultimate is not available'))
+        : Promise.reject(new Error('No default conversation is available'))
     ).then(
       (made) => ({ ...made, ms: Math.round(performance.now() - started) }),
       (error: unknown): VoiceContext => ({
@@ -569,9 +569,9 @@ export const actions = {
     const id = args && typeof args === 'object' && !Array.isArray(args) ? args.message : undefined
     if (typeof id !== 'number') throw new Error('Expected a message id')
     const voice = await voiceId(host)
-    const [open, standing] = await Promise.all([
+    const [open, main] = await Promise.all([
       host.need(MessagesApi).openQuestions(context),
-      host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, context),
+      host.need(SubagentsApi).defaultConversation(context),
     ])
     const question = open.find((q) => q.message === id)
     // Answered before the user paused: nothing to announce.
@@ -579,7 +579,7 @@ export const actions = {
     const data: VoiceQuestion = {
       message: id,
       from: question.conversation,
-      title: askerOf(host, { from: question.conversation }, standing?.ultimate),
+      title: askerOf(host, { from: question.conversation }, main),
       gist: question.text,
     }
     const conversation = (await host.harness().conversation(voice, context))!
@@ -638,8 +638,9 @@ export default (host: ExtensionHost) => {
    * task brings @ultimate's answer back to Voice.
    */
   async function forward(api: ToolExecutionApi, ctx: Context, text: string, message?: number) {
-    const main = (await api.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate
-    if (!main) throw new Error('@ultimate is not available')
+    const main = await host.need(SubagentsApi).defaultConversation(ctx)
+    if (main === undefined || main === api.conversationId)
+      throw new Error('Choose a default conversation other than Voice')
     const input = {
       voice: api.conversationId,
       main,
@@ -851,9 +852,9 @@ export default (host: ExtensionHost) => {
             throw new Error('Only Voice reads questions')
           if (message === undefined)
             return { output: [{ type: 'text', text: await openList(host, ctx) }] }
-          const [log, standing, gist] = await Promise.all([
+          const [log, main, gist] = await Promise.all([
             api.snapshot(Messages, ROOT_CONVERSATION_ID, ctx),
-            api.snapshot(Standing, ROOT_CONVERSATION_ID, ctx),
+            host.need(SubagentsApi).defaultConversation(ctx),
             gistOf(host, message, ctx),
           ])
           const found = log?.messages.find((m) => m.id === message)
@@ -875,7 +876,7 @@ export default (host: ExtensionHost) => {
               `voice:show:${api.taskId}`,
             )
           return {
-            output: [{ type: 'text', text: questionText(host, found, standing?.ultimate) }],
+            output: [{ type: 'text', text: questionText(host, found, main) }],
           }
         },
       }),
@@ -895,7 +896,7 @@ export default (host: ExtensionHost) => {
           if (api.conversationId !== (await voiceId(host)))
             throw new Error('Only Voice answers questions')
           if (!dismiss && !text) throw new Error('Give the answer text, or dismiss')
-          const main = (await api.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate
+          const main = await host.need(SubagentsApi).defaultConversation(ctx)
           const found = (await api.snapshot(Messages, ROOT_CONVERSATION_ID, ctx))?.messages.find(
             (m) => m.id === message,
           )

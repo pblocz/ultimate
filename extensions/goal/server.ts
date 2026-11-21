@@ -20,7 +20,7 @@ import { implementAction } from '../../lib/actions.ts'
 import { imagesOf, latestImagesEntry } from '../../lib/entries.ts'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { AutomationsApi } from '../automations/api.ts'
-import { Standing } from '../subagents/api.ts'
+import { Standing, SubagentsApi } from '../subagents/api.ts'
 import { deliver, deliverTask } from './delivery.ts'
 import { reminderTask } from './reminder.ts'
 import { EndAction, GoalDoc, ImagesAction, StartAction } from './refs.ts'
@@ -59,7 +59,7 @@ const text = (value: unknown, name: string) => {
 }
 
 /** Start a goal for the user's words `words`; refuses while another is open. */
-export async function start(tx: Tx, words: unknown, now: number) {
+export async function start(tx: Tx, words: unknown, now: number, conversation?: ConversationId) {
   const goals = await tx.doc(Goals, ROOT_CONVERSATION_ID)
   const open = goals.goals.find((goal) => !goal.ended)
   if (open) throw new Error(`Goal ${open.id} is still open; end it first`)
@@ -68,6 +68,7 @@ export async function start(tx: Tx, words: unknown, now: number) {
     id: goals.next++,
     text: goalText,
     startedAt: now,
+    ...(conversation === undefined ? {} : { conversation }),
     criteria: [],
     decisions: [],
   }
@@ -227,8 +228,8 @@ const reportText = (goal: Goal) =>
  * goal as it is when the input runs, so a start still queued after the user ended the goal grants nothing.
  */
 async function card(host: ExtensionHost, tx: Tx, kind: 'goal.started' | 'goal.report', goal: Goal) {
-  const to = await ultimateOf(tx)
-  if (to === undefined) throw new Error('@ultimate has no conversation yet')
+  const to = (goal.conversation as ConversationId | undefined) ?? (await ultimateOf(tx))
+  if (to === undefined) throw new Error('The goal has no conversation')
   await deliver(host, tx, {
     to,
     goal: goal.id,
@@ -257,14 +258,24 @@ const sync = (host: ExtensionHost, tx: Tx, goal: number) =>
 /** Starting and ending a goal is the user's grant; @ultimate only finishes one through its tool. */
 export const userActions = ['start', 'end']
 export const actions = {
-  start: implementAction(StartAction, (args, { host }) =>
-    host.harness().commit(async (tx) => {
-      const goal = await start(tx, field(args, 'text'), Date.now())
+  start: implementAction(StartAction, async (args, { host, conversationId }) => {
+    const destination =
+      conversationId === undefined || conversationId === ROOT_CONVERSATION_ID
+        ? await host.need(SubagentsApi).defaultConversation(context)
+        : (conversationId as ConversationId)
+    return host.harness().commit(async (tx) => {
+      if (
+        destination === undefined ||
+        destination === ROOT_CONVERSATION_ID ||
+        !(await tx.conversation(destination))
+      )
+        throw new Error('Choose a conversation to start a goal')
+      const goal = await start(tx, field(args, 'text'), Date.now(), destination)
       await card(host, tx, 'goal.started', goal)
       await sync(host, tx, goal.id)
       return copy(goal)
-    }, context),
-  ),
+    }, context)
+  }),
   end: implementAction(EndAction, (_args, { host }) =>
     host.harness().commit(async (tx) => {
       const goal = await end(tx, { at: Date.now(), by: 'user', outcome: 'ended' })
@@ -301,9 +312,9 @@ export default function goalExtension(host: ExtensionHost) {
         // Pi upstream: @earendil-works/pi-durable@1.5.2 — patched transactional beforeInput hook.
         // A per-run note while a goal is open, never a system-prompt section, keeps the prompt cached.
         beforeInput: async (input, { tx, conversationId }) => {
-          if ((await ultimateOf(tx)) !== conversationId) return undefined
           const goal = await openGoal(tx)
-          if (!goal) return undefined
+          if (!goal || (goal.conversation ?? (await ultimateOf(tx))) !== conversationId)
+            return undefined
           const reminded =
             input.kind === 'automations.fired' &&
             (input.data as { id?: string } | undefined)?.id === goal.reminder
@@ -348,8 +359,14 @@ export default function goalExtension(host: ExtensionHost) {
           // A side chat decides as @ultimate's main.
           const caller = await actingAs(host, api.conversationId, ctx)
           const result = await api.commit(async (tx) => {
-            if ((await ultimateOf(tx)) !== caller)
-              throw new Error('Only @ultimate keeps the hands-off goal.')
+            const goal = await openGoal(tx)
+            const owner = goal?.conversation ?? (await ultimateOf(tx))
+            if (owner !== caller)
+              throw new Error(
+                goal?.conversation === undefined
+                  ? 'Only @ultimate keeps the hands-off goal.'
+                  : 'Only the goal conversation keeps this hands-off goal.',
+              )
             const acted = await act(tx, caller, args, Date.now())
             if (acted.ended) await card(host, tx, 'goal.report', acted.ended)
             const changed = acted.sync ?? acted.ended?.id

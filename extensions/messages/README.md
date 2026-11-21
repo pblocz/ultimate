@@ -2,6 +2,8 @@
 
 Durable messages between conversations, standing agents and the user. Built in and on by default.
 
+The default conversation uses the primary sender colour. Old answers retain the address of the conversation that answered. The coding compact view and remote-project labels keep their coding meaning.
+
 ## Messaging
 
 `message { to, text, reply?: true, steer?, images?, questions? }` returns the message id at once. Address a

@@ -32,7 +32,7 @@ import { idleNote } from '../idle.ts'
 import type { WatchdogService } from '../api.ts'
 import { Messages } from '../../messages/api.ts'
 import { Branch } from '../../lineage/api.ts'
-import { Standing, Subagents } from '../../subagents/api.ts'
+import { Standing, Subagents, SubagentsApi, SubagentsWorkflow } from '../../subagents/api.ts'
 import subagents from '../../subagents/server.ts'
 import { Workspaces } from '../../workspaces/workspaces.ts'
 import { concludedIn } from '../../conversations/server.ts'
@@ -93,6 +93,7 @@ async function fixture(
   const onClose: (() => Promise<void>)[] = []
   const notices: string[] = []
   let service: WatchdogService | undefined
+  let configured = true
   const host = {
     implement: (_api: unknown, implementation: WatchdogService) => {
       service = implementation
@@ -105,8 +106,15 @@ async function fixture(
     onRelease: () => {},
     scanSubmissions: (...args: Parameters<MemoryStorage['scanSubmissions']>) =>
       storage.scanSubmissions(...args),
-    need: (api: { name: string }) =>
-      api.name === 'conversations' ? { concludedIn } : { doc: Workspaces },
+    need: (api: { name: string }) => {
+      if (api.name === SubagentsApi.name)
+        return { defaultConversation: () => Promise.resolve(configured ? ultimate : undefined) }
+      return api.name === 'conversations' ? { concludedIn } : { doc: Workspaces }
+    },
+    want: (api: { name: string }) =>
+      api.name === SubagentsWorkflow.name && configured
+        ? { coordinatorName: () => 'ultimate' }
+        : undefined,
   } as unknown as ExtensionHost
   const original = watchdog(host)
   const backend = {
@@ -242,6 +250,9 @@ async function fixture(
     registry,
     host,
     failures: (since: number) => service!.failures(since),
+    withoutDefault: () => {
+      configured = false
+    },
     ultimate,
     notices,
     conversation,
@@ -348,6 +359,23 @@ it('reports a branch failure once, with its title, error and last tool step; rep
     },
   ])
   expect(await f.failures(1_000_001)).toEqual([])
+})
+
+it('recovers an ownerless failure without a default and records it without waking anyone', async () => {
+  const f = await fixture(() => error())
+  f.withoutDefault()
+  const chat = await f.conversation('Ordinary chat')
+  await f.detach()
+  await (await f.submit(chat, 'fail')).wait(context)
+  await f.reopen()
+  await until(async () => (await f.failures(0)).length === 1)
+  expect(await f.failures(0)).toMatchObject([{ conversation: chat, title: 'Ordinary chat' }])
+  expect(f.notices).toEqual([expect.stringContaining('invalid model configuration')])
+  expect(await f.entries()).toEqual([])
+  expect(await f.entries(chat)).toEqual([])
+  await f.reopen()
+  expect(await f.tasks()).toHaveLength(1)
+  expect(f.notices).toHaveLength(1)
 })
 
 it('routes an owned child failure only to its parent', async () => {

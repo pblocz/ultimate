@@ -31,6 +31,8 @@ export type Goal = {
   /** The user's words: what to reach, and when to stop if they said so. */
   text: string
   startedAt: number
+  /** The conversation that started this goal. Older goals use their original coordinator. */
+  conversation?: number
   criteria: Criterion[]
   decisions: Decision[]
   /** The "Goal reminder" automation that wakes @ultimate every 30 minutes while the goal is open. */

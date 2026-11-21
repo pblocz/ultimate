@@ -24,7 +24,6 @@ import {
   WatcherLabel,
 } from './types.ts'
 import type { Manifest, Automation, Destination, Effect, Subscriber } from './types.ts'
-import { destinationAddress } from './destinations.ts'
 import {
   automationRecord,
   MANIFEST,
@@ -98,7 +97,8 @@ export function supervisor(
   }
   /** Keep file syntax separate from runtime defaults and locally saved recipients. */
   async function resolveManifest(m: Manifest, previous?: Automation, caller?: number) {
-    const explicit = m.destination === undefined ? m.to : destinationAddress(m.destination)
+    const explicit =
+      m.destination === undefined ? m.to : host.need(SubagentsApi).destinationAddress(m.destination)
     if (explicit !== undefined) {
       const address = await checkSubscriber(explicit)
       return { to: address, subscribers: [address] }
@@ -107,13 +107,21 @@ export function supervisor(
     const stored = previous?.script?.to
     if (stored !== undefined) return { to: stored, subscribers: [stored] }
     if (previous?.subscribers.length) return { to: undefined, subscribers: previous.subscribers }
-    const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
-    if (coordinator) {
-      const address = await checkSubscriber(`@${coordinator}`)
+    const agents = host.need(SubagentsApi)
+    const fallback = await agents.defaultDestination(BACKGROUND_CONTEXT)
+    if (fallback !== undefined) {
+      if (
+        typeof fallback === 'string' &&
+        !(await agents.residents(BACKGROUND_CONTEXT)).some(({ name }) => `@${name}` === fallback)
+      )
+        throw new Error(`Default destination ${fallback} is not a standing agent`)
+      const address = await checkSubscriber(fallback)
       return { to: address, subscribers: [address] }
     }
     if (caller !== undefined) return { to: undefined, subscribers: [await checkSubscriber(caller)] }
-    throw new Error('A destination is required without a request conversation or coding default')
+    throw new Error(
+      'A destination is required without a request conversation or default destination',
+    )
   }
   /** Manifests under `<project>/.ultimate/automations/<slug>/`, only in a project chosen as local. */
   async function manifests() {

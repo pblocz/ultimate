@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { api, defineWebExtension, insertIntoComposer, useDocOf, useUltimate } from '@/sdk'
-import { StandingAction, StandingDoc } from '../subagents/ui.tsx'
+import { defineWebExtension, insertIntoComposer, useUiState, useUltimate } from '@/sdk'
+import { openDefaultConversation } from '../subagents/ui.tsx'
 
 /** What another app shared, as the service worker stashed it (web/public/sw.js). */
 type Share = { title: string; text: string; url: string; files: { name: string; type: string }[] }
@@ -56,8 +56,8 @@ async function drop(id: number, files: File[]) {
  * as a dropped file would: images inline, others through the attachments extension.
  */
 function Share() {
-  const ultimate = useDocOf(1, StandingDoc)?.ultimate
-  const { showSurface, switchConversation } = useUltimate()
+  const actions = useUltimate()
+  const [, select] = useUiState<number | null>('shell.conversation', null)
   useEffect(() => {
     // oxlint-disable-next-line typescript/no-floating-promises -- registration failing leaves the page as it was without one.
     navigator.serviceWorker
@@ -67,20 +67,31 @@ function Share() {
   const [id] = [new URL(location.href).searchParams.get('share')]
   useEffect(() => {
     if (!id) return
-    const url = new URL(location.href)
-    url.searchParams.delete('share')
-    history.replaceState(history.state, '', url)
-    take(id)
-      .then(async ({ share, files }) => {
-        const conversation = ultimate ?? (await api.action(StandingAction, { name: 'ultimate' }))
-        showSurface('agent')
-        switchConversation(conversation)
+    openDefaultConversation(actions)
+      .catch((error: unknown) => {
+        // Leave the cached share available if the configured conversation cannot open.
+        console.warn('Shared content destination', error)
+        return undefined
+      })
+      .then(async (conversation) => {
+        const url = new URL(location.href)
+        if (conversation === undefined) {
+          // Do not discard the cached share when there is nowhere to put it.
+          select(null)
+          url.searchParams.delete('conversation')
+          history.replaceState(history.state, '', url)
+          actions.showSurface('agent')
+          return
+        }
+        const { share, files } = await take(id)
+        url.searchParams.delete('share')
+        history.replaceState(history.state, '', url)
         const text = textOf(share)
         if (text) insertIntoComposer(conversation, text)
         if (files.length) await drop(conversation, files)
       })
       .catch((error: unknown) => console.warn('Shared content', error))
-    // Once per page a share opened; the standing id is read as it is then.
+    // Once per page a share opened; the destination is read as it is then.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
   return null

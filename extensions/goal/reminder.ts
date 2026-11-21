@@ -62,7 +62,7 @@ export function reminderTask(host: ExtensionHost, Goals: Goals) {
       await automations.create({
         name: reminderName(id),
         schedule: SCHEDULE,
-        subscribers: ['@ultimate'],
+        subscribers: [goal.conversation ?? '@ultimate'],
         key: reminderKey(id),
       })
       return true

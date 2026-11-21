@@ -8,10 +8,11 @@ import type { ConversationId, EntryId, TaskId, Tx } from '@earendil-works/pi-dur
 import { defineApi } from '../../shared/extension-api.ts'
 import { profileDocument } from '../../shared/conversation-configuration.ts'
 import { RunsDoc, StandingDoc } from './refs.ts'
-import type { Run } from './refs.ts'
+import type { DestinationAddress, Run } from './refs.ts'
 import type { createChild } from './children.ts'
 
 export { Started, StandingDoc } from './refs.ts'
+export type { Destination, DestinationAddress } from './refs.ts'
 
 /** Each conversation's subagents and pending subagent actions, on the conversation that started them. */
 export const Subagents = defineDoc<{
@@ -74,6 +75,12 @@ export const Runs = defineDoc<Record<string, Run>>({
 export const Profile = defineDoc(profileDocument)
 
 export type SubagentsService = {
+  /** Validate a destination and normalize its conversation address. Throws for invalid or unsupported delivery. */
+  destinationAddress(value: unknown): DestinationAddress
+  /** Read the configured address or optional coding default. Does not open a conversation or send input. */
+  defaultDestination(ctx: Context): Promise<DestinationAddress | undefined>
+  /** The existing conversation at that address. Use tx inside a transaction. Never creates a conversation. */
+  defaultConversation(ctx: Context, tx?: Tx): Promise<ConversationId | undefined>
   /** The standing agents that run in this home, by name and description; use it to list valid `@name` addresses. */
   residents(ctx: Context): Promise<{ name: string; description: string }[]>
   /** The conversation of standing agent `name`, created or refreshed from its definition; throws for unknown names. */

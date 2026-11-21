@@ -4,12 +4,18 @@
  */
 import { WandSparklesIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { api, definePoint, events, useDocOf } from '@/sdk'
+import { api, definePoint, events, useAction, useConversations, useDocOf } from '@/sdk'
 import type { UltimateActions } from '@/sdk'
-import { RunsDoc, StandingAction } from './refs.ts'
+import { DefaultDestinationAction, RunsDoc, StandingAction, StandingDoc } from './refs.ts'
 import type { Run } from './refs.ts'
 
-export { DefinitionAction, DefinitionsAction, StandingAction, StandingDoc } from './refs.ts'
+export {
+  DefaultDestinationAction,
+  DefinitionAction,
+  DefinitionsAction,
+  StandingAction,
+  StandingDoc,
+} from './refs.ts'
 export { Tag } from './parts.tsx'
 
 /** A badge on a child's call card, by the child's id (workspaces shows its worktree). Nothing while nothing provides it. */
@@ -57,6 +63,45 @@ export async function talkToUltimate(
   const id = await api.action(StandingAction, { name: 'ultimate' })
   actions.switchConversation(id)
   actions.showSurface('agent')
+}
+
+/** The display name and existing ID of the default. A read never opens a standing agent. */
+export function useDefaultConversation() {
+  const { data } = useAction(DefaultDestinationAction, null, { onError: () => {} })
+  const standing = useDocOf(1, StandingDoc)
+  const conversations = useConversations()
+  const address = data?.address
+  const name = typeof address === 'string' ? address.slice(1) : undefined
+  const id =
+    typeof address === 'number'
+      ? address
+      : name && standing && Object.hasOwn(standing, name)
+        ? standing[name]
+        : undefined
+  return {
+    address,
+    id,
+    label:
+      typeof address === 'string'
+        ? address
+        : (conversations.find((item) => item.id === id)?.title ??
+          (id === undefined ? 'default conversation' : `#${id}`)),
+  }
+}
+
+/** Open the configured conversation for a user action. Resolve a name only after the user requests it. */
+export async function openDefaultConversation(
+  actions: Pick<UltimateActions, 'switchConversation' | 'showSurface'>,
+) {
+  const { address } = await api.action(DefaultDestinationAction, null)
+  if (address === undefined) return undefined
+  const id =
+    typeof address === 'number'
+      ? address
+      : await api.action(StandingAction, { name: address.slice(1) })
+  actions.showSurface('agent')
+  actions.switchConversation(id)
+  return id
 }
 
 /** Show `source`, where an agent's message came from, with a way back to `receiver`, where it arrived. */

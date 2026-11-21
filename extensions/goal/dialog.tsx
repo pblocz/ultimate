@@ -4,7 +4,6 @@ import type { KeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { api, errorMessage, useDialog, useDocOf, useUltimate } from '@/sdk'
-import { talkToUltimate } from '../subagents/ui.tsx'
 import { GoalDoc, StartAction } from './refs.ts'
 
 /** The dialog ⌘K "Go hands-off…" opens. */
@@ -36,9 +35,12 @@ function Body({ onClose }: { onClose: () => void }) {
     setStarting(true)
     setFailure(undefined)
     try {
-      await api.action(StartAction, { text })
+      const goal = await api.action(StartAction, { text })
       onClose()
-      await talkToUltimate(actions)
+      if (goal.conversation !== undefined) {
+        actions.switchConversation(goal.conversation)
+        actions.showSurface('agent')
+      }
     } catch (error) {
       setFailure(errorMessage(error))
     } finally {
@@ -88,7 +90,7 @@ function Body({ onClose }: { onClose: () => void }) {
         {active && (
           <p className="text-[12px] leading-relaxed text-muted-foreground" data-goal-blocked>
             <span className="text-foreground">Goal {active.id} is still open.</span> End it from its
-            card in @ultimate's conversation first.
+            card in the goal's conversation first.
           </p>
         )}
         {failure && <p className="text-[12px] text-error">{failure}</p>}

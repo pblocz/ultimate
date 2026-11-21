@@ -47,7 +47,9 @@ It refuses, and changes nothing, when:
 
 It never stashes, rebases or resets.
 
-## Updating with @ultimate
+## Merge assistance
+
+The panel names the coding coordinator when available. `defaultDestination` does not change who performs a merge. The panel disables merge assistance without a coding coordinator.
 
 When the clone's only refusal is a diverged branch (commits of its own plus new ones on origin) and the clone is the project this Ultimate serves, the state carries `merge` and the popover offers **Update with @ultimate** instead of the refusal. The item stays brand-coloured, not amber. `merge` (user-only) checks the state again, asks the optional `coding-workflow` extension for its coordinator name (`ultimate`), sends that coordinator an input naming the branch, the clone and both counts, asking for a coordinator branch that merges `origin/<branch>` with a normal merge (never a rebase, reset or force push), resolves the conflicts it safely can, asks about the rest, runs the checks and lands with `workspace submit`. It then opens @ultimate's conversation. The input is deduplicated per `<head>..<origin head>`, so a second click adds nothing. Without `coding-workflow`, `merge` fails with `Merge assistance needs the coding-workflow coordinator` before it creates a conversation or sends model input.
 
