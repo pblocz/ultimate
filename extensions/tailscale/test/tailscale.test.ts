@@ -1,4 +1,4 @@
-import { chmod, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import tailscale, { actions } from '../server.ts'
@@ -57,7 +57,9 @@ else if (args[0] === 'serve') {
   config.serve.Web ??= {}; config.serve.TCP ??= {};
   if (args.includes('off')) { delete config.serve.Web[authority]; delete config.serve.TCP[port]; }
   else { config.serve.Web[authority] = { Handlers: { '/': { Proxy: args.at(-1) } } }; config.serve.TCP[port] = { HTTPS: true }; }
-  fs.writeFileSync(${JSON.stringify(config)}, JSON.stringify(config));
+  const file = ${JSON.stringify(config)};
+  fs.writeFileSync(file + '.next', JSON.stringify(config));
+  fs.renameSync(file + '.next', file);
 }
 `,
   )
@@ -97,8 +99,10 @@ else if (args[0] === 'serve') {
       projects: async () => [...live].map((liveUrl) => ({ running: { url: liveUrl } })),
       access,
       notice: (message: string) => notices.push(message),
-      system: () => ({ process: { url: `http://127.0.0.1:${localPort}` } }),
-      onOpen: (fn: () => Promise<void>) => openers.push(fn),
+      // Port 0: no web channel listens, so there is no URL.
+      system: () => ({ process: localPort ? { url } : {} }),
+      onReady: (fn: () => Promise<void>) => openers.push(fn),
+      watchWebEndpoint: () => () => {},
       onClose: (fn: () => Promise<void>) => cleanups.push(fn),
       implement: () => {},
     } as unknown as ExtensionHost
@@ -131,9 +135,8 @@ async function repo(home: string) {
   await cp(resolve('extensions/tailscale'), join(root, 'extensions/tailscale'), { recursive: true })
   await cp(resolve('lib'), join(root, 'lib'), { recursive: true })
   await copyApis(root)
-  await mkdir(join(root, 'server'))
-  await cp(resolve('server/lock.ts'), join(root, 'server/lock.ts'))
-  await cp(resolve('server/project.ts'), join(root, 'server/project.ts'))
+  await cp(resolve('extensions/web'), join(root, 'extensions/web'), { recursive: true })
+  await cp(resolve('server'), join(root, 'server'), { recursive: true })
   await linkDependencies(root)
   await writeFile(
     join(root, 'vite.config.ts'),
@@ -457,6 +460,44 @@ it('keeps a live preview owner absent from the project supervisor list', async (
 })
 // The rog outage: a scratch server of the live project, started on its own home without ULTIMATE_INSTANCE_OWNER,
 // took the project's registration and removed the live mapping when it stopped, while the live server said ready.
+it('withdraws the tailnet mapping when the web facet leaves and republishes when it returns', async () => {
+  const f = await fixture()
+  const root = await repo(f.home)
+  const server = await createServer({
+    ultimateRoot: root,
+    projectRoot: root,
+    userHome: f.home,
+    home: join(f.home, 'state'),
+    port: 0,
+  })
+  closes.push(() => server.close())
+  const url = server.url
+  expect(url).toMatch(/^http:\/\/127\.0\.0\.1:/)
+  expect(server.system.current().access.origins).toHaveLength(1)
+  const mappings = async () =>
+    Object.keys(JSON.parse(await readFile(f.config, 'utf8')).serve.Web ?? {})
+  expect(await mappings()).toHaveLength(1)
+  const facet = join(root, 'extensions/web/server.ts')
+  const removed = join(f.home, 'web-server.ts')
+  await rename(facet, removed)
+  await until(async () => server.url === undefined && (await mappings()).length === 0)
+  expect((await f.invocations()).filter((args) => args.includes('off'))).toHaveLength(1)
+  await rename(removed, facet)
+  await until(async () => server.url === url && (await mappings()).length === 1)
+})
+
+it('publishes nothing on the tailnet while no web channel listens', async () => {
+  const f = await fixture()
+  const server = await f.instance('/project/a', 0)
+  expect(await server.status()).toMatchObject({
+    state: 'error',
+    hint: 'No local web endpoint to serve: enable the web extension, then retry.',
+  })
+  expect(
+    (await f.invocations()).filter((args) => args[0] === 'serve' && args[1] !== 'status'),
+  ).toEqual([])
+  expect(server.access.origins()).toEqual([])
+})
 it('keeps the live mapping through a scratch server of the same project, and Check again restores a lost one', async () => {
   const f = await fixture()
   const registry = async () =>
@@ -468,7 +509,6 @@ it('keeps the live mapping through a scratch server of the same project, and Che
   // What a scratch started from an agent's shell inherits; only its home is its own.
   vi.stubEnv('ULTIMATE_SUPERVISED', '1')
   vi.stubEnv('ULTIMATE_PROJECT', '/project/a')
-  vi.stubEnv('ULTIMATE_PUBLIC_URL', 'http://127.0.0.1:4747')
   const scratch = await f.instance('/project/a', 4799, '/tmp/scratch-home')
   expect((await scratch.status()).url).toBe('https://rog.example.ts.net:4799')
   expect(await registry()).toMatchObject({

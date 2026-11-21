@@ -1,7 +1,7 @@
 // Ultimate's service worker. It shows the `push` extension's notifications, answers a question from one (Approve, or
 // an inline reply), opens the app when a notification is tapped, and takes what another app shares (the manifest's
 // `share_target`). It caches nothing and handles no fetch but the share's POST: every page load still goes to the
-// server, so the reload onto a new bundle (server/web.ts) works as without it.
+// server, so the reload onto a new bundle (extensions/web/bundle.ts) works as without it.
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))

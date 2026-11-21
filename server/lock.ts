@@ -101,7 +101,7 @@ export async function acquireLock(
         if (Date.now() >= deadline)
           throw new Error(
             path.endsWith('/ultimate.lock')
-              ? `Ultimate is already running (pid ${owner?.pid ?? 'unknown'}) at http://127.0.0.1:${owner?.port ?? 'unknown'}${owner?.project ? ` for project ${owner.project}` : ''}`
+              ? `Ultimate is already running (pid ${owner?.pid ?? 'unknown'})${owner?.port ? ` at http://127.0.0.1:${owner.port}` : ''}${owner?.project ? ` for project ${owner.project}` : ''}`
               : `Ultimate core already owns this storage (pid ${owner?.pid ?? 'unknown'})`,
             { cause: error },
           )

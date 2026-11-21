@@ -32,12 +32,7 @@ must never replace the owner's backups, so on the satellite set, in user setting
 ```
 
 Its backups then refuse before uploading anything, forced or not, for agents, Dream and the status line alike; the
-status line shows `satellite · no backups` with no backup buttons. The satellite still reads the register, so it
-reaches the owner (answers to its `tell`s included).
-
-A satellite never commits a backup, so the register holds no tailnet address for it. Machines that reach it name its
-address in the general `remotes` user setting ([Discovery and settings](../../docs/settings.md)), which is asked
-before the register.
+status line shows `satellite · no backups` with no backup buttons. The satellite still reads the register.
 
 `api.ts` exposes optional `CloudApi`: `status()` returns `off`, `local`, `satellite` or `on`, and `backup()` performs the same
 non-forced backup of the active chapter as the user action; `lastBackup()` returns the chapter's last backup from

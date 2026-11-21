@@ -96,10 +96,12 @@ const respond: FauxResponseFactory = (request) => {
 }
 server.host.faux!.setResponses([respond])
 const opened = await server.go()
+const url = server.url
+assert.ok(url, 'The web channel listens')
 const post = async (path: string, body: object) => {
-  const response = await fetch(server.url + path, {
+  const response = await fetch(url + path, {
     method: 'POST',
-    headers: { Origin: server.url, 'Content-Type': 'application/json' },
+    headers: { Origin: url, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   const result = await response.json()

@@ -241,7 +241,7 @@ it.concurrent('summarizes a branch into its title and its abstract in the tree r
     }),
   )
   const id = await branchFrom(server, { from: 1, prompt: 'New intent' })
-  expect(server.api.conversations().find((item) => item.id === id)?.title).toBe('New intent')
+  expect(server.conversations().find((item) => item.id === id)?.title).toBe('New intent')
   await until(
     async () =>
       (await server.harness.snapshot(Metadata, id, context))?.title === 'Summarized branch',

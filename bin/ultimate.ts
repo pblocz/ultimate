@@ -9,12 +9,9 @@ import { acquireLock, readOwner, retireStorageOwner, pause } from '../server/loc
 import { watch, existsSync } from 'node:fs'
 import { watchRoots } from '../server/watch-roots.ts'
 import { join, resolve as resolvePath } from 'node:path'
-import { createServer, connect } from 'node:net'
-import type { Socket } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import type { BuildInfo } from '../shared/protocol.ts'
 import type { ChildMessage, SupervisorMessage } from '../server/supervisor-protocol.ts'
-import { loopbackAuthority, proxied } from '../server/request-security.ts'
 import { isCoreReport } from '../server/supervisor-protocol.ts'
 import type { CoreReport } from '../server/supervisor-protocol.ts'
 import { dashboard } from './dashboard.ts'
@@ -75,13 +72,17 @@ const { userHome, home } = (() => {
   }
 })()
 const requestedPort = values.port ?? process.env.ULTIMATE_PORT
-let port = Number(requestedPort ?? 4747)
-if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port')
+if (requestedPort !== undefined && (!/^\d+$/.test(requestedPort) || Number(requestedPort) > 65535))
+  throw new Error('Invalid port')
+/**
+ * The web channel's port: the requested one, else the one the first core's web channel found from 4747. Each later
+ * core binds the same port, so the URL stays across swaps and restarts. The supervisor itself listens on none.
+ */
+let port = requestedPort === undefined ? undefined : Number(requestedPort)
 const lockPath = join(home, 'ultimate.lock')
 await mkdir(home, { recursive: true })
 const lock = await acquireLock(lockPath, {
   pid: process.pid,
-  port,
   project: projectRoot,
 }).catch(async (error) => {
   // Starting a running project again opens its window.
@@ -114,115 +115,46 @@ process.on('exit', () => display.close())
 let active: Core | undefined
 let swapping = false
 let stopping = false
-let crashPage = false
+let waiting = false
 let failures = 0
 let generation = 0
 let announced = false
 let stderr = ''
-const pending = new Set<Socket>()
-const sockets = new Set<Socket>()
 const children = new Set<Core>()
 const tail = (text: string) => text.split('\n').slice(-200).join('\n')
-const escape = (text: string) =>
-  text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-function route(socket: Socket) {
-  if (socket.destroyed) return
-  if (active) {
-    const upstream = connect(active.port, '127.0.0.1')
-    upstream.on('error', () => socket.destroy())
-    socket.on('error', () => upstream.destroy())
-    socket.on('close', () => upstream.destroy())
-    upstream.on('close', () => socket.destroy())
-    socket.pipe(upstream).pipe(socket)
-    socket.resume()
-  } else if (crashPage) {
-    let head = ''
-    const expired = () => socket.destroy()
-    socket.setTimeout(5000, expired)
-    const receive = (chunk: Buffer) => {
-      head += chunk.toString('latin1')
-      if (active || !crashPage) {
-        socket.pause()
-        socket.off('data', receive)
-        socket.off('timeout', expired)
-        socket.setTimeout(0)
-        socket.unshift(Buffer.from(head, 'latin1'))
-        route(socket)
-        return
+/** The active core's web endpoint: the dashboard, the lock (project discovery) and, once, the browser window. */
+let endpoint: string | undefined
+let publishing = Promise.resolve()
+function publish(report: CoreReport) {
+  if (report.type !== 'web') return
+  const url = report.state === 'ready' ? report.url : undefined
+  if (url === endpoint) return
+  endpoint = url
+  display.url(url ?? '')
+  if (url) port = Number(new URL(url).port)
+  // Serialize lock updates. The same sidecar can lose and regain its port during a swap.
+  publishing = publishing
+    .then(() =>
+      lock.update({
+        pid: process.pid,
+        ...(url ? { port: Number(new URL(url).port) } : {}),
+        project: projectRoot,
+      }),
+    )
+    .catch((error: unknown) =>
+      display.log('error', 'supervisor', `Updating ${lockPath} failed: ${String(error)}`),
+    )
+    .finally(() => {
+      if (!url || url !== endpoint) return
+      display.log('info', 'supervisor', `Ultimate: ${url}`)
+      if (!announced) {
+        announced = true
+        if (opening) openWindow(Number(new URL(url).port))
       }
-      if (!head.includes('\r\n\r\n') && head.length < 16384) return
-      socket.off('data', receive)
-      socket.off('timeout', expired)
-      socket.setTimeout(0)
-      const headers: Record<string, string> = {}
-      for (const line of head.split('\r\n').slice(1)) {
-        if (!line) break
-        const colon = line.indexOf(':')
-        if (colon > 0)
-          headers[line.slice(0, colon).trim().toLowerCase()] = line.slice(colon + 1).trim()
-      }
-      const direct =
-        head.length < 16384 &&
-        !proxied(headers) &&
-        loopbackAuthority(headers.host, String(publicPort))
-      const html = direct
-        ? `<h1>Ultimate core could not boot</h1><p>Waiting for changes in server/, shared/, extensions/</p><pre>${escape(stderr)}</pre>`
-        : ''
-      socket.end(
-        `HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ${Buffer.byteLength(html)}\r\nConnection: close\r\n\r\n${html}`,
-      )
-    }
-    socket.on('data', receive)
-    socket.resume()
-  } else {
-    socket.pause()
-    pending.add(socket)
-  }
+    })
 }
-function flush() {
-  for (const socket of pending) route(socket)
-  pending.clear()
-}
-const proxy = createServer((socket) => {
-  sockets.add(socket)
-  socket.on('error', () => {})
-  socket.on('close', () => {
-    sockets.delete(socket)
-    pending.delete(socket)
-  })
-  route(socket)
-})
-try {
-  await new Promise<void>((resolve, reject) => {
-    const listen = () => {
-      proxy.once('error', failed)
-      proxy.listen(port, '127.0.0.1', () => {
-        proxy.off('error', failed)
-        resolve()
-      })
-    }
-    const failed = (error: NodeJS.ErrnoException) => {
-      if (!requestedPort && error.code === 'EADDRINUSE' && port < 65535) {
-        port++
-        listen()
-      } else reject(error)
-    }
-    listen()
-  })
-} catch (error) {
-  await lock.close()
-  throw error
-}
-const address = proxy.address()
-if (!address || typeof address === 'string') throw new Error('No proxy address')
-const publicPort = address.port
-const publicUrl = `http://127.0.0.1:${publicPort}`
-await lock.update({ pid: process.pid, port: address.port, project: projectRoot })
-display.url(publicUrl)
-
 type Core = {
   child: ChildProcess
-  port: number
   generation: number
   stderr: string
   messages: ChildMessage[]
@@ -297,12 +229,13 @@ function boot(previousBuild?: BuildInfo): Core {
       ULTIMATE_PROJECT: projectRoot,
       ULTIMATE_SUPERVISED: '1',
       ULTIMATE_GENERATION: String(++generation),
-      ULTIMATE_PUBLIC_URL: publicUrl,
+      // Without a requested or found port, the child's web channel looks for a free one from 4747.
+      ...(port === undefined ? {} : { ULTIMATE_PORT: String(port) }),
       ...(previousBuild ? { ULTIMATE_PREVIOUS_BUILD: JSON.stringify(previousBuild) } : {}),
     },
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   })
-  const core: Core = { child, generation, port: 0, stderr: '', messages: [], reports: new Map() }
+  const core: Core = { child, generation, stderr: '', messages: [], reports: new Map() }
   display.lifecycle('preparing', { generation, pid: child.pid })
   children.add(core)
   child.stdout?.on('data', (chunk) => display.log('info', `core ${core.generation}`, String(chunk)))
@@ -320,23 +253,21 @@ function boot(previousBuild?: BuildInfo): Core {
         display.log(message.level, `${message.source} · core ${core.generation}`, message.text)
       } else {
         core.reports.set(message.type, message)
-        if (core === active) display.report(message)
+        if (core === active) {
+          display.report(message)
+          publish(message)
+        }
       }
       return
     }
-    if (message.type === 'swap') {
-      if (core === active)
-        void swap(core, message.requestId, message.build).catch((error: unknown) =>
-          display.log('error', 'supervisor', `Core swap failed: ${String(error)}`),
-        )
-      return
-    }
-    core.messages.push(message)
+    if (message.type === 'swap' && core === active) handleSwap(core, message)
+    else core.messages.push(message)
   })
   child.on('exit', () => {
     children.delete(core)
     if (core === active && !swapping && !stopping) {
       active = undefined
+      publish({ type: 'web', state: 'stopped' })
       display.lifecycle('crashed')
       display.log('error', 'supervisor', `Core ${core.generation} exited unexpectedly`)
       void recover().catch((error: unknown) =>
@@ -369,8 +300,25 @@ async function checkTypes() {
   if (code !== 0) throw new Error(output || `Type check exited ${code}`)
 }
 async function prepare(core: Core) {
-  const message = await wait(core, 'prepared')
-  if (message.type === 'prepared') core.port = message.port
+  await wait(core, 'prepared')
+}
+function handleSwap(core: Core, message: Extract<ChildMessage, { type: 'swap' }>) {
+  void swap(core, message.requestId, message.build).catch((error: unknown) =>
+    display.log('error', 'supervisor', `Core swap failed: ${String(error)}`),
+  )
+}
+/** Make `core` the active one: show its reports and publish its web endpoint, or that it has none. */
+function activate(core: Core) {
+  active = core
+  display.lifecycle('ready', { generation: core.generation, pid: core.child.pid })
+  for (const report of core.reports.values()) display.report(report)
+  publish(core.reports.get('web') ?? { type: 'web', state: 'stopped' })
+  // The listener can receive a restart request before the supervisor receives `ready`.
+  core.messages = core.messages.filter((message) => {
+    if (message.type !== 'swap') return true
+    handleSwap(core, message)
+    return false
+  })
 }
 async function start(core: Core) {
   send(core, { type: 'go' })
@@ -379,17 +327,9 @@ async function start(core: Core) {
     await kill(core)
     return
   }
-  active = core
-  display.lifecycle('ready', { generation: core.generation, pid: core.child.pid })
-  for (const report of core.reports.values()) display.report(report)
+  activate(core)
   failures = 0
-  crashPage = false
-  flush()
-  if (!announced) {
-    announced = true
-    display.log('info', 'supervisor', `Ultimate: ${publicUrl}`)
-    if (opening) openWindow(publicPort)
-  }
+  waiting = false
 }
 async function swap(old: Core, requestId: string, previousBuild?: BuildInfo) {
   if (swapping) {
@@ -419,6 +359,7 @@ async function swap(old: Core, requestId: string, previousBuild?: BuildInfo) {
     const release = wait(old, 'released', undefined, 10000)
     send(old, { type: 'release' })
     await release
+    publish({ type: 'web', state: 'stopped' })
     await start(next)
     await exit(old)
   } catch (error) {
@@ -432,13 +373,11 @@ async function swap(old: Core, requestId: string, previousBuild?: BuildInfo) {
       send(old, { type: 'reacquire', error: stderr })
       try {
         await wait(old, 'ready')
-        active = old
-        display.lifecycle('ready', { generation: old.generation, pid: old.child.pid })
-        for (const report of old.reports.values()) display.report(report)
-        flush()
+        activate(old)
       } catch {
         await kill(old)
         active = undefined
+        publish({ type: 'web', state: 'stopped' })
       }
     }
   } finally {
@@ -477,18 +416,18 @@ async function recover() {
       }
     }
     if (!active && !stopping) {
-      crashPage = true
+      // The supervisor log holds each boot failure; nothing is served until a change boots a core.
+      waiting = true
       display.lifecycle('failed · waiting for changes')
-      flush()
     }
   } finally {
     recovering = false
   }
 }
 const retry = () => {
-  if (crashPage && !recovering && !stopping) {
+  if (waiting && !recovering && !stopping) {
     failures = 0
-    crashPage = false
+    waiting = false
     void recover().catch((error: unknown) =>
       display.log('error', 'supervisor', `Core recovery failed: ${String(error)}`),
     )
@@ -513,9 +452,8 @@ async function shutdown() {
   stopRoots()
   configWatcher?.close()
   for (const watcher of watchers) watcher.close()
-  for (const socket of sockets) socket.destroy()
-  proxy.close()
   await Promise.all([...children].map(exit))
+  await publishing
   await lock.close()
   display.lifecycle('stopped')
   display.close()

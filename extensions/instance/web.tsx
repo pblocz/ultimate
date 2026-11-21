@@ -216,7 +216,7 @@ function usePreviewTarget(href: string, own = false): Target | undefined {
   const url = URL.parse(href)
   if (!url || !/^https?:$/.test(url.protocol) || !isLoopback(url.hostname) || !url.port)
     return undefined
-  if (system && url.port === new URL(system.process.url).port)
+  if (system?.process.url && url.port === new URL(system.process.url).port)
     return { kind: 'self', href: at(location.origin, url) }
   const known = list?.filter((item) => new URL(item.url).port === url.port) ?? []
   const live = known.find((item) => item.running)

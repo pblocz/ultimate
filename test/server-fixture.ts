@@ -28,6 +28,10 @@ export async function fixture(extra = false, sources?: Record<string, string>, e
   await cp(resolvePath('extensions/coding-tools'), join(ultimateRoot, 'extensions/coding-tools'), {
     recursive: true,
   })
+  await cp(resolvePath('extensions/web'), join(ultimateRoot, 'extensions/web'), {
+    recursive: true,
+    filter: (path) => !path.includes('/test'),
+  })
   await mkdir(join(ultimateRoot, 'web'), { recursive: true })
   await linkDependencies(ultimateRoot)
   await writeFile(

@@ -87,7 +87,7 @@ it('keeps stores local while exposing projects, conversations and live URLs thro
       expect.objectContaining({ root: bRoot, current: true }),
     ]),
   )
-  expect(b.api.conversations().some((item) => item.title === 'A titled conversation')).toBe(false)
+  expect(b.conversations().some((item) => item.title === 'A titled conversation')).toBe(false)
 })
 
 it('lists unknown homes and ignores dead locks; skips unchanged index writes and excludes children', async () => {

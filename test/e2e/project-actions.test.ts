@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile, symlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import {
+  facetsOf,
   fauxServer as createServer,
   temp as tempDirectory,
   removeTemp,
@@ -104,7 +105,7 @@ it('discovers late project and user roots and follows extension symlinks with br
     port: 0,
   })
   servers.push(server)
-  await server.web.facets()
+  await facetsOf(server)
   for (const [root, name] of [
     [join(projectRoot, '.ultimate'), 'late-project'],
     [join(userHome, '.ultimate'), 'late-user'],
@@ -113,7 +114,7 @@ it('discovers late project and user roots and follows extension symlinks with br
     await until(
       () => !!server.extensions.info().find((entry) => entry.name === name)?.server?.loadedAt,
     )
-    await until(async () => (await server.web.facets()).includes(join(path, 'web.tsx')))
+    await until(async () => (await facetsOf(server)).includes(join(path, 'web.tsx')))
   }
   expect(
     server.extensions.info().find((entry) => entry.name === 'broken-link')?.server?.error,
@@ -164,7 +165,7 @@ it('loads external project facets over user and built-in names, actions and tran
   })
   expect(record().server?.error).toBeUndefined()
   const added = join(projectRoot, '.ultimate/extensions/added')
-  const facets = () => server.web.facets()
+  const facets = () => facetsOf(server)
   expect(await facets()).not.toContain(join(added, 'web.tsx'))
   await mkdir(added, { recursive: true })
   await writeFile(join(added, 'web.tsx'), 'export default {}')

@@ -1,9 +1,9 @@
-import { createServer as createHttpServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve as resolvePath } from 'node:path'
 import { createServer as createViteServer } from 'vite-plus'
 import type { ViteDevServer } from 'vite-plus'
-import { createApi, Events } from './api.ts'
+import { Events } from './web-channel.ts'
+import type { WebChannelRuntime } from './web-channel.ts'
 import { createConversationHost } from './conversation-host.ts'
 import type { ConversationBackend } from './conversation-host.ts'
 import { loadExtensions } from './extensions.ts'
@@ -19,28 +19,29 @@ import type { ChildMessage, SupervisorMessage } from './supervisor-protocol.ts'
 import { alive } from './lock.ts'
 import { realpath } from 'node:fs/promises'
 import { extensionModules } from './vite-extensions.ts'
-import { createWeb } from './web.ts'
-import { admit, createAccess } from './request-security.ts'
+import { createAccess } from './request-security.ts'
 import { writeProject } from './project.ts'
 import { reportCore } from './supervisor-protocol.ts'
 import { viteLogger } from './vite-logger.ts'
-import type { Notice } from '../shared/protocol.ts'
+import type { Notice, SystemInfo } from '../shared/protocol.ts'
 import { ChannelError } from '../shared/channel-host.ts'
 
 const send = (message: ChildMessage) => process.send?.(message)
 
-/**
- * Clickjacking: a foreign page must not load the UI in a hidden frame and steer clicks into it (PR #74, #517728).
- * Loopback parents stay allowed: a preview frames another instance on its own port (`extensions/instance/web.tsx`),
- * and the supervisor's app window is `ultimate.localhost`. No `[::1]` entry: CSP rejects a port range on an IPv6
- * literal, and one bad source makes browsers drop the whole directive.
- */
-const frameAncestors =
-  "frame-ancestors 'self' http://127.0.0.1:* http://localhost:* http://*.localhost:*"
-
 export interface ServerOptions extends HostOptions {
+  /** The web channel's port; otherwise `ULTIMATE_PORT`, else 4747. The core itself listens on none. */
   port?: number
-  publicUrl?: string
+}
+/** The web channel's first port, and whether it moves on past a taken one: only supervised with none requested. */
+function webPort(requested: number | undefined) {
+  const variable = process.env.ULTIMATE_PORT
+  const first = requested ?? (variable === undefined ? 4747 : Number(variable))
+  if (!Number.isInteger(first) || first < 0 || first > 65535) throw new Error('Invalid port')
+  return {
+    first,
+    scan:
+      requested === undefined && variable === undefined && process.env.ULTIMATE_SUPERVISED === '1',
+  }
 }
 export async function prepareServer(options: Partial<ServerOptions> = {}) {
   const ultimateRoot =
@@ -80,53 +81,22 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
       ?.changed()
       .catch((error: unknown) => console.error('Publishing access changes failed:', error))
   })
-  let api: Awaited<ReturnType<typeof createApi>> | undefined
   let backend: ConversationBackend | undefined
-  let web: Awaited<ReturnType<typeof createWeb>> | undefined
   let releaseRequested = false
   let pendingReleases = 0
   let finalClosing = false
   let finalClose: Promise<void> | undefined
-  const http = createHttpServer((request, response) => {
-    void (async () => {
-      const port =
-        new URL(
-          options.publicUrl ??
-            `http://127.0.0.1:${(http.address() as import('node:net').AddressInfo).port}`,
-        ).port || '80'
-      if (!(await admit(request, port, access.rules))) {
-        response.writeHead(403)
-        response.end('Forbidden')
-        return
-      }
-      if (!api) {
-        response.writeHead(503)
-        response.end('Preparing')
-        return
-      }
-      response.setHeader('Content-Security-Policy', frameAncestors)
-      if (await api.handle(request, response)) return
-      if (request.method !== 'GET' && request.method !== 'HEAD') {
-        response.writeHead(405)
-        response.end()
-        return
-      }
-      await web!.handle(request, response)
-    })().catch(() => {
-      if (!response.headersSent) response.writeHead(500)
-      response.end('Internal server error')
-    })
-  })
+  let endpoint: string | undefined
+  let bundle: { info(): SystemInfo['web']; rebuild(): Promise<void> } | undefined
   // A vite.config.ts change restarts Vite with a new watcher; listeners move to each new one.
   const restarted = new Set<(watcher: ViteDevServer['watcher']) => void>()
-  reportCore({ type: 'web', state: 'preparing' })
-  // Vite only loads the server facets (`ssrLoadModule`) and watches the sources: the browser gets a production bundle
-  // (web.ts). It serves no page, holds no client socket and optimizes no browser dependencies.
+  // Vite only loads the server facets (`ssrLoadModule`) and watches the sources: the web channel builds the browser's
+  // production bundle itself. Vite serves no page, holds no socket and optimizes no browser dependencies.
   const vite = await createViteServer({
     customLogger: viteLogger(),
     clearScreen: false,
     configFile: resolvePath(ultimateRoot, 'vite.config.ts'),
-    root: resolvePath(ultimateRoot, 'web'),
+    root: ultimateRoot,
     server: { middlewareMode: true, hmr: false, ws: false },
     appType: 'custom',
     optimizeDeps: { noDiscovery: true, include: [] },
@@ -177,7 +147,37 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
     )
     return next
   }
-  const extensions = await loadExtensions(
+  const port = webPort(options.port)
+  let extensions: Awaited<ReturnType<typeof loadExtensions>> | undefined
+  const webChannel: WebChannelRuntime = {
+    events,
+    extensions: () => {
+      if (!extensions) throw new Error('Extensions are still loading')
+      return extensions
+    },
+    access,
+    watch,
+    backend: () => {
+      if (!backend) throw new ChannelError('unavailable', 'Conversation service is unavailable')
+      return backend
+    },
+    port,
+    endpoint(url) {
+      if (url === endpoint) return
+      endpoint = url
+      reportCore(url ? { type: 'web', state: 'ready', url } : { type: 'web', state: 'stopped' })
+      void system
+        ?.changed()
+        .catch((error: unknown) => console.error('Publishing the web endpoint failed:', error))
+    },
+    bundle(value) {
+      bundle = value
+      void system
+        ?.changed()
+        .catch((error: unknown) => console.error('Publishing the web bundle failed:', error))
+    },
+  }
+  extensions = await loadExtensions(
     vite,
     host,
     () => system?.changed(),
@@ -196,48 +196,39 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
         if (!backend) throw new ChannelError('unavailable', 'Conversation service is unavailable')
         return backend.channelHost
       },
+      webChannel: () => webChannel,
+      watchWebEndpoint(callback) {
+        let previous = endpoint
+        const listener = (name: string) => {
+          if (name !== 'system' || previous === endpoint) return
+          previous = endpoint
+          callback(endpoint)
+        }
+        events.listeners.add(listener)
+        return () => events.listeners.delete(listener)
+      },
     },
     watch,
     (message) => notice({ level: 'warning', message }),
-    () => web!.rebuild(),
+    () => bundle?.rebuild() ?? Promise.resolve(),
   )
-  web = await createWeb({
-    ultimateRoot,
-    projectRoot,
-    userHome: host.userHome,
-    home: host.home,
-    watch,
-    before: () => extensions.preparedToLoad(),
-    pages: () => api?.pages() ?? 0,
-    changed: () => void system?.changed(),
-    notice: (message) => notice({ level: 'error', message }),
-  })
-  await new Promise<void>((resolve, reject) => {
-    http.once('error', reject)
-    http.listen(options.port ?? Number(process.env.ULTIMATE_PORT ?? 4747), '127.0.0.1', () => {
-      http.off('error', reject)
-      resolve()
-    })
-  })
-  const address = http.address()
-  if (!address || typeof address === 'string') throw new Error('No listening address')
-  const url = options.publicUrl ?? `http://127.0.0.1:${address.port}`
+  const loaded = extensions
   system = await createSystem(
     host,
     watch,
-    url,
-    extensions.info,
+    () => endpoint,
+    loaded.info,
     (info) => events.emit('system', info),
     (message) => notice({ level: 'error', message }),
     processInfo,
     access.origins,
-    () => web.info(),
+    () => bundle?.info() ?? { id: '', changed: [] },
   )
-  /** Serve the opened harness: shared backend, facet openers, web adapter, resume, then readiness. */
+  const ready = system
+  /** Serve the opened harness: shared backend, facet openers, resume, then readiness. */
   const serve = async (harness: OpenHost) => {
     opened = harness
     let service: ConversationBackend | undefined
-    let adapter: Awaited<ReturnType<typeof createApi>> | undefined
     let callbacksOpened = false
     try {
       await harness.harness.commit(
@@ -249,35 +240,27 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
         context,
       )
       service = await createConversationHost(host, harness, {
-        configurationServices: extensions.configurationServices,
-        extensions: extensions.info,
+        configurationServices: loaded.configurationServices,
+        extensions: loaded.info,
         onConversations: (summaries) => events.emit('conversations', summaries),
         onTasks: (tasks) => events.emit('tasks', tasks),
         onRefreshError: () =>
           events.emit('notice', { level: 'error', message: 'Could not refresh conversation list' }),
       })
       backend = service
-      await extensions.opened()
+      await loaded.opened()
       callbacksOpened = true
-      await system.changed()
-      adapter = await createApi(host, harness, events, system, extensions, access, service)
-      api = adapter
+      await ready.changed()
       harness.harness.resume()
       if (releaseRequested || finalClosing) service.closeAdmission()
       else {
         service.openAdmission()
-        await extensions.ready()
+        await loaded.ready()
       }
-      return { ...harness, api: adapter, system }
+      return { ...harness, system: ready }
     } catch (error) {
       service?.closeAdmission()
-      if (api === adapter) api = undefined
-      try {
-        await adapter?.close()
-      } catch (cleanupError) {
-        console.error('Closing web adapter after activation failure:', cleanupError)
-      }
-      if (callbacksOpened) await extensions.released()
+      if (callbacksOpened) await loaded.released()
       try {
         await service?.close()
       } catch (cleanupError) {
@@ -290,32 +273,32 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
     }
   }
   return {
-    http,
     vite,
     host,
-    extensions,
+    extensions: loaded,
     events,
-    url,
-    port: address.port,
-    web,
+    /** The web channel's URL, while one listens. */
+    get url() {
+      return endpoint
+    },
+    get port() {
+      return endpoint === undefined ? undefined : Number(new URL(endpoint).port)
+    },
+    /** Summaries of every conversation, as the conversation list shows them; empty while storage is closed. */
+    conversations: () => backend?.conversations() ?? [],
     release() {
       releaseRequested = true
       pendingReleases++
       backend?.closeAdmission()
-      const adapter = api
-      api = undefined
       return serial(async () => {
         try {
-          if (opened) await extensions.released()
-          await (adapter ?? api)?.close()
-          api = undefined
+          // The web channel stops listening here, in its release callback.
+          if (opened) await loaded.released()
           // Admitted requests settle first, so an in-flight mutation that lost the race still gets its 503.
           await backend?.close()
           backend = undefined
-          http.closeAllConnections()
           await opened?.close()
           opened = undefined
-          reportCore({ type: 'web', state: 'stopped' })
         } finally {
           pendingReleases--
           if (pendingReleases === 0) releaseRequested = false
@@ -329,9 +312,7 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
         releaseRequested = false
         processInfo.activationError = activationError
         await writeProject(host.home, host.projectRoot)
-        const served = await serve(await host.open(false))
-        if (!releaseRequested && !finalClosing) reportCore({ type: 'web', state: 'ready' })
-        return served
+        return serve(await host.open(false))
       })
     },
     close() {
@@ -339,23 +320,12 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
       finalClosing = true
       releaseRequested = true
       backend?.closeAdmission()
-      const adapter = api
-      api = undefined
-      const stopped = new Promise<void>((resolve, reject) =>
-        http.close((error) => (error ? reject(error) : resolve())),
-      )
       finalClose = serial(async () => {
-        await (adapter ?? api)?.close()
-        api = undefined
-        await extensions.close()
+        await loaded.close()
         await backend?.close()
         backend = undefined
-        await web?.close()
-        await system?.close()
+        await ready.close()
         await vite.close()
-        reportCore({ type: 'web', state: 'stopped' })
-        http.closeAllConnections()
-        await stopped
         await opened?.close()
         opened = undefined
       })
@@ -366,7 +336,9 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
 export async function createServer(options: Partial<ServerOptions> = {}) {
   const prepared = await prepareServer(options)
   const opened = await prepared.go()
-  return { ...prepared, ...opened, close: () => prepared.close() }
+  // Assigned, not spread: `url` and `port` stay live as the web channel binds and releases.
+  const close = prepared.close.bind(prepared)
+  return Object.assign(prepared, opened, { close })
 }
 
 if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -395,7 +367,7 @@ if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.met
   process.on('SIGTERM', shutdown)
   if (process.env.ULTIMATE_SUPERVISED === '1' && process.send) {
     try {
-      server = await prepareServer({ port: 0, publicUrl: process.env.ULTIMATE_PUBLIC_URL })
+      server = await prepareServer()
       process.on('message', (message: SupervisorMessage) => {
         void (async () => {
           if (message.type === 'go' || message.type === 'reacquire') {
@@ -417,7 +389,7 @@ if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.met
         })
       })
       process.on('disconnect', shutdown)
-      send({ type: 'prepared', port: server.port })
+      send({ type: 'prepared' })
     } catch (error) {
       send({ type: 'failed', error: String(error) })
       console.error(error)
@@ -426,6 +398,7 @@ if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.met
   } else {
     server = await prepareServer()
     await server.go()
-    console.log(`Ultimate: ${server.url}`)
+    // Previews read this line for the URL.
+    console.log(server.url ? `Ultimate: ${server.url}` : 'Ultimate: ready without a web endpoint')
   }
 }

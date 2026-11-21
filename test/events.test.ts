@@ -8,7 +8,7 @@ import { EventFeed, EventLog } from '../server/events.ts'
 import type { ExtensionHost } from '../server/extensions.ts'
 import { defineEvent, EVENT_FEED, NoticeEvent, StartedEvent } from '../shared/events.ts'
 import type { EventRecord } from '../shared/events.ts'
-import { attach, fauxServer, linkDependencies, temp, until } from './helpers.ts'
+import { attach, fauxServer, linkDependencies, linkWeb, temp, until } from './helpers.ts'
 
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []
 afterEach(async () => {
@@ -35,6 +35,7 @@ const Seen = doc('test.seen')
 async function project(setup = '') {
   const root = await temp()
   await linkDependencies(root)
+  await linkWeb(root)
   await mkdir(join(root, 'web'))
   await writeFile(
     join(root, 'vite.config.ts'),
@@ -225,7 +226,7 @@ it('leaves the log conversation out of conversation lists but serves it by id', 
         .at(-1) ?? []
     await until(() => listed().includes(later))
     expect(listed()).not.toContain(log)
-    expect(probe.server.api.conversations().map((summary) => summary.id)).not.toContain(log)
+    expect(probe.server.conversations().map((summary) => summary.id)).not.toContain(log)
   } finally {
     await stream.close()
   }

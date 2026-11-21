@@ -531,6 +531,8 @@ export default function instanceExtension(
           .slice(-100000)
       }
       let stdout = ''
+      // The preview's web extension is off: it runs, but there is nothing to show.
+      let endpointless = false
       child.stdout?.on('data', (chunk: Buffer) => {
         append(chunk)
         stdout += chunk.toString()
@@ -539,6 +541,7 @@ export default function instanceExtension(
         for (const line of lines) {
           const match = /^Ultimate: (http:\/\/127\.0\.0\.1:([1-9]\d*))\r?$/.exec(line)
           if (match) item.url = match[1]
+          if (line.trimEnd() === 'Ultimate: ready without a web endpoint') endpointless = true
         }
       })
       child.stderr?.on('data', append)
@@ -554,6 +557,10 @@ export default function instanceExtension(
         while (Date.now() < deadline && child.exitCode === null && child.signalCode === null) {
           context.abortSignal?.throwIfAborted()
           if (failed) break
+          if (endpointless)
+            throw new Error(
+              'The preview runs without a web endpoint: enable the web extension in its settings to preview it.',
+            )
           try {
             const response = item.url
               ? await fetch(`${item.url}/api/models`, {

@@ -38,6 +38,7 @@ import { inExtensionTests } from '../shared/extension-api.ts'
 import type { Device } from '../shared/events.ts'
 import { ChannelError } from '../shared/channel-host.ts'
 import type { ChannelHost, ConversationOutput } from '../shared/channel-host.ts'
+import type { WebChannelRuntime } from './web-channel.ts'
 
 export type ExtensionHost = Pick<
   PreparedHost,
@@ -76,6 +77,8 @@ export type ExtensionHost = Pick<
   onReady(callback: () => Promise<void>): void
   /** The current scoped conversation service; operations fail unavailable outside an open harness activation. */
   channelHost(): ChannelHost
+  /** The runtime seen by the optional web channel; only the `web` extension may use it. */
+  webChannel(): WebChannelRuntime
   /** Run `callback` each time before the harness closes while the process stays: on a core swap. */
   onRelease(callback: () => Promise<void>): void
   onClose(cleanup: () => Promise<void>): void
@@ -94,6 +97,8 @@ export type ExtensionHost = Pick<
   skills(cwd: string): ScopedSkill[]
   harness(): Harness
   system(): SystemInfo
+  /** Track changes to the local web endpoint for the lifetime of this facet. */
+  watchWebEndpoint(callback: (url: string | undefined) => void): () => void
   /** Summaries of every conversation, as the web's conversation list shows them; empty until the harness is open. */
   conversations(): ConversationSummary[]
   /** Read JSON manifests in the user's central project homes, never another project's SQLite; unknown roots remain absent. Includes this home and live supervisor URLs. */
@@ -138,7 +143,16 @@ export async function loadExtensions(
   vite: ViteDevServer,
   host: PreparedHost,
   changed: () => void | Promise<void>,
-  runtime: Pick<ExtensionHost, 'harness' | 'system' | 'conversations' | 'access' | 'channelHost'>,
+  runtime: Pick<
+    ExtensionHost,
+    | 'harness'
+    | 'system'
+    | 'conversations'
+    | 'access'
+    | 'channelHost'
+    | 'webChannel'
+    | 'watchWebEndpoint'
+  >,
   watch: Watch,
   notice: (message: string) => void = () => {},
   /** Bring the web bundle up to date with the settings just applied. */
@@ -510,6 +524,10 @@ export async function loadExtensions(
       },
       channelHost: (): ChannelHost =>
         sharedResource ? extensionHost.channelHost() : scopedChannelHost(facetHost),
+      webChannel: () => {
+        if (name !== 'web') throw new Error('Only the web extension serves the browser')
+        return runtime.webChannel()
+      },
       onRelease: (callback) => {
         if (sharedResource) extensionHost.onRelease(callback)
         else {
@@ -520,6 +538,14 @@ export async function loadExtensions(
       onClose: (cleanup) => {
         if (sharedResource) extensionHost.onClose(cleanup)
         else facetCleanups.get(facetHost)!.add(cleanup)
+      },
+      watchWebEndpoint: (callback) => {
+        const stop = runtime.watchWebEndpoint(callback)
+        stops.add(stop)
+        return () => {
+          stops.delete(stop)
+          stop()
+        }
       },
       onLoadError: (callback) => {
         loadErrorListeners.add(callback)
@@ -677,6 +703,9 @@ export async function loadExtensions(
         void runProcessReadies(activation)
     },
     channelHost: runtime.channelHost,
+    webChannel: () => {
+      throw new Error('The web channel requires a facet scope')
+    },
     onRelease: (callback) => {
       releasers.add(callback)
     },
@@ -701,6 +730,7 @@ export async function loadExtensions(
     },
     harness: runtime.harness,
     system: runtime.system,
+    watchWebEndpoint: runtime.watchWebEndpoint,
     conversations: runtime.conversations,
     projects: () => projects(host.userHome, host.home),
     extensions: () => info(),

@@ -11,7 +11,7 @@ export const limits = {
   excerptBytes: 8 * 1024,
   /**
    * How large one spec's drafts may grow, as JSON bytes. All of durable UI state shares one 256 KiB document
-   * (server/api.ts), so drafts stay well under it; 50 comments of 1,000 characters fit.
+   * (extensions/web/routes.ts), so drafts stay well under it; 50 comments of 1,000 characters fit.
    */
   drafts: 96 * 1024,
 } as const

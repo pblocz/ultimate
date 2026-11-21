@@ -106,7 +106,7 @@ it('keeps the persona and tools when the model changes, and clears only the pres
 
 it('reports an invalid selection and creates no conversation', async () => {
   const { server } = await fixture()
-  const before = server.api.conversations().length
+  const before = server.conversations().length
   const missing = await post(server, '/api/conversations', { definition: 'missing' })
   const both = await post(server, '/api/conversations', {
     preset: 'quick',
@@ -116,5 +116,5 @@ it('reports an invalid selection and creates no conversation', async () => {
   expect(missing.data.error).toBe('Unknown agent definition: missing')
   expect(both.status).toBe(400)
   expect(both.data.error).toBe('Choose a preset or a direct model, not both')
-  expect(server.api.conversations()).toHaveLength(before)
+  expect(server.conversations()).toHaveLength(before)
 })

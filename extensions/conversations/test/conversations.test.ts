@@ -51,7 +51,7 @@ async function launch() {
     home: join(home, 'state'),
   })
   servers.push(server)
-  const summary = (id: number) => server.api.conversations().find((item) => item.id === id)
+  const summary = (id: number) => server.conversations().find((item) => item.id === id)
   return {
     server,
     home,
@@ -130,7 +130,7 @@ it.concurrent('tells each top-level conversation about the others in a fixed tex
 
   // An owned child (a subagent) gets no section.
   await delegate()
-  const child = server.api.conversations().find((item) => item.label === 'worker')!
+  const child = server.conversations().find((item) => item.label === 'worker')!
   expect(child.inputAt).toEqual(expect.any(Number))
   expect(child.parentConversationId).toBe(root)
   expect(child.branchOf).toBeUndefined()
@@ -441,7 +441,7 @@ it.concurrent('renames top-level conversations', async () => {
     data: { result: { ok: true } },
   })
   await delegate()
-  const child = server.api.conversations().find((item) => item.label === 'worker')!
+  const child = server.conversations().find((item) => item.label === 'worker')!
   const owned = `Conversation ${child.id} is owned, not a top-level conversation`
   for (const [name, args, error] of [
     ['rename', null, 'Expected a conversation id'],
@@ -535,7 +535,7 @@ it.concurrent('projects arbitrary typed inputs, ignores user-role writes, and pr
   servers.splice(servers.indexOf(server), 1)
   const reopened = await fauxServer(options)
   servers.push(reopened)
-  expect(reopened.api.conversations().find((item) => item.id === id)).toMatchObject({
+  expect(reopened.conversations().find((item) => item.id === id)).toMatchObject({
     title: 'Kept title',
     ...activity,
   })
@@ -581,9 +581,9 @@ it.concurrent('keeps unmarked Pi input history and makes no metadata writes on a
     })
     return opened
   }
-  const reopened = { ...prepared, ...(await prepared.go()) }
-  servers.push(reopened)
-  expect(reopened.api.conversations().find((item) => item.id === id)).toMatchObject({
+  const reopened = Object.assign(prepared, await prepared.go())
+  servers.push(reopened as Server)
+  expect(reopened.conversations().find((item) => item.id === id)).toMatchObject({
     title: 'Existing parser work',
     inputAt: 1000,
     answerAt: 2000,
@@ -664,7 +664,7 @@ it.concurrent('concluding a busy conversation stops it and the subagents it runs
   const running = async (conversation: number) =>
     (await server.harness.snapshot(LiveDoc, conversation as ConversationId, context))?.run
   const child = () =>
-    server.api.conversations().find((item) => item.parentConversationId === id)?.id ?? 0
+    server.conversations().find((item) => item.parentConversationId === id)?.id ?? 0
   await until(async () => Boolean(child() && (await running(child())) && (await running(id))))
 
   const result = await action('conclude', { ids: [id] })

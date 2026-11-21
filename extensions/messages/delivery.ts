@@ -16,7 +16,6 @@ import {
 import type { ConversationId } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { Standing, SubagentsApi } from '../subagents/api.ts'
-import { locate, postAction } from '../../lib/remote.ts'
 import { Messages, MessagesWorkflow } from './api.ts'
 import type { Message } from './api.ts'
 import { imagesOf } from '../../lib/entries.ts'
@@ -29,7 +28,7 @@ export type DeliveryInput = {
   note: boolean
   fromLabel: string
   toLabel: string
-  /** A remote reply uses the same durable reply phase. */
+  /** An answer from another Ultimate, admitted before cross-instance messages were removed: the reply phase delivers it. */
   reply?: { message: Message; failed: boolean; stopped?: boolean }
 }
 
@@ -251,40 +250,16 @@ export function delivery(host: ExtensionHost) {
       reply: async (task, runtime, ctx) => {
         const { message: m, failed, stopped } = task.state.checkpoint
         if (m.to === 'remote') {
-          // The answer travels back to the Ultimate that asked; it delivers it once, as a reply that expects none.
-          let error: string | undefined
-          try {
-            const target = await locate(host, m.remote!.project, m.remote!.machine)
-            if ('current' in target) throw new Error(`${m.remote!.project} is this project`)
-            await postAction(
-              target,
-              'messages',
-              'remoteReply',
-              {
-                key: m.remote!.key,
-                text: m.text,
-                failed,
-                ...(stopped ? { stopped } : {}),
-              },
-              runtime.signal,
-            )
-          } catch (cause) {
-            if (runtime.signal.aborted) throw cause
-            error = `The reply did not reach ${remoteLabel(m.remote!)}: ${cause instanceof Error ? cause.message : String(cause)}`
-          }
+          // An answer to a message from another project's Ultimate, logged before cross-instance messages were
+          // removed: nothing can carry it back, so it fails here without a network call.
+          const error = `The reply did not reach ${remoteLabel(m.remote!)}: messages to other Ultimate instances are not supported`
           await runtime.commit(async (tx) => {
             const stored = (await tx.doc(Messages, ROOT_CONVERSATION_ID)).messages.find(
               (item) => item.id === m.id,
             )
             if (stored) {
-              stored.state = error
-                ? 'failed'
-                : stopped
-                  ? 'stopped'
-                  : failed
-                    ? 'failed'
-                    : 'delivered'
-              if (error) stored.error = error
+              stored.state = 'failed'
+              stored.error = error
             }
             return terminal
           }, ctx)

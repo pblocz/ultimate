@@ -1,13 +1,138 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve as resolvePath } from 'node:path'
+import { fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai/providers/faux'
+import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
+import { UsageDoc } from '@earendil-works/pi-durable'
+import { context } from '../../../server/harness.ts'
+import { fauxServer, temp, until } from '../../../test/helpers.ts'
+import { Summaries } from '../../conversations/summary.ts'
 import { expect, it } from 'vitest'
 import { TurnRelay } from '@earendil-works/pi-claude-code/src/turn-relay.ts'
 import type { RelayExchange } from '@earendil-works/pi-claude-code/src/turn-relay.ts'
 import { diffBodies } from '../diff.ts'
+import { actions } from '../server.ts'
 import { list, load, PER_CONVERSATION, save } from '../store.ts'
+
+it.each([
+  { mode: 'on', failure: undefined, payload: true, captures: 1 },
+  {
+    mode: 'on with provider error',
+    failure: '400 Synthetic provider error',
+    payload: true,
+    captures: 1,
+  },
+  {
+    mode: 'on with no payload',
+    failure: 'Synthetic failure before payload',
+    payload: false,
+    captures: 1,
+  },
+  { mode: 'off', failure: undefined, payload: false, captures: 0 },
+  { mode: 'write fails', failure: undefined, payload: true, captures: 0 },
+])(
+  'observes an automatic summary with Wire $mode',
+  async ({ mode, failure, payload, captures }) => {
+    const home = await temp('ultimate-wire-summary-')
+    await mkdir(join(home, '.ultimate'))
+    await writeFile(
+      join(home, '.ultimate/settings.json'),
+      JSON.stringify({
+        summaryModel: 'faux/faux-summary',
+        extensions: { enable: mode === 'off' ? [] : ['wire'] },
+      }),
+    )
+    const state = join(home, 'state')
+    const faux = fauxProvider({
+      tokensPerSecond: 100000,
+      models: [{ id: 'faux-1' }, { id: 'faux-summary' }],
+    })
+    const server = await fauxServer({
+      ultimateRoot: resolvePath('.'),
+      home: state,
+      userHome: home,
+      faux,
+    })
+    try {
+      const { id } = await server.harness.createConversation(
+        {
+          ownership: { kind: 'ownerless' },
+          agent: { model: { provider: 'faux', modelId: 'faux-1' } },
+        },
+        context,
+      )
+      const conversation = (await server.harness.conversation(id, context))!
+      await server.harness.commit(
+        (tx) =>
+          tx.appendEntry(id, {
+            kind: 'pi.user',
+            model: [{ role: 'user', content: 'Established context', timestamp: 1 }],
+          }),
+        context,
+      )
+      if (mode === 'write fails') await writeFile(join(state, 'wire'), 'Not a directory')
+      const response = { activity: 'Done.', title: 'Test summary capture', summary: 'Done.' }
+      let attempts = 0
+      let observed = false
+      const respond: FauxResponseFactory = async (_request, options, _state, model) => {
+        faux.appendResponses([respond])
+        if (model.id !== 'faux-summary') {
+          await options?.onPayload?.({ prompt: 'Synthetic chat payload' }, model)
+          return fauxAssistantMessage('Done.')
+        }
+        attempts++
+        observed = typeof options?.onPayload === 'function'
+        if (payload) await options?.onPayload?.({ prompt: 'Synthetic summary payload' }, model)
+        return failure
+          ? fauxAssistantMessage('', { stopReason: 'error', errorMessage: failure })
+          : fauxAssistantMessage(JSON.stringify(response))
+      }
+      faux.setResponses([respond])
+      const submission = await conversation.submit(
+        { type: 'input', content: 'Test summary capture' },
+        context,
+      )
+      expect((await submission.wait(context)).status).toBe('done')
+      const read = () => server.harness.snapshot(Summaries, id, context)
+      await until(async () => (await read())?.assessmentStatus === (failure ? 'error' : 'ready'))
+      expect(attempts).toBe(1)
+      expect(observed).toBe(mode !== 'off')
+      expect((await read())?.activity).toBe(failure ? undefined : 'Done.')
+      const usage = (await server.harness.snapshot(UsageDoc, id, context))?.models
+      expect(usage?.['faux/faux-1']).toBeDefined()
+      if (mode === 'write fails') return
+      const summaries = async () =>
+        (await list(state, id)).filter((call) => call.purpose === 'summary')
+      await until(async () => (await summaries()).length === captures)
+      const rows = await summaries()
+      const records = await Promise.all(rows.map(({ n }) => load(state, id, n)))
+      const expected = expect.objectContaining({
+        conversationId: id,
+        purpose: 'summary',
+        request: payload ? '{"prompt":"Synthetic summary payload"}' : '',
+        ...(failure && { failure }),
+      })
+      expect(records).toEqual(captures ? [expected] : [])
+      const chats = (await list(state, id)).filter((call) => !call.purpose)
+      const chatRecords = await Promise.all(chats.map(({ n }) => load(state, id, n)))
+      const expectedChat = expect.objectContaining({
+        request: '{"prompt":"Synthetic chat payload"}',
+      })
+      expect(chatRecords).toEqual(captures ? [expectedChat] : [])
+      expect(await list(state, server.root.id)).toEqual([])
+      const calls = server.extensions.trace.query()
+      expect(calls.some((call) => call.name === 'conversations.summary-exchanges.record')).toBe(
+        captures === 1,
+      )
+      expect(JSON.stringify(calls)).not.toContain('Synthetic summary payload')
+      expect(JSON.stringify(calls)).not.toContain('Synthetic provider error')
+    } finally {
+      await server.close()
+    }
+  },
+)
 
 // Pi upstream: @earendil-works/pi-claude-code@0.1.0 src/turn-relay.ts — the patched relay keeps each turn's exchange
 // for useExchangeTap (Wire). Drop with the patch when upstream exposes the relay's exchanges.
@@ -115,6 +240,32 @@ it('points at the first change in cache order, not JSON order', () => {
     path: 'system[0]',
     before: expect.stringMatching(/^helpful/),
   })
+})
+
+it('compares two chat payloads with a summary between them', async () => {
+  const queue = { tail: Promise.resolve() as Promise<unknown> }
+  const home = await temp('ultimate-wire-diff-')
+  const chat = {
+    conversationId: 7,
+    source: 'payload' as const,
+    provider: 'test',
+    model: 'test',
+    api: 'test-api',
+    startedAt: 1,
+    endedAt: 2,
+  }
+  const first = await save(queue, home, { ...chat, request: '{"messages":["first"]}' })
+  const summary = await save(queue, home, {
+    ...chat,
+    purpose: 'summary',
+    request: '{"messages":["summary"]}',
+  })
+  const last = await save(queue, home, { ...chat, request: '{"messages":["first","next"]}' })
+  const ctx = { host: { home }, conversationId: chat.conversationId } as Parameters<
+    typeof actions.diff
+  >[1]
+  expect(await actions.diff({ n: last }, ctx)).toMatchObject({ previous: first, same: 1 })
+  expect(await actions.diff({ n: summary }, ctx)).toBeNull()
 })
 
 it('keeps the newest calls of a conversation', async () => {

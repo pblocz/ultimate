@@ -213,10 +213,10 @@ describe('side chats', () => {
     expect((await f.server.harness.snapshot(Branch, side, context))?.branch).toBeUndefined()
     await until(
       () =>
-        f.server.api.conversations().find((conversation) => conversation.id === side)?.label ===
+        f.server.conversations().find((conversation) => conversation.id === side)?.label ===
         'side-chat',
     )
-    const listed = f.server.api.conversations().find((conversation) => conversation.id === side)!
+    const listed = f.server.conversations().find((conversation) => conversation.id === side)!
     expect(listed.label).toBe('side-chat')
     expect(listed.branchOf).toEqual({ conversationId: f.main, at: finished })
     const index = await f.server.harness.snapshot(Index, f.main, context)
@@ -251,9 +251,9 @@ describe('side chats', () => {
           entry.kind !== 'conversations.identity',
       ),
     ).toEqual([])
-    expect(
-      f.server.api.conversations().find((conversation) => conversation.id === side),
-    ).toMatchObject({ title: 'Side chat' })
+    expect(f.server.conversations().find((conversation) => conversation.id === side)).toMatchObject(
+      { title: 'Side chat' },
+    )
   })
 
   it('includes terminal tool results and ignores completed generations inside an unfinished run', async () => {

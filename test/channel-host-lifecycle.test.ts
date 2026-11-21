@@ -268,6 +268,8 @@ export const actions = {
   const marker = join(home, 'released')
   try {
     const opened = await server.go()
+    const url = server.url
+    if (!url) throw new Error('The fixture has no web endpoint')
     // Pi's levels for this model: off, low, high.
     Object.assign(server.host.faux!.models[0], {
       reasoning: true,
@@ -285,9 +287,9 @@ export const actions = {
       return originalModels()
     }
     const channelCall = call(server, name, 'configure', { thinkingLevel })
-    const webCall = fetch(server.url + '/api/conversations/1/configure', {
+    const webCall = fetch(url + '/api/conversations/1/configure', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: server.url },
+      headers: { 'Content-Type': 'application/json', Origin: url },
       body: JSON.stringify({ model: { provider: 'faux', modelId: 'faux-1' }, thinkingLevel }),
     }).then((response) => response.status)
     await bothStarted.promise
@@ -301,9 +303,9 @@ export const actions = {
     await expect(call(server, name, 'configure', { thinkingLevel })).rejects.toMatchObject({
       code: 'unavailable',
     })
-    const rejectedWebCall = await fetch(server.url + '/api/conversations', {
+    const rejectedWebCall = await fetch(url + '/api/conversations', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: server.url },
+      headers: { 'Content-Type': 'application/json', Origin: url },
       body: JSON.stringify({}),
     })
     expect(rejectedWebCall.status).toBe(503)

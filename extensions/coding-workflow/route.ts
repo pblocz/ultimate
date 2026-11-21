@@ -17,8 +17,7 @@ import { Subagents } from '../subagents/api.ts'
 import { WorkspacesApi } from '../workspaces/api.ts'
 import { Messages, MessagesApi, Started } from '../messages/api.ts'
 import { isOpen } from '../../lib/message-state.ts'
-import type { Message, Remote, Serves } from '../messages/api.ts'
-import { tell } from './remote.ts'
+import type { Message, Serves } from '../messages/api.ts'
 
 const terminal = { status: 'terminal', outcome: { status: 'completed', result: null } } as const
 
@@ -130,7 +129,7 @@ export async function reported(host: ExtensionHost, tx: Tx, starter: number, ans
   const messaged = (since: number, to: (m: Message) => boolean) =>
     log.messages.some((m) => m.from === starter && m.id > since && to(m))
   const branches: number[] = []
-  const askers: { branch: number; serves: Serves }[] = []
+  const askers: { branch: number; serves: Serves & { from: number } }[] = []
   for (const [branch, since] of latest) {
     if (!concluded.has(branch as ConversationId)) {
       if (!messaged(since, (m) => m.to === branch)) branches.push(branch)
@@ -138,32 +137,23 @@ export async function reported(host: ExtensionHost, tx: Tx, starter: number, ans
     }
     // A copy: the doc's proxy is unusable once this commit settles, and `board.route` sends after it.
     const stored = (await tx.doc(Started, branch as ConversationId)).serves
-    const serves: Serves | undefined = stored && {
-      message: stored.message,
-      from: stored.from,
-      ...(stored.remote ? { remote: { ...stored.remote } } : {}),
-    }
+    // A branch that served another project's Ultimate, started before cross-instance messages were removed, has no
+    // asker to route to.
+    const from = stored?.from
+    if (from === undefined || from === 'remote') continue
+    const serves = { message: stored!.message, from }
     if (
-      serves &&
       // The early answer to the request itself ("started #X") may be logged after a quick branch's reply: not a result.
-      !messaged(
-        since,
-        (m) =>
-          m.re !== serves.message &&
-          (serves.from === 'remote'
-            ? m.to === 'remote' && m.remote?.project === serves.remote!.project
-            : m.to === serves.from),
-      )
+      !messaged(since, (m) => m.re !== serves.message && m.to === serves.from)
     )
       askers.push({ branch, serves })
   }
   return { branches, askers }
 }
 
-/** One message `board.route` sends, with `send`'s options; `remote` sends it to another project's Ultimate. */
+/** One message `board.route` sends, with `send`'s options. */
 interface Route {
-  to: number | 'remote'
-  remote?: Remote
+  to: number
   text: string
   requestId: string
   options: { note?: boolean; report?: boolean; echo?: boolean; routed?: EntryId }
@@ -238,7 +228,6 @@ export function route(host: ExtensionHost) {
               })),
               ...askers.map(({ branch, serves }) => ({
                 to: serves.from,
-                ...(serves.remote ? { remote: serves.remote } : {}),
                 text: `Result of #${branch}, which worked on your message ${serves.message}:\n\n${text}`,
                 requestId: `route:${answer}:asker:${branch}`,
                 options: { routed: answer },
@@ -283,23 +272,8 @@ export function route(host: ExtensionHost) {
           }
           return up(text, { echo })
         }, ctx)
-        for (const { to, remote, text, requestId, options } of routed) {
+        for (const { to, text, requestId, options } of routed) {
           if (!text.trim()) continue
-          if (to === 'remote') {
-            await tell(
-              host,
-              id,
-              { project: remote!.project, machine: remote!.machine, text, reply: false },
-              ctx,
-              undefined,
-              { key: requestId, routed: options.routed! },
-            ).catch((error: unknown) => {
-              // tell already marked the message failed in the log, where the user sees it; a retry would not reach
-              // an Ultimate that is down either, and the route must still finish.
-              void error
-            })
-            continue
-          }
           await host.need(MessagesApi).dispatch(id, { to: `#${to}`, text, reply: false }, ctx, {
             requestId,
             ...options,

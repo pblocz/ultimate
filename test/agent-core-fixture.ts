@@ -118,7 +118,6 @@ const foundation = {
     'message-state',
     'process-group',
     'project-identity',
-    'remote',
     'schema',
     'secrets',
     'settings',
@@ -216,6 +215,10 @@ export async function agentCoreFixture(
       },
       conversations: () => backend?.conversations() ?? [],
       channelHost: channel,
+      watchWebEndpoint: () => () => {},
+      webChannel: () => {
+        throw new Error('This server-only fixture has no web channel')
+      },
     },
     (attach) => attach(vite.watcher),
     (notice) => notices.push(notice),

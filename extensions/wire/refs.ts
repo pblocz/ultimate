@@ -13,6 +13,8 @@ export type WireCall = {
   n: number
   conversationId: number
   source: 'relay' | 'payload'
+  /** Absent for chat calls, including all records from before summary capture. */
+  purpose?: 'summary'
   provider: string
   model: string
   api?: string
@@ -23,7 +25,7 @@ export type WireCall = {
   url?: string
   /** Request headers as sent, credentials `[redacted]`; relay only. */
   requestHeaders?: Record<string, string>
-  /** The request body, exactly as sent (relay) or as built (payload). */
+  /** The request body as sent (relay) or as built (payload). Empty if Pi did not build one. */
   request: string
   status?: number
   responseHeaders?: Record<string, string>

@@ -24,7 +24,7 @@ export function dashboard(logPath: string, output: NodeJS.WriteStream = process.
     if (closed || !render) return
     render(
       [
-        `Ultimate: ${row(origins[0] ?? url) || 'starting'}`,
+        `Ultimate: ${row(origins[0] ?? url) || (phase === 'ready' ? 'no web endpoint' : 'starting')}`,
         ...(origins.length
           ? [
               `  local       ${url}`,

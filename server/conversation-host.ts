@@ -78,6 +78,8 @@ const safeReasons = new Set([
 export class InputLimitError extends ChannelError {
   constructor(message: string) {
     super('invalid_input', message)
+    // The web answers it with 413; its name tells it apart in the web extension's copy of this module.
+    this.name = 'InputLimitError'
   }
 }
 

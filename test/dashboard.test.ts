@@ -19,7 +19,7 @@ for (const tty of [true, false]) {
       const view = dashboard(path, stream)
       view.url('http://127.0.0.1:1234')
       view.lifecycle('ready', { generation: 2, pid: 123 })
-      view.report({ type: 'web', state: 'ready' })
+      view.report({ type: 'web', state: 'ready', url: 'http://127.0.0.1:1234' })
       view.log('info', 'web', 'hmr update /web/test.tsx')
       view.log('warn', 'web', '\x1b[31mwarning marker\x1b[0m')
       view.log('error', 'core', 'error marker\nstack line')
@@ -68,7 +68,7 @@ for (const tty of [true, false]) {
       expect(output.includes(`Ultimate: ${origin}`)).toBe(tty)
       expect(output.includes('local       http://127.0.0.1:1234')).toBe(tty)
       output = ''
-      view.report({ type: 'web', state: 'ready' })
+      view.report({ type: 'web', state: 'ready', url: 'http://127.0.0.1:1234' })
       view.log('warn', 'web', 'unrelated diagnostic')
       expect(output.includes(`Ultimate: ${origin}`)).toBe(tty)
       output = ''

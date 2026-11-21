@@ -94,14 +94,14 @@ it.concurrent('refuses merge assistance without the coding workflow and starts n
   const root = await diverged(home)
   const server = await serve(home, root, root, ['coding-workflow'])
   const before = await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)
-  const conversations = server.api.conversations().length
+  const conversations = server.conversations().length
   const merge = await post(server, '/api/extensions/update/actions/merge', {})
   expect(merge.status).not.toBe(200)
   expect(JSON.stringify(merge.data)).toContain(
     'Merge assistance needs the coding-workflow coordinator',
   )
   expect(await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)).toEqual(before)
-  expect(server.api.conversations()).toHaveLength(conversations)
+  expect(server.conversations()).toHaveLength(conversations)
 })
 
 it.concurrent('offers no merge while the lander is landing into the clone', async () => {

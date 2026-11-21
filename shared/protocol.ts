@@ -139,7 +139,8 @@ export interface SystemInfo {
     node: string
     startedAt: string
     generation: number
-    url: string
+    /** The web channel's local URL; absent while no web channel listens. */
+    url?: string
     activationError?: string
   }
   access: { origins: string[] }

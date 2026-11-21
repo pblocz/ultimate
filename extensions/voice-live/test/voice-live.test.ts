@@ -12,7 +12,7 @@ import { Summaries, setAutomaticSummaries } from '../../conversations/summary.ts
 import { liveInstructions } from '../server.ts'
 import type { VoiceAnswer, VoiceLine } from '../refs.ts'
 import { writeSecret } from '../../secrets/store.ts'
-import { fauxServer, held, post, sourceCopy, temp, until } from '../../../test/helpers.ts'
+import { facetsOf, fauxServer, held, post, sourceCopy, temp, until } from '../../../test/helpers.ts'
 
 let ultimateRoot: string
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []
@@ -65,7 +65,7 @@ export default { name: 'probe' }
   const info = server.extensions.info().find((extension) => extension.name === 'voice-live')!
   expect(info.enabled).toBe(enabled)
   expect(Boolean(info.server)).toBe(enabled)
-  const webFacets = await server.web.facets()
+  const webFacets = await facetsOf(server)
   expect(webFacets.some((path) => path.includes('/voice-live/'))).toBe(enabled)
   const rootAgent = await server.root.agent(context)
   expect(

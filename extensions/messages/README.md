@@ -91,30 +91,18 @@ recorded in `board.started`.
 A branch's decisions go to @ultimate first, which weighs in; the branch then asks the user with a reply-expected message
 with `questions` in its own conversation. Reports that need no answer use `reply: false`.
 
-## Other projects' Ultimates
+## Messages from other Ultimates
 
-One @ultimate can message another project's @ultimate, on this machine or over the tailnet; nothing else crosses, and the
-message is never the user's.
-
-- **Sender:** codemode `ultimate.tell({ project, text, reply? })` (@ultimate only) posts the target's `messages.remote`
-  action, located as codemode's `{ project }` reads are (`lib/remote.ts`). A failed post throws a sentence naming the
-  project and machine. Telling an Ultimate whose question to you is still open is refused: answer it instead.
-- **Target:** `messages.remote { key, text, reply, from: { project, machine } }` delivers to its own primary agent only,
-  which reads `Message from @ultimate@<project> on <machine> (another project's Ultimate, not the user)`. A repeated key
-  delivers once.
-- **One hop back:** with `reply`, the answer posts to the sender's `messages.remoteReply { key, text, failed, stopped? }`
-  as a reply that expects none. Two Ultimates exchange at most a message and its answer per `tell`.
-- **Not durable on the sender:** `tell` runs inside codemode, which is not replayed. A crash between logging and posting
-  leaves the message `sent`; telling again uses a new key.
-
-`remote` and `remoteReply` are user-only actions, reached only by another instance's HTTP call. A remote sender shows
-as `@ultimate@<project> on <machine>` with a globe mark and a violet accent.
+Earlier versions let one project's @ultimate message another project's @ultimate. That feature is removed; see
+`plans/cross-instance-communication.md` in the outer repository for a possible future design. The log keeps old
+messages: a sender of another instance shows as `@ultimate@<project> on <machine>` with a globe mark and a violet
+accent. An answer still owed to such a message fails with a notice in the log, and no network call is made.
 
 ## Document and typed inputs
 
 `Messages` (kind `board`, version 1) is exported on `ROOT_CONVERSATION_ID` as `{ messages: Message[]; next: number }`;
 the log keeps the newest 300 items, and transcripts retain delivered inputs. `Message` is in `api.ts`: `from` and `to`
-are a conversation id, `'user'` or `'remote'`; `state` is `sent`, `delivered`, `answered`, `dismissed`, `failed` or
+are a conversation id, `'user'` or, in old messages, `'remote'`; `state` is `sent`, `delivered`, `answered`, `dismissed`, `failed` or
 `stopped`; `re`, `entry`, `answer`, `error`, `via`, `remote`, `report`, `questions` and `call` are optional.
 
 - `board.message` data: `{ id, from, text, reply, delivery: 'steer' | 'followUp' | 'note', images?, remote? }`.
@@ -144,7 +132,7 @@ Server side, imported in one direction (`log`, `images`, `addresses`, `questions
 - `addresses.ts`: resolving `to`, sender names, and a subagent's parent.
 - `images.ts`, `questions.ts`, `log.ts`: forwarded images, questions and the `board.open` line, the bounded log.
 
-`coding-workflow` owns `branch.ts`, `route.ts`, `remote.ts`, and `notice.ts`. It uses `messages.workflow` and
+`coding-workflow` owns `branch.ts`, `route.ts`, and `notice.ts`. It uses `messages.workflow` and
 `MessagesApi`; generic message files do not import it.
 
 `api.ts` and `refs.ts` are the contract; `caller.ts` is shared with the browser; the `.tsx` files are the UI.

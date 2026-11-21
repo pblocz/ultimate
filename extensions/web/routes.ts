@@ -1,35 +1,27 @@
+/** The browser API: `/api/*` routes, the event stream, and the admission check of every request. */
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
+import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, DocumentWatch, EntryId, JsonObject } from '@earendil-works/pi-durable'
-import type { ServerEvents } from '../shared/protocol.ts'
-import { UI_REVISION } from '../shared/protocol.ts'
-import { listModels } from './models.ts'
-import type { Extensions } from './extensions.ts'
-import { context } from './harness.ts'
-import type { OpenHost, PreparedHost } from './harness.ts'
-import type { createSystem } from './system.ts'
-import { requestSwap } from './supervisor-protocol.ts'
-import { UiState } from './ui-state.ts'
+import type { ServerEvents } from '../../shared/protocol.ts'
+import { UI_REVISION } from '../../shared/protocol.ts'
+// oxlint-disable-next-line no-restricted-imports -- `/api/models` answers the core's model list
+import { listModels } from '../../server/models.ts'
+import type { ExtensionHost } from '../../server/extensions.ts'
+import type { WebChannelRuntime } from '../../server/web-channel.ts'
+// oxlint-disable-next-line no-restricted-imports -- `/api/ui` writes the core UI state document
+import { UiState } from '../../server/ui-state.ts'
 import type { JsonValue } from '@earendil-works/chord/json'
-import { admit, deviceOf } from './request-security.ts'
-import type { Access } from './request-security.ts'
-import { ChannelError } from '../shared/channel-host.ts'
-import type { CreateConversationRequest, SubmitRequest } from '../shared/channel-host.ts'
-import { InputLimitError } from './conversation-host.ts'
-import type { ConversationBackend } from './conversation-host.ts'
+// oxlint-disable-next-line no-restricted-imports -- every request passes the core's admission check
+import { admit, deviceOf } from '../../server/request-security.ts'
+import { isChannelError } from '../../shared/channel-host.ts'
+import type { CreateConversationRequest, SubmitRequest } from '../../shared/channel-host.ts'
 
 class HttpError extends Error {
   status: number
   constructor(status: number, message: string) {
     super(message)
     this.status = status
-  }
-}
-export class Events {
-  readonly listeners = new Set<
-    (name: keyof ServerEvents, data: ServerEvents[keyof ServerEvents]) => void
-  >()
-  emit<K extends keyof ServerEvents>(name: K, data: ServerEvents[K]) {
-    for (const listener of this.listeners) listener(name, data)
   }
 }
 async function body(
@@ -75,7 +67,7 @@ function failed(response: ServerResponse, error: unknown) {
     const status =
       error instanceof HttpError
         ? error.status
-        : error instanceof ChannelError
+        : isChannelError(error)
           ? {
               invalid_input: 400,
               not_found: 404,
@@ -85,10 +77,7 @@ function failed(response: ServerResponse, error: unknown) {
             }[error.code]
           : 500
     reply(response, status, {
-      error:
-        error instanceof HttpError || error instanceof ChannelError
-          ? error.message
-          : 'Request failed',
+      error: error instanceof HttpError || isChannelError(error) ? error.message : 'Request failed',
     })
   } else response.destroy()
 }
@@ -124,7 +113,7 @@ function eventStream(response: ServerResponse) {
 async function runAction(
   request: IncomingMessage,
   response: ServerResponse,
-  extensions: Extensions,
+  extensions: ReturnType<WebChannelRuntime['extensions']>,
   [, name, key]: RegExpExecArray,
   data: Record<string, unknown>,
 ) {
@@ -164,21 +153,17 @@ async function runAction(
   }
 }
 
-export async function createApi(
-  host: PreparedHost,
-  opened: OpenHost,
-  events: Events,
-  system: Awaited<ReturnType<typeof createSystem>>,
-  extensions: Extensions,
-  access: Access,
-  backend: ConversationBackend,
-) {
-  const { harness, root } = opened
+/** Routes for the activation open now; `port` is the listener's, which loopback requests must name. */
+export function createRoutes(host: ExtensionHost, runtime: WebChannelRuntime, port: string) {
+  const harness = host.harness()
+  const backend = runtime.backend()
+  const extensions = runtime.extensions()
+  const { access, events } = runtime
   const streams = new Set<() => Promise<void>>()
   const connections = new Map<string, Connection>()
   /** Open the tab's stream: its id, then the state every tab shares, then whatever it subscribes. */
   async function stream(request: IncomingMessage, response: ServerResponse) {
-    const ui = await harness.watchDoc(UiState, root.id, context)
+    const ui = await harness.watchDoc(UiState, ROOT_CONVERSATION_ID, context)
     const sse = eventStream(response)
     const id = crypto.randomUUID()
     const connection: Connection = {
@@ -190,7 +175,7 @@ export async function createApi(
     connections.set(id, connection)
     const { send } = sse
     send('stream', { id })
-    send('system', system.current())
+    send('system', host.system())
     send('conversations', backend.conversations())
     send('ui', { value: ui!.value })
     ui!.start(async (call) => {
@@ -292,14 +277,11 @@ export async function createApi(
     return id
   }
   function conversationParam(value: unknown) {
-    const id = value === undefined ? root.id : Number(value)
+    const id = value === undefined ? ROOT_CONVERSATION_ID : Number(value)
     if (!Number.isSafeInteger(id) || id < 1) throw new HttpError(400, 'Invalid conversation id')
     return id as ConversationId
   }
   return {
-    conversations() {
-      return backend.conversations()
-    },
     /** Open browser tabs: each holds one event stream. */
     pages: () => connections.size,
     async handle(request: IncomingMessage, response: ServerResponse) {
@@ -308,10 +290,7 @@ export async function createApi(
       const json = (status: number, data: unknown) => reply(response, status, data)
       try {
         // Local-only does not mean safe from cross-origin browser requests.
-        if (
-          !(await admit(request, new URL(system.current().process.url).port || '80', access.rules))
-        )
-          throw new HttpError(403, 'Forbidden')
+        if (!(await admit(request, port, access.rules))) throw new HttpError(403, 'Forbidden')
         if (request.method === 'GET' && url.pathname === '/api/events') {
           await stream(request, response)
           return true
@@ -405,8 +384,8 @@ export async function createApi(
             throw new HttpError(400, 'Invalid UI key')
           if (UI_REVISION in set || remove.includes(UI_REVISION))
             throw new HttpError(400, 'The UI revision is the server’s')
-          const rev = await root.commit(async (tx) => {
-            const value = await tx.doc(UiState, root.id)
+          const rev = await harness.commit(async (tx) => {
+            const value = await tx.doc(UiState, ROOT_CONVERSATION_ID)
             const next = { ...value, ...(set as Record<string, JsonValue>) }
             for (const key of remove) delete next[key]
             if (Buffer.byteLength(JSON.stringify(next)) > 256 * 1024)
@@ -423,11 +402,9 @@ export async function createApi(
           return true
         }
         if (url.pathname === '/api/restart') {
-          const error =
-            (await extensions.prepared()) ??
-            (await requestSwap(async (generation) => {
-              json(202, { ok: true, generation })
-            }, host.build()))
+          const error = await host.restart(async (generation) => {
+            json(202, { ok: true, generation })
+          })
           if (!response.writableEnded) json(500, { ok: false, error })
           return true
         }
@@ -457,7 +434,7 @@ export async function createApi(
           } catch (error) {
             // Route IDs that name no input, as before, whatever the reason.
             if (
-              error instanceof ChannelError &&
+              isChannelError(error) &&
               (error.code === 'not_found' || error.code === 'invalid_input')
             )
               throw new HttpError(404, 'Unknown queued input')
@@ -487,7 +464,8 @@ export async function createApi(
                 )
                 json(202, { submissionId })
               } catch (error) {
-                if (error instanceof InputLimitError) throw new HttpError(413, error.message)
+                if (error instanceof Error && error.name === 'InputLimitError')
+                  throw new HttpError(413, error.message)
                 throw error
               }
               break

@@ -14,11 +14,11 @@ Reports are triaged as they land. You get an answer before anything is published
 
 ## Scope
 
-Ultimate runs on your machine: the server binds loopback only, and the UI is meant for the operator
+Ultimate runs on your machine: the `web` extension's listener binds loopback only, the core binds nothing, and the UI is meant for the operator
 using it. The optional `tailscale` extension serves it over the tailnet, to the logins it allows. In
 scope is anything that lets a web page, a remote server or a repository break that boundary —
 
-- a request admitted that `server/request-security.ts` should refuse: a cross-site write, a
+- a request admitted that `server/request-security.ts` (used by the `web` extension's listener) should refuse: a cross-site write, a
   cross-origin read, a frame the header policy does not name;
 - the agent's tools or extensions reading or sending data past a limit their code enforces;
 - a page in the UI acting as another conversation or project (`?conversation=`, previews,

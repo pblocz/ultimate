@@ -52,7 +52,8 @@ async function bytes(path: string) {
 export async function createSystem(
   host: PreparedHost,
   watchRepo: Watch,
-  url: string,
+  /** The web channel's URL; absent while no web channel listens. */
+  url: () => string | undefined,
   registry: (() => ExtensionInfo[]) & { diagnostics: () => string[] },
   emit: (info: SystemInfo) => void,
   notice: (message: string) => void = () => {},
@@ -126,7 +127,7 @@ export async function createSystem(
         startedAt,
         generation: Number(process.env.ULTIMATE_GENERATION ?? 1),
         ...(processInfo.activationError ? { activationError: processInfo.activationError } : {}),
-        url,
+        ...(url() ? { url: url() } : {}),
       },
       access: { origins: origins() },
       persistence: {

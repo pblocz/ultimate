@@ -40,10 +40,11 @@ export function callFor(
   responseId: string | undefined,
   at: number,
 ): WireSummary | undefined {
-  if (responseId) return calls.find((call) => call.responseId === responseId)
+  if (responseId) return calls.find((call) => !call.purpose && call.responseId === responseId)
   let best: WireSummary | undefined
   for (const call of calls)
-    if (!best || Math.abs(call.startedAt - at) < Math.abs(best.startedAt - at)) best = call
+    if (!call.purpose && (!best || Math.abs(call.startedAt - at) < Math.abs(best.startedAt - at)))
+      best = call
   return best && Math.abs(best.startedAt - at) <= NEAR ? best : undefined
 }
 

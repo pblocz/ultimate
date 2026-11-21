@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   fauxAssistantMessage,
@@ -18,6 +18,7 @@ import {
   temp,
   removeTemp,
   linkDependencies,
+  linkWeb,
   post,
 } from '../../../test/helpers.ts'
 import { context } from '../../../server/harness.ts'
@@ -49,6 +50,7 @@ async function fixture() {
   await copyApis(ultimateRoot)
   await mkdir(join(ultimateRoot, 'web'), { recursive: true })
   await linkDependencies(ultimateRoot)
+  await linkWeb(ultimateRoot)
   // Immutable after boot; do not restart Vite for a replay of the fixture's initial config write.
   await writeFile(
     join(ultimateRoot, 'vite.config.ts'),
@@ -62,7 +64,7 @@ async function fixture() {
       .replace("'../../lib/agents.ts'", JSON.stringify(resolve('lib/agents.ts')))
       .replace("'../../lib/api-files.ts'", JSON.stringify(resolve('lib/api-files.ts'))),
   )
-  for (const file of ['api.ts', 'chapters.ts', 'projects.ts', 'refs.ts', 'summary.ts'])
+  for (const file of ['api.ts', 'chapters.ts', 'refs.ts', 'summary.ts'])
     await cp(resolve('extensions/codemode', file), join(ultimateRoot, 'extensions/codemode', file))
   const options = {
     ultimateRoot,
@@ -133,7 +135,7 @@ it('reads an inactive chapter through the sandbox and rejects project with chapt
     next,
     `return await ultimate.entries(1, { project: 'anything', chapter: '${FIRST_CHAPTER}' });`,
   )
-  expect(conflict.data.details.error).toContain('chapter and project cannot be used together')
+  expect(conflict.data.details.error).toContain('Reads of another project are not supported')
 })
 
 it('keeps codemode guidance without repeating top-level tool schemas', async () => {
@@ -585,57 +587,29 @@ it('composes read and bash with private nested results and final JSON details', 
   expect(failed.data.isError).toBe(true)
 })
 
-it("reads another running project's history through its API, and names a project that isn't running", async () => {
-  const { server, options } = await fixture()
-  const projects = join(options.userHome, '.ultimate/projects')
-  const otherRoot = join(options.userHome, 'poe2-rust')
-  await mkdir(otherRoot, { recursive: true })
-  const other = await createServer({
-    ...options,
-    projectRoot: otherRoot,
-    home: join(projects, 'poe2-rust-1'),
-  })
-  servers.push(other)
-  // The supervisor writes this lock; `ultimate.projects()` finds a running instance's URL in it.
-  await writeFile(
-    join(projects, 'poe2-rust-1/ultimate.lock'),
-    JSON.stringify({ pid: process.pid, port: Number(new URL(other.url).port) }),
-  )
-  await run(other, 'return 1', 'remote-needle-poe2')
-  const asked = await run(
-    server,
-    `const list = await ultimate.conversations({ project: 'poe2-rust' });
-    const needle = ['remote-needle', 'poe2'].join('-');
-    const found = await ultimate.search(needle, { project: 'poe2-rust', limit: 1 });
-    const tail = await ultimate.entries(list[0].id, { project: 'POE2-RUST', kinds: ['pi.user'], limit: 1 });
-    const own = await ultimate.search(needle);
-    const theirs = await ultimate.doc('codemode.store', undefined, { project: 'poe2-rust' });
-    return { found: found.length, tail: tail[0].kind, own: own.length, theirs: JSON.stringify(theirs) };`,
-  )
-  // Their conversation 1 ran a script but stored nothing.
-  expect(asked.data.details.value).toEqual({
-    found: 1,
-    tail: 'pi.user',
-    own: 0,
-    theirs: '{}',
-  })
-  // Naming this project reads here, defaulting to the calling conversation as without a project.
+it('rejects reads of another project, even of this one by name, and offers no tell', async () => {
+  const { server } = await fixture()
   await run(server, `store('here-key', 1); return 1`)
-  const stored = await run(
-    server,
-    `const here = (await ultimate.projects()).find((p) => p.current).name;
-    return await ultimate.doc('codemode.store', undefined, { project: here });`,
-  )
-  expect(JSON.stringify(stored.data.details.value)).toContain('here-key')
-  await other.close()
-  servers.splice(servers.indexOf(other), 1)
-  await rm(join(projects, 'poe2-rust-1/ultimate.lock'))
-  const stopped = await run(server, `return await ultimate.entries(1, { project: 'poe2-rust' })`)
-  expect(stopped.data.isError).toBe(true)
-  expect(stopped.text).toContain('poe2-rust is not running on this machine; start it to query it')
-  const unknown = await run(server, `return await ultimate.entries(1, { project: 'nope' })`)
-  expect(unknown.text).toContain('Unknown project nope')
-  expect(unknown.text).toContain('poe2-rust')
+  for (const call of [
+    `ultimate.conversations({ project: 'poe2-rust' })`,
+    `ultimate.search('here-key', { project: 'poe2-rust' })`,
+    `ultimate.entries(1, { machine: 'other' })`,
+    `ultimate.trace({ project: 'poe2-rust' })`,
+    `ultimate.doc('codemode.store', undefined, { project: (await ultimate.projects()).find((p) => p.current).name })`,
+  ]) {
+    const result = await run(server, `return await ${call}`)
+    expect(result.data.isError).toBe(true)
+    expect(result.text).toContain('Reads of another project are not supported')
+    expect(result.text).not.toContain('here-key')
+  }
+  const told = await run(server, `return await ultimate.tell({ project: 'poe2-rust', text: 'Hi' })`)
+  expect(told.data.isError).toBe(true)
+  expect(told.text).not.toContain('poe2-rust is')
+  expect(
+    JSON.stringify(
+      (await run(server, `return await ultimate.doc('codemode.store')`)).data.details.value,
+    ),
+  ).toContain('here-key')
 })
 
 it('lists conversations with their title and cwd', async () => {

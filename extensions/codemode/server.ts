@@ -18,7 +18,6 @@ import {
   defineExtension,
   defineTask,
   defineTool,
-  ROOT_CONVERSATION_ID,
   section,
 } from '@earendil-works/pi-durable'
 import type {
@@ -36,14 +35,9 @@ import { discoverAgents } from '../../lib/agents.ts'
 import { shortTitle } from '../../lib/title.ts'
 import { apiSource, apiSummaries } from '../../lib/api-files.ts'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import type { ActionContext } from '../../server/actions.ts'
-import { READS, readProject } from './projects.ts'
-import { REMOTE_BYTES } from '../../lib/remote.ts'
-import type { Read } from './projects.ts'
 import { closedChapter, compactEntry, id, limit, readChapter, searchHit } from './chapters.ts'
 import type { EntriesOptions, HistoryRead, SearchOptions } from './chapters.ts'
 import { ConversationsApi } from '../conversations/api.ts'
-import { MessagesApi } from '../messages/api.ts'
 import type { ResponseReceipt } from '../conversations/summary.ts'
 import type { SummaryModel } from '../conversations/summary-model.ts'
 import { Summarized } from './refs.ts'
@@ -84,8 +78,9 @@ function declarations(tools: readonly ToolRegistration[]): CodemodeTool[] {
     }))
 }
 
-/** The history reads codemode offers, on this project's storage; `codemode.read` serves them to other projects. */
-function localReads(host: ExtensionHost, context: Context) {
+type Read = 'conversations' | 'entries' | 'search' | 'trace' | 'traceTree' | 'doc'
+/** The history reads codemode offers, on this project's storage; exported for its tests. */
+export function localReads(host: ExtensionHost, context: Context) {
   const conversations = () =>
     host.harness().commit(async (tx) => {
       const items = []
@@ -206,44 +201,26 @@ function globals(
 ): CodemodeTool[] {
   const reads = localReads(host, context)
   /**
-   * Read `op` here, or in the project its last argument's `project` names (the option `options` at `at`), through
-   * that project's running instance.
+   * Read `op` here. The `project` and `machine` options read another running instance before cross-instance reads were
+   * removed: they fail rather than read this project instead.
    */
-  /** A read's `machine` option: which machine's instance of the project answers when it runs on several. */
-  const remoteMachine = (machine: unknown) => {
-    if (machine !== undefined && (typeof machine !== 'string' || !machine))
-      throw new Error('machine must be nonempty')
-    return machine
+  const local = (options: unknown) => {
+    if (
+      options &&
+      typeof options === 'object' &&
+      ['project', 'machine'].some(
+        (key) => key in options && (options as Record<string, unknown>)[key] !== undefined,
+      )
+    )
+      throw new Error(
+        'Reads of another project are not supported; read this project without project',
+      )
   }
   const read =
     (op: Read, at: number): CodemodeTool['execute'] =>
-    async (values, { signal }) => {
+    async (values) => {
       const args = [...(values as unknown[])]
-      const options = args[at]
-      const project =
-        options && typeof options === 'object' && 'project' in options ? options.project : undefined
-      if (project !== undefined) {
-        // Checked here: `project` is stripped below, so the chapter read never sees the pair.
-        if (
-          options &&
-          typeof options === 'object' &&
-          'chapter' in options &&
-          options.chapter !== undefined
-        )
-          throw new Error('chapter and project cannot be used together')
-        if (typeof project !== 'string' || !project) throw new Error('project must be nonempty')
-        const { project: _project, machine, ...rest } = options as Record<string, unknown>
-        args[at] = rest
-        // The call's own signal ends with the script, its timeout or the conversation's abort.
-        const remote = await readProject(
-          host,
-          { project, machine: remoteMachine(machine) },
-          op,
-          args as JsonValue[],
-          signal,
-        )
-        if (remote) return remote.value
-      }
+      local(args[at])
       return reads[op](args)
     }
   const helpers: {
@@ -306,15 +283,14 @@ function globals(
       description:
         'Recorded calls (service, action, reactor, tool, model): the newest `limit` (default 100, at most 1000), oldest first; filter by trace id, conversation or ISO `since`.',
       signature:
-        '(query?: { trace?: string; conversation?: number; since?: string; limit?: number; project?: string; machine?: string }): Promise<{ id: string; parent?: string; trace: string; at: string; ms: number; caller: string; callee: string; kind: string; name: string; ok: boolean; error?: string; args?: string; result?: string; conversation?: number; task?: number; entry?: number }[]>',
+        '(query?: { trace?: string; conversation?: number; since?: string; limit?: number }): Promise<{ id: string; parent?: string; trace: string; at: string; ms: number; caller: string; callee: string; kind: string; name: string; ok: boolean; error?: string; args?: string; result?: string; conversation?: number; task?: number; entry?: number }[]>',
       execute: read('trace', 0),
     },
     {
       name: 'traceTree',
       description:
         'The calls of one trace nested under their parents (`children`), in start order.',
-      signature:
-        '(traceId: string, options?: { project?: string; machine?: string }): Promise<unknown[]>',
+      signature: '(traceId: string): Promise<unknown[]>',
       execute: read('traceTree', 1),
     },
     {
@@ -334,38 +310,10 @@ function globals(
       },
     },
     {
-      name: 'tell',
-      description:
-        "Message another project's @ultimate (only @ultimate reaches it, as a message from you, never the user), as @ultimate only; with reply (default true) its answer returns to you as a reply. machine picks one instance when the project runs on several.",
-      signature:
-        '(input: { project: string; text: string; reply?: boolean; machine?: string }): Promise<{ message: number; delivered: number }>',
-      execute: ([input], { signal }) => {
-        const { project, text, reply, machine } = (input ?? {}) as Record<string, unknown>
-        if (typeof project !== 'string' || !project) throw new Error('project must be nonempty')
-        if (typeof text !== 'string' || !text.trim()) throw new Error('text must be nonempty')
-        if (reply !== undefined && typeof reply !== 'boolean')
-          throw new Error('reply must be a boolean')
-        if (machine !== undefined && (typeof machine !== 'string' || !machine))
-          throw new Error('machine must be nonempty')
-        return host.need(MessagesApi).tell(
-          conversationId,
-          {
-            project,
-            text,
-            ...(reply === undefined ? {} : { reply }),
-            ...(machine ? { machine } : {}),
-          },
-          context,
-          signal,
-        )
-      },
-    },
-    {
       name: 'conversations',
       description:
-        'All stored conversations: id, owner, and for listed ones title, label, cwd, busy, inputAt and concluded. chapter reads another chapter read-only (not with project); cross-chapter links are written <chapter>#123.',
-      signature:
-        '(options?: { project?: string; machine?: string; chapter?: string }): Promise<unknown[]>',
+        'All stored conversations: id, owner, and for listed ones title, label, cwd, busy, inputAt and concluded. chapter reads another chapter read-only; cross-chapter links are written <chapter>#123.',
+      signature: '(options?: { chapter?: string }): Promise<unknown[]>',
       execute: read('conversations', 0),
     },
     {
@@ -373,7 +321,7 @@ function globals(
       description:
         'Newest-first fork-aware stored history, including before resets and compactions. before is an exclusive entry ID. Entries are compact: message text whole, tool results kept at start and end, args and data cut, no thinking; full returns stored entries.',
       signature:
-        '(conversationId: number, options?: { kinds?: string[]; limit?: number; before?: number; full?: boolean; project?: string; machine?: string; chapter?: string }): Promise<{ id: number; kind: string; at?: string; role?: string; tool?: string; text?: string; tools?: { name: string; args: string }[]; stopReason?: string; error?: string | true; data?: string }[]>',
+        '(conversationId: number, options?: { kinds?: string[]; limit?: number; before?: number; full?: boolean; chapter?: string }): Promise<{ id: number; kind: string; at?: string; role?: string; tool?: string; text?: string; tools?: { name: string; args: string }[]; stopReason?: string; error?: string | true; data?: string }[]>',
       execute: read('entries', 1),
     },
     {
@@ -381,7 +329,7 @@ function globals(
       description:
         'Case-sensitive substring search over all stored entry JSON, including history before resets and compactions. kinds keeps only those entry kinds. Hits are compact, about 200 characters of the entry JSON around the match; full returns whole entries, or read one with entries(conversation, {before: id + 1, limit: 1}).',
       signature:
-        '(text: string, options?: { conversationId?: number; kinds?: string[]; limit?: number; full?: boolean; project?: string; machine?: string; chapter?: string }): Promise<{ conversation: number; id: number; kind: string; at?: string; excerpt: string }[]>',
+        '(text: string, options?: { conversationId?: number; kinds?: string[]; limit?: number; full?: boolean; chapter?: string }): Promise<{ conversation: number; id: number; kind: string; at?: string; excerpt: string }[]>',
       execute: read('search', 1),
     },
     {
@@ -412,23 +360,11 @@ function globals(
     {
       name: 'doc',
       description:
-        'Read an exported extension document or pi.agent, pi.inbox, pi.live or pi.usage by kind; defaults to this conversation, or to conversation 1 in another project.',
-      signature:
-        '(kind: string, conversationId?: number, options?: { project?: string; machine?: string }): Promise<unknown>',
-      // Another project has no conversation of yours to default to: it reads conversation 1 unless one is named.
-      execute: async (values, { signal }) => {
+        'Read an exported extension document or pi.agent, pi.inbox, pi.live or pi.usage by kind; defaults to this conversation.',
+      signature: '(kind: string, conversationId?: number): Promise<unknown>',
+      execute: async (values) => {
         const [kind, conversation, options] = values as [unknown, unknown, unknown]
-        const project =
-          options && typeof options === 'object' && 'project' in options
-            ? options.project
-            : undefined
-        if (project !== undefined) {
-          if (typeof project !== 'string' || !project) throw new Error('project must be nonempty')
-          const args = [kind, conversation ?? ROOT_CONVERSATION_ID] as JsonValue[]
-          const machine = remoteMachine((options as Record<string, unknown>).machine)
-          const remote = await readProject(host, { project, machine }, 'doc', args, signal)
-          if (remote) return remote.value
-        }
+        local(options)
         return reads.doc([kind, conversation ?? conversationId])
       },
     },
@@ -451,25 +387,6 @@ function globals(
       }
     },
   }))
-}
-
-export const actions = {
-  /**
-   * `{ op, args }`: another project's codemode asks this one for `ultimate.<op>(...args)` (`conversations`, `entries`,
-   * `search`, `trace`, `traceTree`), read-only. Answers more than 1 MiB of JSON with an error asking for a smaller limit.
-   */
-  async read(input: JsonValue, { host, signal }: ActionContext) {
-    const { op, args } = (input ?? {}) as { op?: unknown; args?: unknown }
-    if (!READS.includes(op as Read)) throw new Error(`op must be one of ${READS.join(', ')}`)
-    if (args !== undefined && !Array.isArray(args)) throw new Error('args must be an array')
-    const value = await localReads(host, withAbortSignal(signal, BACKGROUND_CONTEXT))[op as Read](
-      args ?? [],
-    )
-    const result = JSON.parse(JSON.stringify(value ?? null)) as JsonValue
-    if (Buffer.byteLength(JSON.stringify(result)) > REMOTE_BYTES)
-      throw new Error('The answer is larger than 1 MiB; ask for a smaller limit')
-    return result
-  },
 }
 
 export default function codemode(host: ExtensionHost) {

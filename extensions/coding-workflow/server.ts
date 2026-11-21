@@ -22,7 +22,6 @@ import { servesLine, starterOf } from './addresses.ts'
 import { notice } from './notice.ts'
 import { onboardingWorkflow } from './onboarding.ts'
 import { posted } from './posted.ts'
-import { projectsSection, remoteAction, remoteReplyAction, tell } from './remote.ts'
 import { reported, route, working } from './route.ts'
 
 /** The user's actual input that started the current run, retained as the settlement source. */
@@ -128,10 +127,6 @@ export default function codingWorkflow(host: ExtensionHost) {
         ? messages.dismiss(input.messageId, ctx, undefined, { via, reason: input.text, fromLabel })
         : messages.answer(input.messageId, input.text, ctx, undefined, { via, primary, fromLabel })
     },
-    tell: (...args) => tell(host, ...args),
-    remote: (input) => remoteAction(input, host),
-    remoteReply: (input) => remoteReplyAction(input, host),
-    projects: () => projectsSection(host),
     instructions: async (id, ctx) => {
       const agents = await host.need(SubagentsApi).residents(ctx)
       const starter = await starterOf(host, id, ctx)

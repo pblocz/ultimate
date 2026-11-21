@@ -2,9 +2,8 @@ import { fauxProvider } from '@earendil-works/pi-ai/providers/faux'
 import type { JsonValue } from '@earendil-works/chord/json'
 import { readFile } from 'node:fs/promises'
 import { expect, it } from 'vitest'
-import { actions } from '../server.ts'
+import { localReads } from '../server.ts'
 import { chapterFiles, FIRST_CHAPTER, requestChapter } from '../../../lib/chapters.ts'
-import type { ActionContext } from '../../../server/actions.ts'
 import type { ExtensionHost } from '../../../server/extensions.ts'
 import { context, prepareHarness } from '../../../server/harness.ts'
 import { Metadata } from '../../../server/metadata.ts'
@@ -31,8 +30,12 @@ it('reads closed chapter records exactly like live fork-aware history, with titl
     conversations: () => [],
     uiState: async () => ({}),
   } as unknown as ExtensionHost
-  const ctx = { host, signal: new AbortController().signal } as ActionContext
-  const read = (op: string, args: JsonValue[]) => actions.read({ op, args }, ctx)
+  const read = async (op: string, args: JsonValue[]) =>
+    JSON.parse(
+      JSON.stringify(
+        (await localReads(host, context)[op as keyof ReturnType<typeof localReads>](args)) ?? null,
+      ),
+    ) as JsonValue
   try {
     const parent = await opened.harness.createConversation(
       { ownership: { kind: 'ownerless' } },
@@ -135,9 +138,6 @@ it('reads closed chapter records exactly like live fork-aware history, with titl
         'Unknown chapter missing. Chapters: the-beginning, next',
       )
     }
-    await expect(
-      read('conversations', [{ chapter: 'next', project: 'elsewhere' }]),
-    ).rejects.toThrow('chapter and project cannot be used together')
   } finally {
     await opened.close()
   }

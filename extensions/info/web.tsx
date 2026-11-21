@@ -112,9 +112,11 @@ function Process({ system }: { system: SystemInfo }) {
             restart
           </Button>
         </Row>
-        <Row label="url">
-          <Copy value={process.url} />
-        </Row>
+        {process.url && (
+          <Row label="url">
+            <Copy value={process.url} />
+          </Row>
+        )}
       </Rows>
       {restart.error && <ErrorText>{restart.error}</ErrorText>}
     </Section>

@@ -3,7 +3,9 @@ import type { BuildInfo } from '../shared/protocol.ts'
 
 export type CoreReport =
   | { type: 'log'; level: 'info' | 'warn' | 'error'; source: string; text: string }
-  | { type: 'web'; state: 'preparing' | 'ready' | 'stopped' }
+  /** The web channel's endpoint: `ready` once it listens at `url`, `stopped` once it no longer listens. */
+  | { type: 'web'; state: 'ready'; url: string }
+  | { type: 'web'; state: 'stopped' }
   | { type: 'access'; origins: string[] }
 
 export function reportCore(message: CoreReport) {
@@ -17,7 +19,7 @@ export function isCoreReport(message: ChildMessage): message is CoreReport {
 
 export type ChildMessage =
   | CoreReport
-  | { type: 'prepared'; port: number }
+  | { type: 'prepared' }
   | { type: 'ready' | 'released' }
   | { type: 'failed'; error: string }
   | { type: 'swap'; requestId: string; build?: BuildInfo }

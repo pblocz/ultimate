@@ -162,7 +162,7 @@ async function launch(subagents = false, initialIntent = false, root = false, br
   const projectRoot = join(home, 'project')
   await mkdir(join(projectRoot, '.ultimate/agents'), { recursive: true })
   // Only the extensions under test: each other one adds to every boot and reopen.
-  const tested = ['conversations', ...(subagents ? ['subagents'] : [])]
+  const tested = ['conversations', 'web', ...(subagents ? ['subagents'] : [])]
   await writeFile(
     join(projectRoot, '.ultimate/settings.json'),
     JSON.stringify({
@@ -304,7 +304,7 @@ async function launch(subagents = false, initialIntent = false, root = false, br
       servers.splice(servers.indexOf(server), 1)
       const prepared = await prepareFauxServer(options)
       install(prepared.host.registry)
-      server = { ...prepared, ...(await prepared.go()) }
+      server = Object.assign(prepared, await prepared.go()) as typeof server
       const close = server.close.bind(server)
       server.close = async () => {
         await server.vite.watcher.close()
@@ -1107,6 +1107,35 @@ it('stores and exposes a feature and keeps it when omitted', async () => {
   expect(
     (await fixture.server.harness.snapshot(Metadata, fixture.server.root.id, context))?.title,
   ).toBe('Improve the conversation sidebar')
+})
+
+it('does not call the provider or capture a saved response again', async () => {
+  const getModel = vi.fn<Models['getModel']>()
+  const streamSimple = vi.fn<Models['streamSimple']>()
+  const capture = vi.fn<() => void>()
+  const response = {
+    provider: luna.provider,
+    model: luna.id,
+    text: 'Saved',
+    stopReason: 'stop',
+  } as const
+  const models = { getModel, streamSimple } as unknown as Models
+  expect(
+    await askSummaryModel(
+      models,
+      'Summary',
+      'Input',
+      new AbortController().signal,
+      {
+        model: luna,
+        response,
+      },
+      capture,
+    ),
+  ).toBe(response)
+  expect(getModel).not.toHaveBeenCalled()
+  expect(streamSimple).not.toHaveBeenCalled()
+  expect(capture).not.toHaveBeenCalled()
 })
 
 it('validates reply-only JSON and rejects a malformed activity', async () => {

@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { expect, it, vi } from 'vitest'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
-import { fauxServer, post, temp, removeTemp } from '../../../test/helpers.ts'
+import { facetsOf, fauxServer, post, temp, removeTemp } from '../../../test/helpers.ts'
 import { context } from '../../../server/harness.ts'
 import { git } from '../../../lib/git.ts'
 import { projectDecision } from '../../../server/project-setup.ts'
@@ -63,7 +63,7 @@ it.concurrent('gates project resources, remembers choices, and applies onboardin
     }
     const enabled = (name: string) =>
       server!.extensions.info().find((entry) => entry.name === name)?.enabled
-    const web = async () => server!.web.facets()
+    const web = async () => facetsOf(server!)
     const tools = async () => (await server!.root.agent(context)).tools.map((tool) => tool.name)
     for (const args of [
       {},

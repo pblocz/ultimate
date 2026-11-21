@@ -8,17 +8,20 @@ import { createReadStream } from 'node:fs'
 import { mkdir, readdir, readFile, realpath, rename, rm, stat } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, join, relative, resolve, sep } from 'node:path'
-import { inExtensionTests } from '../shared/extension-api.ts'
-import { fileURLToPath } from 'node:url'
+import { inExtensionTests } from '../../shared/extension-api.ts'
 import { createHash } from 'node:crypto'
-import { exec } from '../lib/exec.ts'
-import { writeTextAtomically } from '../lib/json-file.ts'
-import { discoverExtensions } from './discovery.ts'
-import { discoveryRoots } from './project.ts'
-import { extensionSettingsFiles } from './extension-settings.ts'
-import type { Watch } from './extensions.ts'
-import { watchRoots } from './watch-roots.ts'
-import type { WebBuildRequest, WebBuildResult } from './web-build.ts'
+import { exec } from '../../lib/exec.ts'
+import { writeTextAtomically } from '../../lib/json-file.ts'
+// oxlint-disable-next-line no-restricted-imports -- the bundle holds the enabled web facets, as extension discovery finds them
+import { discoverExtensions } from '../../server/discovery.ts'
+// oxlint-disable-next-line no-restricted-imports -- the extension roots whose web facets the bundle watches
+import { discoveryRoots } from '../../server/project.ts'
+// oxlint-disable-next-line no-restricted-imports -- a settings change can enable or disable a web facet
+import { extensionSettingsFiles } from '../../server/extension-settings.ts'
+import type { Watch } from '../../server/extensions.ts'
+// oxlint-disable-next-line no-restricted-imports -- an extension root that appears later is watched, as the core does
+import { watchRoots } from '../../server/watch-roots.ts'
+import type { WebBuildRequest, WebBuildResult } from '../../server/web-build.ts'
 
 interface Manifest {
   id: string
@@ -156,7 +159,7 @@ export async function createWeb(options: {
       }
       const { stdout } = await exec(
         process.execPath,
-        [fileURLToPath(new URL('./web-build.ts', import.meta.url)), JSON.stringify(request)],
+        [join(ultimateRoot, 'server/web-build.ts'), JSON.stringify(request)],
         // The server's Vite set NODE_ENV to development; inherited, the bundle would ship React's development build.
         {
           cwd: ultimateRoot,

@@ -71,7 +71,7 @@ export default function tailscale(host: ExtensionHost) {
   const key = temporary ? host.home : host.projectRoot
   let remove: (() => void) | undefined
   let opening: Promise<void> | undefined
-  let running: Promise<void> | undefined
+  let stopWatching: (() => void) | undefined
   let closed = false
   const set = (next: Status) => {
     status = next
@@ -147,6 +147,13 @@ export default function tailscale(host: ExtensionHost) {
   async function start() {
     if (closed) return
     try {
+      const local = host.system().process.url
+      if (!local) {
+        await withdraw()
+        fail('error', 'No local web endpoint to serve: enable the web extension, then retry.')
+        return
+      }
+      if (ownedPort !== undefined && localTarget !== local) await withdraw()
       if (ownedPort !== undefined) {
         const mapping = await intact()
         // A probe that failed earlier left an error status over a mapping that stands: show it ready again.
@@ -206,7 +213,7 @@ export default function tailscale(host: ExtensionHost) {
         fail('https-disabled', 'Enable HTTPS certificates in the Tailscale admin console.')
         return
       }
-      const localPort = Number(new URL(host.system().process.url).port || '80')
+      const localPort = Number(new URL(local).port || '80')
       await withRegistry(async (registry) => {
         const serve = JSON.parse((await command(['serve', 'status', '--json'])).stdout) as Serve
         const live = new Set(
@@ -214,7 +221,7 @@ export default function tailscale(host: ExtensionHost) {
             project.running ? [project.running.url] : [],
           ),
         )
-        live.add(host.system().process.url)
+        live.add(local)
         for (const [name, entry] of Object.entries(registry.ports)) {
           const proxy = target(serve, dns, entry.port)
           const dead = !alive(Number(entry.owner.split(':')[0]))
@@ -315,32 +322,40 @@ export default function tailscale(host: ExtensionHost) {
       else fail('error', message.slice(0, 500))
     }
   }
-  // One start at a time: a retry during a start waits for it; once ready it only repairs a missing mapping.
-  function begin() {
-    running ??= start().finally(() => (running = undefined))
-    return (opening = running)
+  async function withdraw() {
+    remove?.()
+    remove = undefined
+    const port = ownedPort
+    if (port === undefined) return
+    await withRegistry(async (value) => {
+      if (value.ports[key]?.owner !== ownerToken) return
+      const serve = JSON.parse((await command(['serve', 'status', '--json'])).stdout) as Serve
+      if (target(serve, dnsName!, port) === localTarget)
+        await command(['serve', `--https=${port}`, 'off'])
+      if (temporary) delete value.ports[key]
+    })
+    ownedPort = undefined
   }
-  host.onOpen(begin)
+  // Queue endpoint changes and retries behind any mapping work in progress.
+  function begin() {
+    return (opening = (opening ?? Promise.resolve()).then(start))
+  }
+  // After every extension opened: the web channel listens by then, if it is enabled.
+  host.onReady(() => {
+    stopWatching ??= host.watchWebEndpoint(() => void begin())
+    return begin()
+  })
   retries.set(host, begin)
   host.implement(TailscaleApi, { status: () => status })
   host.onClose(async () => {
     closed = true
+    stopWatching?.()
     await opening
-    remove?.()
-    if (ownedPort !== undefined) {
-      try {
-        await withRegistry(async (value) => {
-          if (value.ports[key]?.owner !== ownerToken) return
-          const serve = JSON.parse((await command(['serve', 'status', '--json'])).stdout) as Serve
-          if (target(serve, dnsName!, ownedPort!) === localTarget)
-            await command(['serve', `--https=${ownedPort}`, 'off'])
-          if (temporary) delete value.ports[key]
-        })
-      } catch (error) {
-        fail('error', `Could not remove Serve mapping: ${String(error)}`)
-        return
-      }
-      ownedPort = undefined
+    try {
+      await withdraw()
+    } catch (error) {
+      fail('error', `Could not remove Serve mapping: ${String(error)}`)
+      return
     }
     set({ state: 'disabled', allow: status.allow })
   })

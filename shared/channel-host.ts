@@ -16,6 +16,24 @@ export class ChannelError extends Error {
   }
   readonly code: ChannelErrorCode
 }
+const codes: readonly string[] = [
+  'invalid_input',
+  'not_found',
+  'conflict',
+  'unavailable',
+  'internal',
+]
+/**
+ * Whether `error` is a `ChannelError` or a subclass. An extension loads its own copy of this module, so a core error
+ * fails `instanceof` there; its name and code still tell.
+ */
+export function isChannelError(error: unknown): error is ChannelError {
+  return (
+    error instanceof Error &&
+    (error.name === 'ChannelError' || error.name === 'InputLimitError') &&
+    codes.includes((error as { code?: unknown }).code as string)
+  )
+}
 export interface ConversationSummary {
   id: ConversationId
   title?: string

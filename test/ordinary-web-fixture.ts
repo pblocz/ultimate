@@ -36,6 +36,7 @@ export const ordinaryExtensions = [
   'notices',
   'secrets',
   'theme',
+  'web',
 ]
 export const omittedExtensions = ['workspaces', 'lineage', 'coding-workflow', 'dream']
 

@@ -462,10 +462,15 @@ export default function browserExtension(host: ExtensionHost) {
         if (message.type() === 'error') outcomes.push(`Console error: ${message.text()}`)
       })
       page.on('pageerror', (error) => outcomes.push(`Page error: ${error.message}`))
-      const url = new URL(args.url ?? '', host.system().process.url).href
+      const own = host.system().process.url
+      if (!own && !URL.canParse(args.url ?? ''))
+        throw new Error(
+          'No local web endpoint: pass an absolute url, or enable the web extension to see your own UI',
+        )
+      const url = new URL(args.url ?? '', own).href
       // Any Ultimate page, this UI or a preview, gets `window.ultimate` for send/until steps.
       await guard(page.addInitScript(() => sessionStorage.setItem('ultimate.driven', '1')))
-      if (new URL(url).origin === new URL(host.system().process.url).origin) {
+      if (own && new URL(url).origin === new URL(own).origin) {
         // Own UI: this page is detached from the shared UI state (web/src/sdk/client.ts), so its `?conversation=`
         // and clicks never move the user's tabs; the theme is this browser's preference.
         await guard(

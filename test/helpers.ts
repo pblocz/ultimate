@@ -21,6 +21,7 @@ import type { Api } from '../shared/extension-api.ts'
 import type { EventData, EventToken } from '../shared/events.ts'
 import { EventFeed, eventLog } from '../server/events.ts'
 import type { Reactor } from '../server/events.ts'
+import { webFacets } from '../extensions/web/bundle.ts'
 
 vi.mock('@earendil-works/pi-ai/providers/faux', async (importOriginal) => {
   const original = await importOriginal<typeof import('@earendil-works/pi-ai/providers/faux')>()
@@ -111,6 +112,14 @@ export async function temp(prefix = 'ultimate-test-', parent = tmpdir()) {
   const path = await mkdtemp(join(parent, prefix))
   temps.add(path)
   return path
+}
+/** Give the fixture `root` the web channel, loaded from this checkout so its core imports resolve here. */
+export async function linkWeb(root: string) {
+  await mkdir(join(root, 'extensions/web'), { recursive: true })
+  await writeFile(
+    join(root, 'extensions/web/server.ts'),
+    `export { default } from ${JSON.stringify(resolve('extensions/web/server.ts'))}\n`,
+  )
 }
 export async function linkDependencies(root: string) {
   const target = join(root, 'node_modules')
@@ -220,8 +229,14 @@ export async function fauxServer(options: FixtureOptions) {
     await server.vite.watcher.close()
     await close()
   }
-  return server
+  // Most fixtures run the web extension, which listens before `go` settles; the URL stays live after a rebind. A
+  // fixture without it has no URL.
+  return server as typeof server & { readonly url: string; readonly port: number }
 }
+/** The web facets the next bundle holds, by `web.tsx` path. */
+export const facetsOf = (server: {
+  host: { ultimateRoot: string; projectRoot: string; userHome: string }
+}) => webFacets(server.host.ultimateRoot, server.host.projectRoot, server.host.userHome)
 export async function prepareFauxServer(options: FixtureOptions) {
   return prepareServer(await isolated(options))
 }
@@ -242,8 +257,14 @@ export async function seedTally(harness: Harness, id = 1) {
     ;(await tx.doc(Tally, root)).since = entry.id
   }, context)
 }
-export async function post(server: string | { url: string }, path: string, data: unknown = {}) {
+/** The web channel's URL of `server`; a fixture without a listener has none. */
+function urlOf(server: string | { url?: string }) {
   const url = typeof server === 'string' ? server : server.url
+  if (!url) throw new Error('The server has no web endpoint')
+  return url
+}
+export async function post(server: string | { url?: string }, path: string, data: unknown = {}) {
+  const url = urlOf(server)
   const response = await fetch(url + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: url },
@@ -253,10 +274,10 @@ export async function post(server: string | { url: string }, path: string, data:
 }
 /** Read `/api/events`, subscribing each stream it opens as sub 0 to a conversation (the root by default) and its documents. */
 export async function attach(
-  server: string | { url: string },
+  server: string | { url?: string },
   subscription: { conversation?: number; docs?: string[]; view?: boolean } = {},
 ) {
-  const url = typeof server === 'string' ? server : server.url
+  const url = urlOf(server)
   const controller = new AbortController()
   const events: { name: keyof ServerEvents; data: unknown; sub?: number }[] = []
   let system: SystemInfo | undefined

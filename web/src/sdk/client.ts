@@ -65,7 +65,7 @@ if (sessionStorage.getItem('ultimate.driven') === '1') window.ultimate = createT
 /** Installed web facets of `extensions/*`. */
 export const registry = createRegistry()
 
-/** The web bundle this page runs (`server/web.ts` names it in the page). */
+/** The web bundle this page runs (`extensions/web/bundle.ts` names it in the page). */
 export const bundle = document.querySelector<HTMLMetaElement>('meta[name=ultimate-web]')?.content
 /** How long the status line shows "ready · switching" before the page reloads onto a new bundle. */
 const switchDelay = 600

@@ -53,7 +53,9 @@ function CacheNumbers({ call }: { call: WireSummary }) {
 }
 
 const sizes = (call: WireSummary) =>
-  `${formatBytes(call.requestBytes)}${call.responseBytes === undefined ? '' : ` → ${formatBytes(call.responseBytes)}`}`
+  call.purpose === 'summary' && !call.requestBytes
+    ? 'Request unavailable'
+    : `${formatBytes(call.requestBytes)}${call.responseBytes === undefined ? '' : ` → ${formatBytes(call.responseBytes)}`}`
 
 function CallRow({
   call,
@@ -86,9 +88,12 @@ function CallRow({
         )}
       </span>
       <span className="flex items-baseline gap-2 pl-8 text-muted-foreground">
+        {call.purpose === 'summary' && <span>Summary</span>}
         <CacheNumbers call={call} />
         <span className="ml-auto shrink-0 text-muted-foreground/60">
-          {formatBytes(call.requestBytes)}
+          {call.purpose === 'summary' && !call.requestBytes
+            ? 'Request unavailable'
+            : formatBytes(call.requestBytes)}
         </span>
       </span>
     </button>
@@ -135,8 +140,15 @@ function Segments<T extends string>({
 /** The selected call: its line of facts, the tabs, and the tab's view. */
 function Detail({ summary, calls }: { summary: WireSummary; calls: WireSummary[] }) {
   const call = useAction(CallAction, { n: summary.n })
-  const [tab, setTab] = useExtensionUiState<Tab>('tab', 'request')
+  const [preferredTab, setTab] = useExtensionUiState<Tab>('tab', 'request')
   const [mode, setMode] = useExtensionUiState<Mode>('mode', 'readable')
+  const isSummary = summary.purpose === 'summary'
+  const tab = preferredTab === 'diff' && isSummary ? 'response' : preferredTab
+  const tabs: [Tab, string][] = [
+    ['request', 'Request'],
+    ['response', 'Response'],
+  ]
+  if (!isSummary) tabs.push(['diff', 'Diff'])
   const relay = summary.source === 'relay'
   let body: ReactNode
   if (tab === 'diff') body = <DiffView call={summary} calls={calls} />
@@ -149,7 +161,14 @@ function Detail({ summary, calls }: { summary: WireSummary; calls: WireSummary[]
       </p>
     )
   else if (tab === 'request')
-    body = mode === 'raw' ? <Raw text={call.data.request} /> : <ReadableRequest call={call.data} />
+    body =
+      isSummary && !call.data.request ? (
+        <p className="text-muted-foreground/70">Request unavailable</p>
+      ) : mode === 'raw' ? (
+        <Raw text={call.data.request} />
+      ) : (
+        <ReadableRequest call={call.data} />
+      )
   else
     body = mode === 'raw' ? <RawResponse call={call.data} /> : <ReadableResponse call={call.data} />
   return (
@@ -159,6 +178,7 @@ function Detail({ summary, calls }: { summary: WireSummary; calls: WireSummary[]
           <span className="text-[13px] text-foreground">#{summary.n}</span>
           <span className="text-foreground/90">{summary.model}</span>
           <span>· {summary.provider}</span>
+          {isSummary && <span>· Summary</span>}
           <span
             className="rounded-sm border border-border/70 px-1 text-[10.5px]"
             title={
@@ -182,16 +202,7 @@ function Detail({ summary, calls }: { summary: WireSummary; calls: WireSummary[]
           <p className="mt-1 text-[11px] text-muted-foreground/80">{summary.transport}</p>
         )}
         <div className="mt-2.5 flex items-center gap-2">
-          <Segments
-            label="Part of the call"
-            onChange={setTab}
-            options={[
-              ['request', 'Request'],
-              ['response', 'Response'],
-              ['diff', 'Diff'],
-            ]}
-            value={tab}
-          />
+          <Segments label="Part of the call" onChange={setTab} options={tabs} value={tab} />
           {tab !== 'diff' && (
             <Segments
               label="View"
@@ -223,7 +234,9 @@ function CallMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex h-8 w-full shrink-0 cursor-pointer items-center gap-1.5 border-b border-border/70 bg-sidebar px-3 font-mono text-[12px] text-muted-foreground">
-        {selected ? `#${selected.n} · ${selected.model}` : `${calls.length} calls`}
+        {selected
+          ? `#${selected.n} · ${selected.model}${selected.purpose === 'summary' ? ' · Summary' : ''}`
+          : `${calls.length} calls`}
         <ChevronDownIcon className="size-3 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -238,6 +251,7 @@ function CallMenu({
           >
             <span className="w-7 text-muted-foreground">#{call.n}</span>
             <span className="min-w-0 flex-1 truncate">{call.model}</span>
+            {call.purpose === 'summary' && <span>Summary</span>}
             <span className="text-muted-foreground">{formatTime(call.startedAt, true)}</span>
           </DropdownMenuItem>
         ))}

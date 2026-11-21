@@ -40,20 +40,13 @@ Only inside codemode (not standalone model tools):
 live storage as usual; another listed chapter reads its database read-only, without starting tasks. Entries keep the
 same compact form (or, with `full`, the same `kind`/`data`/`model` records) and fork-aware order as live history. Closed conversations include their stored
 identity/owner and metadata title, label and input time when present, not live activity. Unknown names list the
-available chapters. `chapter` and `project` cannot be combined. Cross-chapter links are written `<chapter>#123`.
+available chapters. Cross-chapter links are written `<chapter>#123`.
 
 ### Other projects
 
-`conversations`, `entries`, `search`, `trace`, `traceTree` and `doc` take `{ project, machine? }` in their options object (`ultimate.conversations({ project })`, `ultimate.traceTree(id, { project })`, `ultimate.doc('todos', 1, { project })`) and then read that project instead, read-only; `doc` there reads conversation 1 unless one is named, and `machine` picks one machine's instance when the project runs on several. `project` is a name (`my-app`) or a key (`github.com/acme/my-app`), case-insensitive. Only a running instance answers:
-
-- this project reads its own storage;
-- another running project on this machine answers over loopback (`ultimate.projects()`'s URL);
-- a project the user listed in `remotes` (`{ <machine>: { <project>: url } }` in user settings; see [Discovery and settings](../../docs/settings.md)) answers at the URL set there; a project listed on several machines needs a `machine`;
-- otherwise, when cloud backups are on, the cloud's register (`GET /sync/register`, with the cloud token) names the machine that last backed the project up, and the tailnet address it registered (on that backup, else on its machine record) answers.
-
-The call is the target's `codemode.read {op, args}` action, sent with the target's own `Origin`; on the tailnet, Tailscale Serve's identity header and `tailscale.allow` admit it, the same rule as the UI. Nothing falls back to a copy: a machine that registered no tailnet address ("<name> was last backed up from <machine>, which registered no tailnet address") and an unknown name each fail with a sentence that names the machine or lists the known projects. Answers are capped at 1 MiB of JSON (ask for a smaller `limit`). Locating and calling the other instance lives in `lib/remote.ts`, shared with Messages’ Ultimate-to-Ultimate messages.
-
-`ultimate.tell({ project, text, reply?, machine? })` — @ultimate only: message that project's @ultimate, found the same way (`machine` picks one machine's instance when the project runs on several). It returns `{ message, delivered }` (this log's id and the target's); a target that is not running or not reachable fails with a sentence naming the project and machine. With `reply` (default true) the answer returns as a reply. See [Messages](../messages/README.md#other-projects-ultimates).
+The reads cover this project only. Earlier versions read another running instance with `{ project, machine? }`; a
+read with either option now fails with `Reads of another project are not supported`, and it does not read this project
+instead. `ultimate.projects()` still lists the local project homes and their running URLs.
 
 - `ultimate.models()` — model metadata, without credentials or provider headers.
 - `ultimate.agents()` — agent definitions, the profiles subagents and automations run with: each one's source (builtin, user, project), path, fields, and instructions, plus files that failed to parse. To change one, edit its file; for a built-in, write an override with the same name to `<project>/.ultimate/agents/` or `~/.ultimate/agents/`.

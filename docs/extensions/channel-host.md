@@ -48,7 +48,8 @@ Use `onOpen` for initialization and `onReady` for listeners that accept input:
   `onOpen`: that blocks the transition that it waits for.
 
 The web and the port use the same admission check. When a core release or shutdown starts, admission closes before
-cleanup. New operations and watches then fail with `unavailable`, and the web answers 503. An operation that entered
+cleanup. New operations and watches then fail with `unavailable`, and the web answers 503 until its admitted
+requests settle; then it closes its listener. An operation that entered
 before the close is checked again before its native commit, and storage stays open until it settles. Input whose
 commit won the race stays admitted. A retry with the same request ID finds it.
 
@@ -148,6 +149,11 @@ conversation work: native durable shutdown and recovery own unfinished runs.
 `host.notice` diagnostics are for the operator. Do not send them to a chat.
 
 ## The web
+
+The web is a channel like the others: the optional `web` extension starts its own HTTP listener in `onOpen` and stops
+it on release, through `host.webChannel()` (`server/web-channel.ts`), which only it may use. The core starts no
+listener, so a runtime without the web has no open port. Local calls between extensions use `host.need`, `host.want`
+and `host.invoke`, never HTTP. `/api/extensions/:name/actions/:action` is the browser's route to the same dispatcher.
 
 The browser keeps its own private protocol: `/api/events` views, Chord operations and documents, the history
 `before` and `after` parameters, and the HTTP statuses. Its conversation endpoints call the same shared operations,

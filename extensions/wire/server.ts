@@ -5,6 +5,7 @@ import type { ExtensionHost } from '../../server/extensions.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { ClaudeCodeExchanges } from '../claude-code/api.ts'
 import type { ClaudeCodeExchange } from '../claude-code/api.ts'
+import { SummaryExchanges } from '../conversations/api.ts'
 import { diffBodies } from './diff.ts'
 import { CallAction, DiffAction, ListAction } from './refs.ts'
 import type { WireCall, WireUsage } from './refs.ts'
@@ -73,6 +74,49 @@ export default function wire(host: ExtensionHost) {
       console.error('wire: storing a call failed:', error)
     })
   }
+  host.implement(SummaryExchanges, {
+    record(read) {
+      try {
+        const {
+          conversationId,
+          provider,
+          model,
+          api,
+          startedAt,
+          endedAt,
+          request,
+          message,
+          failure,
+        } = read()
+        const usage = message?.usage
+        store({
+          conversationId,
+          source: 'payload',
+          purpose: 'summary',
+          provider: message?.provider ?? provider,
+          model: message?.model ?? model,
+          api: message?.api ?? api,
+          startedAt,
+          endedAt,
+          request: JSON.stringify(request) ?? '',
+          message,
+          failure: message?.errorMessage ?? failure,
+          ...(usage && {
+            usage: {
+              input: usage.input,
+              output: usage.output,
+              cacheRead: usage.cacheRead,
+              cacheWrite: usage.cacheWrite,
+            },
+          }),
+          ...(message?.responseId && { responseId: message.responseId }),
+        })
+      } catch {
+        // Keep raw exchange data out of trace errors if the payload cannot be serialized.
+        console.error('wire: could not prepare a summary call')
+      }
+    },
+  })
   host.implement(ClaudeCodeExchanges, {
     record(exchange) {
       // A call no conversation made (an extension's one-shot request) has nowhere to be shown.
@@ -167,13 +211,13 @@ export const actions = {
   diff: implementAction(DiffAction, async (args, { host, conversationId }) => {
     const id = conversationOf(conversationId)
     const n = numberArg(args)
-    const earlier = (await list(host.home, id)).filter((call) => call.n < n).at(-1)
+    const earlier = (await list(host.home, id)).findLast((call) => call.n < n && !call.purpose)
     if (!earlier) return null
     const [before, after] = await Promise.all([
       load(host.home, id, earlier.n),
       load(host.home, id, n),
     ])
-    if (!before || !after || before.api !== after.api) return null
+    if (!before || !after || after.purpose || before.api !== after.api) return null
     const previous = parsed(before.request)
     const current = parsed(after.request)
     return previous && current ? diffBodies(previous, current, earlier.n) : null

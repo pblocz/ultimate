@@ -23,9 +23,7 @@ An unchanged list adds nothing, and the note is never part of the system prompt,
 
 ## Other projects
 
-Each project keeps its own list. Another project's @ultimate reads it with codemode
-`ultimate.doc('todos', 1, { project })` (see [codemode](../codemode/README.md#other-projects)) and asks this
-project's @ultimate to add one with `ultimate.tell`.
+Each project keeps its own list in its own state. Other running instances cannot read or change it.
 
 ## Panel
 

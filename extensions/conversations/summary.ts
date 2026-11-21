@@ -28,7 +28,8 @@ import type {
   Usage,
 } from '@earendil-works/pi-ai'
 import type { ExtensionHost } from '../../server/extensions.ts'
-import { Trees } from './api.ts'
+import { SummaryExchanges, Trees } from './api.ts'
+import type { SummaryExchange } from './api.ts'
 import { summaryModel } from './summary-model.ts'
 import { isInput } from '../../lib/entries.ts'
 import type { SummaryModel, SummaryModelHost } from './summary-model.ts'
@@ -217,6 +218,8 @@ export type SummaryReceipt = {
   maxTokens?: number
 }
 
+type CaptureSummary = (exchange: Omit<SummaryExchange, 'conversationId'>) => void
+
 /** Ask the receipt's summary model once, or return the response the receipt already holds. */
 export async function askSummaryModel(
   models: Models,
@@ -224,21 +227,35 @@ export async function askSummaryModel(
   input: string,
   signal: AbortSignal,
   receipt: SummaryReceipt,
+  capture?: CaptureSummary,
 ): Promise<ResponseReceipt> {
   if (receipt.response) return receipt.response
   const { provider, id, thinking } = receipt.model
   const model = models.getModel(provider, id)
   if (!model) throw new Error(`Summary model ${provider}/${id} is unavailable`)
-  const events = models.streamSimple(
-    model,
-    { systemPrompt, messages: [{ role: 'user', content: input, timestamp: Date.now() }] },
-    {
-      ...(thinking === 'off' ? {} : { reasoning: thinking }),
-      maxTokens: Math.min(receipt.maxTokens ?? 2048, model.maxTokens || Infinity),
-      signal,
-    },
-  )
+  const startedAt = capture ? Date.now() : 0
+  let request: unknown
+  let captured = false
+  const observe = (message?: AssistantMessage, failure?: string) => {
+    if (!capture || captured) return
+    captured = true
+    try {
+      capture({
+        provider,
+        model: id,
+        api: model.api,
+        startedAt,
+        endedAt: Date.now(),
+        request,
+        message,
+        failure,
+      })
+    } catch {
+      // An observer must not change the result of the summary.
+    }
+  }
   const receive = async (answer: AssistantMessage) => {
+    observe(answer)
     const text = answer.content
       .flatMap((part) => (part.type === 'text' ? [part.text] : []))
       .join('')
@@ -254,13 +271,32 @@ export async function askSummaryModel(
     ) as ResponseReceipt
     return receipt.save ? receipt.save(received) : received
   }
-  let response: ResponseReceipt | undefined
-  for await (const event of events) {
-    if (event.type === 'done') response = await receive(event.message)
-    if (event.type === 'error') response = await receive(event.error)
+  try {
+    const events = models.streamSimple(
+      model,
+      { systemPrompt, messages: [{ role: 'user', content: input, timestamp: Date.now() }] },
+      {
+        ...(thinking === 'off' ? {} : { reasoning: thinking }),
+        maxTokens: Math.min(receipt.maxTokens ?? 2048, model.maxTokens || Infinity),
+        signal,
+        ...(capture && {
+          onPayload: (payload: unknown) => {
+            request = payload
+          },
+        }),
+      },
+    )
+    let response: ResponseReceipt | undefined
+    for await (const event of events) {
+      if (event.type === 'done') response = await receive(event.message)
+      if (event.type === 'error') response = await receive(event.error)
+    }
+    const answer = await events.result()
+    return response ?? (await receive(answer))
+  } catch (error) {
+    observe(undefined, error instanceof Error ? error.message : String(error))
+    throw error
   }
-  const answer = await events.result()
-  return response ?? (await receive(answer))
 }
 
 export async function generateSummary(
@@ -272,6 +308,7 @@ export async function generateSummary(
   mode: 'reply' | 'spawn' | 'steer' | 'intent' = 'reply',
   root = false,
   withAbstract = false,
+  capture?: CaptureSummary,
 ): Promise<SummaryResult> {
   // A title names the goal; a step or status ("Resubmitted…", "Awaiting review") belongs in the activity line.
   const titleField =
@@ -299,6 +336,7 @@ export async function generateSummary(
     input,
     signal,
     receipt,
+    capture,
   )
   if (response.stopReason !== 'stop') throw new Error('Summary request did not finish')
   const parsed: unknown = JSON.parse(response.text)
@@ -755,6 +793,12 @@ export function summaryBehavior(host: SummaryHost, generate = generateSummary) {
                     : 'reply',
               checkpoint.root,
               checkpoint.abstract,
+              host.want?.(SummaryExchanges)
+                ? (exchange) =>
+                    host
+                      .want?.(SummaryExchanges)
+                      ?.record(() => ({ ...exchange, conversationId: runtime.conversationId }))
+                : undefined,
             )
             result = await runtime.memo('reply', result, context)
           }

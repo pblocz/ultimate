@@ -360,7 +360,9 @@ export default function prompt(host: ExtensionHost) {
       section('environment', (input) => {
         const cwd = input.env?.cwd ?? input.agent.cwd ?? host.projectRoot
         const os = process.platform === 'darwin' ? 'macOS' : process.platform
-        return `OS: ${os} ${process.arch}\nEffective working directory: ${cwd}\nShared workspace: ${host.projectRoot}\nInstalled application: ${host.ultimateRoot}\nUI: ${host.system().process.url} (shared host)\nCommands and paths use the server process environment, including when the server runs in a container. Use the effective working directory for task files. Workspace configuration and installed extensions remain loaded from the shared workspace and installed application; edits in another directory do not hot-reload the running host.`
+        // Without a web channel there is no UI to name.
+        const ui = host.system().process.url
+        return `OS: ${os} ${process.arch}\nEffective working directory: ${cwd}\nShared workspace: ${host.projectRoot}\nInstalled application: ${host.ultimateRoot}\n${ui ? `UI: ${ui} (shared host)\n` : ''}Commands and paths use the server process environment, including when the server runs in a container. Use the effective working directory for task files. Workspace configuration and installed extensions remain loaded from the shared workspace and installed application; edits in another directory do not hot-reload the running host.`
       }),
       section('cwd', (input) => input.env?.cwd ?? input.agent.cwd ?? host.projectRoot),
     ],

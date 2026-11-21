@@ -124,7 +124,7 @@ it('creates and uses two independent persona chats on different presets without 
   expect(server.system.current().web.error).toBeUndefined()
   // Opening the page created no conversation and asked no model.
   expect(requests).toEqual([])
-  expect(server.api.conversations().filter((summary) => summary.label === 'chat')).toEqual([])
+  expect(server.conversations().filter((summary) => summary.label === 'chat')).toEqual([])
   expect(
     (await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate,
   ).toBeUndefined()

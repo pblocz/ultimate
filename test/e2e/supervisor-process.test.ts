@@ -3,10 +3,16 @@ import { once } from 'node:events'
 import { readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { request } from 'node:http'
-import { connect } from 'node:net'
 import { temp, sourceCopy, cleanEnv, until, post } from '../helpers.ts'
-import { children, homes, copies, launch, fixture, attach } from './supervisor-helpers.ts'
+import {
+  children,
+  homes,
+  copies,
+  launch,
+  fixture,
+  attach,
+  listening,
+} from './supervisor-helpers.ts'
 it('starts past stale lock sidecars without killing an unrelated live pid', async () => {
   const home = await temp('ultimate-stale-supervisor-')
   homes.push(home)
@@ -65,81 +71,27 @@ export const actions = { revoke: async () => { remove?.(); return true } }
 }, 60000)
 
 describe('supervisor process ownership', () => {
-  it('keeps crash diagnostics private to direct loopback requests', async () => {
-    const home = await temp('ultimate-crash-page-')
+  it('logs a core that cannot boot, listens on nothing meanwhile, and boots once fixed', async () => {
+    const home = await temp('ultimate-boot-failure-')
     homes.push(home)
     const root = await sourceCopy(home)
     copies.set(home, root)
+    const main = await readFile(join(root, 'server/main.ts'), 'utf8')
     await writeFile(join(root, 'server/main.ts'), "throw new Error('private stderr marker')\n")
-    await launch(home)
-    let url = ''
-    await until(async () => {
-      try {
-        const lock = JSON.parse(await readFile(join(home, 'ultimate.lock'), 'utf8'))
-        if (lock.port) url = `http://127.0.0.1:${lock.port}`
-        return Boolean(url)
-      } catch {
-        return false
-      }
-    })
-    const local = await fetch(url)
-    expect(local.status).toBe(503)
-    expect(await local.text()).toContain('private stderr marker')
-    for (const headers of [
-      { 'x-forwarded-for': '100.1.2.3' },
-      { 'x-forwarded-host': 'remote.example' },
-      { forwarded: '' },
-      { host: 'remote.example:4799' },
-    ]) {
-      const response = await new Promise<{ status: number; body: string }>((resolve, reject) => {
-        const req = request(url, { headers }, (res) => {
-          let body = ''
-          res.on('data', (chunk) => {
-            body += chunk
-          })
-          res.on('end', () => resolve({ status: res.statusCode!, body }))
-        })
-        req.on('error', reject)
-        req.end()
-      })
-      expect(response.status).toBe(503)
-      expect(response.body).toBe('')
-    }
-    const port = Number(new URL(url).port)
-    const idle = connect(port, '127.0.0.1')
-    await once(idle, 'connect')
-    idle.resume()
-    const started = Date.now()
-    await once(idle, 'close')
-    expect(Date.now() - started).toBeLessThan(8000)
-    const delayed = connect(port, '127.0.0.1')
-    await once(delayed, 'connect')
-    delayed.write('GET /api/models HTTP/1.1\r\n')
-    await writeFile(
-      join(root, 'server/main.ts'),
-      `import { createServer } from 'node:http'
-const server=createServer((_req,res)=>res.end('recovered'))
-server.listen(0,'127.0.0.1',()=>process.send?.({type:'prepared',port:(server.address() as import('node:net').AddressInfo).port}))
-process.on('message',(message:{type:string})=>{ if(message.type==='go')process.send?.({type:'ready'}); if(message.type==='release')process.send?.({type:'released'}); if(message.type==='exit')server.close(()=>process.exit(0)) })`,
+    const running = await launch(home)
+    await until(() => running.output().includes('failed · waiting for changes'))
+    expect(running.output()).toContain('private stderr marker')
+    expect(running.output()).not.toContain('Ultimate: http://')
+    expect(JSON.parse(await readFile(join(home, 'ultimate.lock'), 'utf8')).port).toBeUndefined()
+    expect(await listening([running.child.pid!])).toEqual([])
+    await writeFile(join(root, 'server/main.ts'), main)
+    await until(() => running.output().includes('Ultimate: http://'))
+    const url = /Ultimate: (http:\/\/[^\s]+)/.exec(running.output())![1]
+    expect((await fetch(`${url}/api/models`)).status).toBe(200)
+    expect(JSON.parse(await readFile(join(home, 'ultimate.lock'), 'utf8')).port).toBe(
+      Number(new URL(url).port),
     )
-    await until(async () => {
-      try {
-        return (await fetch(url)).status === 200
-      } catch {
-        return false
-      }
-    })
-    const received = new Promise<string>((resolve, reject) => {
-      let wire = ''
-      delayed.on('data', (chunk) => {
-        wire += chunk
-      })
-      delayed.on('end', () => resolve(wire))
-      delayed.on('error', reject)
-    })
-    delayed.write(`Host: 127.0.0.1:${port}\r\nConnection: close\r\n\r\n`)
-    expect(await received).toContain('200 OK')
-  }, 60000)
+  }, 90000)
 
   it('owns a random public port, refuses a second instance naming its pid, and accepts the public Origin', async () => {
     const first = await fixture()

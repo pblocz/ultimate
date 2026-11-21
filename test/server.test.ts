@@ -293,15 +293,18 @@ export default host => { host.resource('cleanup.process',()=>{
   return {}
 }); return defineExtension({name:'resourcecleanup'}) }`,
     })
+    const { url } = server
     await expect(server.close()).resolves.toBeUndefined()
     servers.splice(servers.indexOf(server), 1)
-    expect(server.http.listening).toBe(false)
+    expect(server.url).toBeUndefined()
+    await expect(fetch(`${url}/api/models`)).rejects.toThrow('fetch failed')
     expect(await readFile(join(server.host.userHome, 'process-cleanup-ok'), 'utf8')).toBe('yes')
   })
 
   it('serves and completes a faux submit with an empty extensions directory', async () => {
     const { server } = await fixture(false, undefined, true)
-    expect((await fetch(server.url)).status).toBe(200)
+    // No web extension: the runtime serves without a listener.
+    expect(server.url).toBeUndefined()
     expect(server.extensions.info()).toEqual([])
     server.host.faux!.setResponses([fauxAssistantMessage('Core-only response')])
     const submitted = await server.root.submit({ type: 'input', content: 'hello' }, context)
@@ -340,8 +343,7 @@ export default host => { host.resource('cleanup.process',()=>{
       'Harness is not open',
     )
   })
-  it('does not inherit the supervisor public URL in an embedded server', async () => {
-    vi.stubEnv('ULTIMATE_PUBLIC_URL', 'http://127.0.0.1:1')
+  it('names its own web URL in the prompt and serves on it', async () => {
     try {
       const { server } = await fixture()
       expect(server.url).toBe(`http://127.0.0.1:${server.port}`)
@@ -565,14 +567,15 @@ export default host => { host.resource('cleanup.process',()=>{
     )
   })
 
-  it('prepares the core and listener without opening SQLite until go', async () => {
+  it('prepares the core without opening SQLite or listening until go', async () => {
     const { options } = await fixture()
     const prepared = await prepareServer({ ...options, home: join(options.home, 'candidate') })
     try {
-      expect((await fetch(prepared.url)).status).toBe(503)
+      expect(prepared.url).toBeUndefined()
       await expect(readFile(prepared.host.database)).rejects.toMatchObject({ code: 'ENOENT' })
       const opened = await prepared.go()
       expect(opened.root.id).toBe(1)
+      expect((await fetch(`${prepared.url}/api/models`)).status).toBe(200)
       expect((await readFile(prepared.host.database)).length).toBeGreaterThan(0)
     } finally {
       await prepared.close()
@@ -825,7 +828,7 @@ export default defineExtension({ name: 'summaries' })
 export const actions = { list: async (_args, ctx) => ctx.host.conversations() }`,
     })
     const created = (await post(server, '/api/conversations')).data.id as ConversationId
-    const summary = () => server.api.conversations().find((item) => item.id === created)
+    const summary = () => server.conversations().find((item) => item.id === created)
     const stream = await attach(server)
     await post(server, `/api/conversations/${created}/submit`, { text: 'Not a core-derived title' })
     await server.harness.waitForIdle(context)
@@ -856,7 +859,7 @@ export const actions = { list: async (_args, ctx) => ctx.host.conversations() }`
     )
     expect(
       (await post(server, '/api/extensions/summaries/actions/list', { args: null })).data.result,
-    ).toEqual(server.api.conversations())
+    ).toEqual(server.conversations())
     await server.harness.commit(async (tx) => {
       ;(await tx.doc(Metadata, created)).title = 'Explicit title'
     }, context)

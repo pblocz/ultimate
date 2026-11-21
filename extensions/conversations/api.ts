@@ -3,6 +3,7 @@
  * conversation is about and ask the summary model through this service.
  */
 import type { Context } from '@earendil-works/chord/context'
+import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { defineDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '../../shared/extension-api.ts'
@@ -117,6 +118,22 @@ export type PreviewsService = {
 }
 /** The extension point the Conclude action stops previews through; instance provides it. */
 export const Previews = defineApi<PreviewsService>()('conversations.previews')
+
+export type SummaryExchange = {
+  conversationId: ConversationId
+  provider: string
+  model: string
+  api: string
+  startedAt: number
+  endedAt: number
+  request?: unknown
+  message?: AssistantMessage
+  failure?: string
+}
+/** Wire observes automatic summaries. Pass a function so trace does not store the payload or provider message. */
+export const SummaryExchanges = defineApi<{ record(read: () => SummaryExchange): void }>()(
+  'conversations.summary-exchanges',
+)
 /**
  * How full a conversation's context is, on that conversation: the one measure the status line and automations' context
  * triggers read. The conversations extension keeps it; a fork starts empty until its first answer.

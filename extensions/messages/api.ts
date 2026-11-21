@@ -29,7 +29,7 @@ export const Started = defineDoc<{ by?: number; yielded?: number; serves?: Serve
 /** One message as the log stores it. */
 export type Message = {
   id: number
-  /** `remote`: another project's Ultimate, named by `remote`. */
+  /** `remote`: another project's Ultimate, named by `remote`, in messages logged before cross-instance messages were removed. */
   from: number | 'user' | 'remote'
   to: number | 'user' | 'remote'
   text: string
@@ -126,17 +126,6 @@ export type MessagesService = {
     requestId: string,
     ctx: Context,
   ): Promise<number>
-  /**
-   * From the primary agent's conversation `from`, message another project's primary agent (on `machine`, else where it
-   * runs): only that Ultimate receives it. With `reply`, its answer returns here as a reply. Returns this log's id of the
-   * message and the target's id of the delivered one; throws a sentence naming the machine when it cannot be reached.
-   */
-  tell(
-    from: number,
-    input: { project: string; machine?: string; text: string; reply?: boolean },
-    ctx: Context,
-    signal?: AbortSignal,
-  ): Promise<{ message: number; delivered: number }>
 }
 export { MessageSent } from './refs.ts'
 export type { Question, Remote, ImagesRef } from './refs.ts'
@@ -188,33 +177,8 @@ export type MessagesWorkflowService = {
     input: { messageId: number; text: string; dismiss?: boolean },
     ctx: Context,
   ): Promise<number>
-  /** Send a remote-project message with the workflow's existing primary-agent restriction. */
-  tell(
-    from: number,
-    input: { project: string; machine?: string; text: string; reply?: boolean },
-    ctx: Context,
-    signal?: AbortSignal,
-    route?: { key: string; routed: EntryId },
-  ): Promise<{ message: number; delivered: number }>
-  /** Admit an authenticated remote action; the web handler still enforces its user-only restriction. */
-  remote(
-    input: {
-      key: string
-      text: string
-      reply: boolean
-      from: { project: string; machine: string }
-    },
-    ctx: Context,
-  ): Promise<number>
-  /** Admit a remote reply after the web handler's user-only check and the workflow's receipt check. */
-  remoteReply(
-    input: { key: string; text: string; failed?: boolean; stopped?: boolean },
-    ctx: Context,
-  ): Promise<number>
-  /** The workflow's cross-project prompt section; ordinary messages need no such section. */
-  projects(): Promise<string | undefined>
 }
-/** Optional coding rules; their absence never authorizes user or remote-project actions. */
+/** Optional coding rules; their absence never authorizes user actions. */
 export const MessagesWorkflow = defineApi<MessagesWorkflowService>()('messages.workflow')
 
 export const tier = 'core'

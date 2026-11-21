@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, readlink, writeFile } from 'node:fs/promises'
 import {
   temp,
   removeTemp,
@@ -121,6 +121,33 @@ export async function activationFailure(root: string) {
       ),
   )
 }
+/** Inodes of the listening TCP sockets (state 0A) in this network namespace. */
+async function listeningInodes() {
+  const inodes = new Set<string>()
+  for (const file of ['/proc/net/tcp', '/proc/net/tcp6']) {
+    const text = await readFile(file, 'utf8').catch(() => '')
+    for (const line of text.split('\n').slice(1)) {
+      const fields = line.trim().split(/\s+/)
+      if (fields[3] === '0A') inodes.add(fields[9])
+    }
+  }
+  return inodes
+}
+/** The listening TCP sockets that the processes `pids` hold open. */
+export async function listening(pids: number[]) {
+  const inodes = await listeningInodes()
+  const held: string[] = []
+  for (const pid of pids) {
+    const fds = await readdir(`/proc/${pid}/fd`).catch(() => [])
+    for (const fd of fds) {
+      const link = await readlink(`/proc/${pid}/fd/${fd}`).catch(() => '')
+      const inode = /^socket:\[(\d+)\]$/.exec(link)?.[1]
+      if (inode && inodes.has(inode)) held.push(`${pid}:${inode}`)
+    }
+  }
+  return held
+}
+
 export function transcript(view: ConversationView) {
   return JSON.stringify(view.entries)
 }

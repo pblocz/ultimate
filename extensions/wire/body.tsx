@@ -355,5 +355,7 @@ export function RawResponse({ call }: { call: WireCall }) {
         {call.response}
       </pre>
     )
+  if (call.purpose === 'summary' && call.message === undefined && call.failure)
+    return <Raw text={JSON.stringify({ errorMessage: call.failure })} />
   return <Raw text={JSON.stringify(call.message ?? null)} />
 }

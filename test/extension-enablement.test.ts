@@ -2,7 +2,7 @@ import { removeTemp } from './helpers.ts'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterAll, expect, it } from 'vitest'
-import { fauxServer, sourceCopy, temp, until, attach } from './helpers.ts'
+import { facetsOf, fauxServer, sourceCopy, temp, until, attach } from './helpers.ts'
 import { context } from '../server/harness.ts'
 import { compareExtensions, discoverExtensions } from '../server/discovery.ts'
 import { defaultOff } from '../shared/extension-api.ts'
@@ -238,7 +238,7 @@ it.concurrent('refuses a tool name another extension of the same layer already p
 
 const tools = async (server: Awaited<ReturnType<typeof fauxServer>>) =>
   (await server.root.agent(context)).tools.map((tool) => tool.name).toSorted()
-const web = async (server: Awaited<ReturnType<typeof fauxServer>>) => server.web.facets()
+const web = async (server: Awaited<ReturnType<typeof fauxServer>>) => facetsOf(server)
 
 it.concurrent('layers settings live, installs and uninstalls tools and web facets, and notices unknown names once', async () => {
   const { home, projectRoot, server } = await fixture()

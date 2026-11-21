@@ -178,6 +178,10 @@ async function fixture(
       channelHost: () => {
         throw new Error('Not used')
       },
+      watchWebEndpoint: () => () => {},
+      webChannel: () => {
+        throw new Error('Not used')
+      },
       onRelease: () => {},
       onClose: () => {},
       onLoadError: () => {},

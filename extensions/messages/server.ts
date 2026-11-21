@@ -94,12 +94,6 @@ function requireWorkflow(host: ExtensionHost) {
   if (!workflow) throw new Error('The coding workflow is not available')
   return workflow
 }
-const field = (value: unknown, name: string, max: number) => {
-  if (typeof value !== 'string' || !value.trim() || value.length > max)
-    throw new Error(`${name} must be a nonempty string of at most ${max} characters`)
-  return value
-}
-
 export const actions = {
   [CallerAction.name]: implementAction(CallerAction, async (args, { host }) => {
     const { conversation, call } = (args ?? {}) as Record<string, unknown>
@@ -143,30 +137,6 @@ export const actions = {
       ),
     }
   }),
-  async remote(args: unknown, { host }: ActionContext) {
-    const workflow = requireWorkflow(host)
-    const input = (args ?? {}) as Record<string, unknown>
-    const from = (input.from ?? {}) as Record<string, unknown>
-    const key = field(input.key, 'key', 100)
-    const text = field(input.text, 'text', 100_000)
-    const sender = {
-      project: field(from.project, 'from.project', 200),
-      machine: field(from.machine, 'from.machine', 200),
-    }
-    if (typeof input.reply !== 'boolean') throw new Error('reply must be a boolean')
-    return workflow.remote({ key, text, reply: input.reply, from: sender }, BACKGROUND_CONTEXT)
-  },
-  async remoteReply(args: unknown, { host }: ActionContext) {
-    const workflow = requireWorkflow(host)
-    const input = (args ?? {}) as Record<string, unknown>
-    const key = field(input.key, 'key', 100)
-    const text = field(input.text, 'text', 100_000)
-    const failed = input.failed === true
-    return workflow.remoteReply(
-      { key, text, failed, stopped: failed && input.stopped === true },
-      BACKGROUND_CONTEXT,
-    )
-  },
   async addresses(_args: unknown, { host }: ActionContext) {
     const agents = await host.need(SubagentsApi).residents(BACKGROUND_CONTEXT)
     const index = await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT)
@@ -184,8 +154,6 @@ export const actions = {
     }
   },
 }
-/** Only another instance posts these, over its API: no agent here can pose as a remote Ultimate. */
-export const userActions = ['remote', 'remoteReply']
 export default function messages(host: ExtensionHost) {
   host.need(SubagentsApi)
   host.implement(MessagesApi, {
@@ -226,7 +194,6 @@ export default function messages(host: ExtensionHost) {
     dismiss: (messageId, ctx, device, settlement) =>
       dismiss(host, messageId, ctx, { device, ...settlement }),
     send: (from, input, requestId, ctx) => send(host, from, input, ctx, { requestId }),
-    tell: async (from, input, ctx, signal) => requireWorkflow(host).tell(from, input, ctx, signal),
   })
   return defineExtension({
     name: 'messages',
@@ -253,13 +220,6 @@ export default function messages(host: ExtensionHost) {
         if (workflow) return workflow.instructions(input.conversationId, ctx)
         const agents = await host.need(SubagentsApi).residents(ctx)
         return `Use message to contact #id or @name. Messages wake their recipient; its answer returns as a reply and wakes you. End your turn instead of waiting. A one-way message (reply: false) gets no answer; use reply: true when you need one. Inputs identify their sender; answer here and your answer is sent to the sender automatically; do not use message to reply. A message to an agent whose message you still owe an answer becomes that answer and ends your run; use it only to attach images.\n${agents.map((a) => `@${a.name} — ${a.description}`).join('\n')}`
-      }),
-      section('projects', async (input, ctx) => {
-        const workflow = host.want(MessagesWorkflow)
-        if (!workflow) return undefined
-        const primary = await host.harness().commit((tx) => workflow.primary(tx), ctx)
-        if (primary !== input.conversationId) return undefined
-        return workflow.projects()
       }),
     ],
     tools: [
