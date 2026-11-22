@@ -10,6 +10,7 @@ import { DefaultDestinationAction, RunsDoc, StandingAction, StandingDoc } from '
 import type { Run } from './refs.ts'
 
 export {
+  ClearConversationAction,
   DefaultDestinationAction,
   DefinitionAction,
   DefinitionsAction,

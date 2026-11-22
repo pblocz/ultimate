@@ -85,6 +85,8 @@ export type SubagentsService = {
   residents(ctx: Context): Promise<{ name: string; description: string }[]>
   /** The conversation of standing agent `name`, created or refreshed from its definition; throws for unknown names. */
   standing(name: string, ctx: Context): Promise<ConversationId>
+  /** Replace a standing conversation only if the address still points to `expected`. */
+  replaceStanding(name: string, expected: ConversationId, ctx: Context): Promise<ConversationId>
   /** Create, inside `tx`, a child conversation configured from a definition or as a copy of the parent's agent. */
   createChild: (
     tx: Tx,

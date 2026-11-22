@@ -106,6 +106,46 @@ it('starts every resident without a workflow, including an operator-defined ulti
   expect(index?.x).toBeDefined()
   expect(index?.ultimate).toBeDefined()
 })
+it('replaces only the requested standing address and rejects a stale target', async () => {
+  const { service, host, path } = await fixture()
+  await writeFile(
+    join(path, 'agents/ultimate.md'),
+    definition('Ultimate resident').replace('name: x', 'name: ultimate'),
+  )
+  const ultimate = await service.standing('ultimate', ctx)
+  const other = await service.standing('x', ctx)
+  const newUltimate = await service.replaceStanding('ultimate', ultimate, ctx)
+  expect(newUltimate).not.toBe(ultimate)
+  expect(await host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx)).toEqual({
+    ultimate: newUltimate,
+    x: other,
+  })
+  await expect(service.replaceStanding('ultimate', ultimate, ctx)).rejects.toMatchObject({
+    code: 'conflict',
+  })
+  expect(await host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx)).toEqual({
+    ultimate: newUltimate,
+    x: other,
+  })
+  const replacements = await Promise.allSettled([
+    service.replaceStanding('x', other, ctx),
+    service.replaceStanding('x', other, ctx),
+  ])
+  const fresh = replacements.find((result) => result.status === 'fulfilled')?.value
+  expect(fresh).toBeTypeOf('number')
+  expect(fresh).not.toBe(other)
+  expect(replacements.find((result) => result.status === 'rejected')).toMatchObject({
+    reason: { code: 'conflict' },
+  })
+  expect(await host.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx)).toEqual({
+    ultimate: newUltimate,
+    x: fresh,
+  })
+  expect((await host.harness.conversation(ultimate, ctx))?.id).toBe(ultimate)
+  expect((await host.harness.conversation(other, ctx))?.id).toBe(other)
+  expect(await host.harness.snapshot(Profile, newUltimate, ctx)).toEqual({ definition: 'ultimate' })
+})
+
 it('uses the current optional workflow to defer any resident until requested', async () => {
   const f = await fixture((name) => name === 'x')
   await f.reopen()

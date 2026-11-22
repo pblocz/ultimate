@@ -9,12 +9,14 @@ import {
   defineWebExtension,
   ErrorReport,
   getConversation,
+  getState,
   insertIntoComposer,
   provide,
   useStore,
   useUltimate,
 } from '@/sdk'
 import type { CommandContribution } from '@/sdk'
+import { ClearConversationAction } from '../subagents/ui.tsx'
 import { PanelActions } from './panel-actions.tsx'
 
 /** The conversation in a centred column, with the sidebar and the right panel beside it. */
@@ -46,6 +48,30 @@ const commands: CommandContribution[] = [
     whileTyping: true,
     when: (context) => getConversation(context.conversationId).busy,
     run: (context) => api.abort(context.conversationId),
+  },
+  {
+    id: 'agent.clear',
+    title: 'Clear conversation',
+    when: ({ conversationId }) => {
+      const { requested, conversations } = getState()
+      if (conversationId === undefined || conversationId === 1 || requested !== conversationId)
+        return false
+      const summary = conversations.find(({ id }) => id === conversationId)
+      return (
+        (summary?.label === 'chat' || summary?.label === 'agent') &&
+        summary.parentConversationId === undefined &&
+        summary.ownerTaskId === undefined
+      )
+    },
+    run: async ({ conversationId, switchConversation }) => {
+      if (conversationId === undefined || getState().requested !== conversationId) return
+      const id = await api.action(
+        ClearConversationAction,
+        { id: conversationId },
+        { conversationId },
+      )
+      if (getState().requested === conversationId) switchConversation(id)
+    },
   },
   // Lineage replaces these two for its roots.
   {

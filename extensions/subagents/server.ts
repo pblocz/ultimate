@@ -35,6 +35,7 @@ import type {
 } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import type { Source } from '../../server/project.ts'
+import { ChannelError } from '../../shared/channel-host.ts'
 import {
   agentRoots,
   definitionAgent,
@@ -60,11 +61,13 @@ import type { SubagentsService } from './api.ts'
 import { definitionRuns, refName, refOf } from '../../lib/families.ts'
 import { readFamilies } from '../../lib/families-settings.ts'
 import {
+  ClearConversationAction,
   DefaultDestinationAction,
   DefinitionAction,
   DefinitionsAction,
   DeleteDefinitionAction,
   SaveDefinitionAction,
+  ReplaceStandingAction,
   StandingAction,
 } from './refs.ts'
 
@@ -382,6 +385,8 @@ async function waitInterruptibly(
 /** Extension-owned standing definitions retire when their extension is disabled live. */
 export const reloadOnSettings = true
 
+export const userActions = ['replaceStanding', 'clearConversation']
+
 /** Browser actions for the Agents tab. */
 export const actions = {
   /** `{name}`: open the current definition's standing conversation. */
@@ -398,6 +403,52 @@ export const actions = {
     const { name } = (args ?? {}) as Record<string, JsonValue>
     if (typeof name !== 'string') throw new Error('name is required')
     return host.need(SubagentsApi).standing(name, BACKGROUND_CONTEXT)
+  }),
+  replaceStanding: implementAction(ReplaceStandingAction, async (args, { host }) => {
+    const { name, expected } = (args ?? {}) as Record<string, JsonValue>
+    if (
+      typeof name !== 'string' ||
+      !name ||
+      typeof expected !== 'number' ||
+      !Number.isSafeInteger(expected) ||
+      expected < 1
+    )
+      throw new ChannelError('invalid_input', 'Expected a standing name and conversation ID')
+    return host
+      .need(SubagentsApi)
+      .replaceStanding(name, expected as ConversationId, BACKGROUND_CONTEXT)
+  }),
+  clearConversation: implementAction(ClearConversationAction, async (args, { host }) => {
+    const { id } = (args ?? {}) as Record<string, JsonValue>
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= ROOT_CONVERSATION_ID)
+      throw new ChannelError('invalid_input', 'Select a conversation to clear')
+    const target = id as ConversationId
+    const index = await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT)
+    const name = Object.keys(index ?? {}).find((key) => index?.[key] === target)
+    if (name) return host.need(SubagentsApi).replaceStanding(name, target, BACKGROUND_CONTEXT)
+
+    const { conversations } = host.channelHost()
+    const { summary, configuration } = await conversations.get(id)
+    if (
+      summary.label !== 'chat' ||
+      summary.parentConversationId !== undefined ||
+      summary.ownerTaskId !== undefined
+    )
+      throw new ChannelError(
+        'conflict',
+        `#${id} is not an ordinary chat or a current standing conversation`,
+      )
+    const { definition, preset, model, thinkingLevel } = configuration
+    const fresh = await conversations.create(
+      { definition, ...(preset ? { preset } : { model }), thinkingLevel },
+      async (tx) => {
+        if ((await tx.doc(host.metadata, target)).label !== 'chat')
+          throw new ChannelError('conflict', `#${id} is no longer an ordinary chat`)
+        if (Object.values(await tx.doc(Standing, ROOT_CONVERSATION_ID)).includes(target))
+          throw new ChannelError('conflict', `#${id} became a standing conversation; open it again`)
+      },
+    )
+    return fresh.id
   }),
   /**
    * The definitions without their instructions and the files that failed to parse, and for the config view the main
@@ -648,6 +699,70 @@ export default function subagents(
     },
   })
   const resolveDestination = defaultDestination(host)
+  async function openStanding(name: string, ctx: Context, expected?: ConversationId) {
+    const definitions = await residentDefinitions()
+    const definition = definitions.find((item) => item.name === name)
+    if (!definition) {
+      if (expected !== undefined)
+        throw new ChannelError('conflict', `Standing address @${name} is no longer available`)
+      await pruneRetired(ctx)
+      throw new Error(
+        `Unknown standing agent @${name}. Standing agents: ${definitions.map((item) => `@${item.name}`).join(', ') || 'none'}`,
+      )
+    }
+    const root = (await host.harness().conversation(ROOT_CONVERSATION_ID, ctx))!
+    const main = await root.agent(ctx)
+    const defaults = { ...main, ...(await hostDefault(host)) }
+    return host.harness().commit(async (tx) => {
+      const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
+      let id = Object.hasOwn(index, name) ? index[name] : undefined
+      const previous = id !== undefined && (await tx.conversation(id)) ? id : undefined
+      if (expected !== undefined && previous !== expected)
+        throw new ChannelError(
+          'conflict',
+          `Standing address @${name} no longer points to #${expected}`,
+        )
+      let created: ConversationRecord | undefined
+      const own = previous === undefined ? undefined : await tx.doc(AgentDoc, previous)
+      const base = {
+        ...defaults,
+        ...(own?.model && { model: own.model }),
+        ...(own?.thinkingLevel && { thinkingLevel: own.thinkingLevel }),
+      }
+      const replacing = expected !== undefined
+      const change = definitionAgent(
+        definition,
+        base,
+        host.modelRuntime,
+        replacing
+          ? {
+              model: own?.model,
+              thinking: own?.thinkingLevel,
+            }
+          : undefined,
+      )
+      const family = replacing
+        ? (await tx.doc(Family, expected)).name
+        : definitionFamily(definition, change)
+      if (replacing || previous === undefined) {
+        created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+        id = created.id
+        index[name] = id
+        if (replacing) await conversations.setStanding(tx, expected, false)
+      } else {
+        id = previous
+      }
+      await configure(tx, id, { ...change, cwd: host.projectRoot })
+      ;(await tx.doc(Family, id)).name = family
+      Object.assign(await tx.doc(host.metadata, id), { label: 'agent', title: `@${name}` })
+      await conversations.setAutomaticSummaries(tx, id, false)
+      await conversations.setStanding(tx, id, true)
+      ;(await tx.doc(Profile, id)).definition = name
+      setMark(await tx.doc(Marks, ROOT_CONVERSATION_ID), definition)
+      if (created) await started(host, tx, created, name, 'standing')
+      return id
+    }, ctx)
+  }
   const service: SubagentsService = {
     destinationAddress,
     defaultDestination: resolveDestination,
@@ -674,51 +789,8 @@ export default function subagents(
     async residents(_ctx) {
       return (await residentDefinitions()).map(({ name, description }) => ({ name, description }))
     },
-    async standing(name, ctx) {
-      const definitions = await residentDefinitions()
-      const definition = definitions.find((item) => item.name === name)
-      if (!definition) {
-        await pruneRetired(ctx)
-        throw new Error(
-          `Unknown standing agent @${name}. Standing agents: ${definitions.map((item) => `@${item.name}`).join(', ') || 'none'}`,
-        )
-      }
-      const root = (await host.harness().conversation(ROOT_CONVERSATION_ID, ctx))!
-      const main = await root.agent(ctx)
-      return host.harness().commit(async (tx) => {
-        const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
-        let id = Object.hasOwn(index, name) ? index[name] : undefined
-        let created: ConversationRecord | undefined
-        // A new conversation starts on the default model and thinking level; an existing one keeps those chosen in
-        // it, so a refresh changes them only where the definition pins them.
-        let base = { ...main, ...(await hostDefault(host)) }
-        if (id !== undefined && (await tx.conversation(id))) {
-          const own = await tx.doc(AgentDoc, id)
-          base = {
-            ...base,
-            ...(own.model ? { model: own.model } : {}),
-            ...(own.thinkingLevel ? { thinkingLevel: own.thinkingLevel } : {}),
-          }
-        } else {
-          // Created and indexed in one commit; a deleted standing conversation is recreated here.
-          created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
-          id = created.id
-          index[name] = id
-        }
-        const change = definitionAgent(definition, base, host.modelRuntime)
-        await configure(tx, id, { ...change, cwd: host.projectRoot })
-        ;(await tx.doc(Family, id)).name = definitionFamily(definition, change)
-        Object.assign(await tx.doc(host.metadata, id), { label: 'agent', title: `@${name}` })
-        // A standing agent keeps its `@name`: no automatic title, summary or reply activity.
-        await conversations.setAutomaticSummaries(tx, id, false)
-        await conversations.setStanding(tx, id, true)
-        ;(await tx.doc(Profile, id)).definition = name
-        setMark(await tx.doc(Marks, ROOT_CONVERSATION_ID), definition)
-        // Only a new conversation starts: a refresh reconfigures one that already runs.
-        if (created) await started(host, tx, created, name, 'standing')
-        return id
-      }, ctx)
-    },
+    standing: (name, ctx) => openStanding(name, ctx),
+    replaceStanding: (name, expected, ctx) => openStanding(name, ctx, expected),
   }
   host.implement(SubagentsApi, service)
   /**

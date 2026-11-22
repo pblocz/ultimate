@@ -109,6 +109,16 @@ export const ProfileDoc = docRef<{ definition?: string }>('ultimate.agent-profil
 
 /** `{ name }` → the conversation id of standing agent `name`, created or refreshed from its definition. */
 export const StandingAction = actionRef<{ name: string }, number>('subagents', 'standing')
+/** Standing name and expected conversation ID → new conversation ID. */
+export const ReplaceStandingAction = actionRef<{ name: string; expected: number }, number>(
+  'subagents',
+  'replaceStanding',
+)
+/** Open conversation ID → fresh conversation ID, with its standing address moved if it has one. */
+export const ClearConversationAction = actionRef<{ id: number }, number>(
+  'subagents',
+  'clearConversation',
+)
 /** No arguments → every definition, the files that failed to parse, and the main agent's model and tools. */
 export const DefinitionsAction = actionRef<null, Discovery>('subagents', 'definitions')
 /** `{ name }` → the definition that applies to `name`, its source and path, the raw file, and the scopes with one. */
