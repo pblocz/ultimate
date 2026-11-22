@@ -28,7 +28,7 @@ At startup, Ultimate publishes the command list to Telegram's menu for private c
 - **Tool activity:** Each turn has at most one **Tool activity** message. Ultimate edits it as tools start and end, at most once every two seconds. It lists calls in call order, with the newest eight lines.
 - **Assistant updates:** Committed assistant text between tool rounds appears as separate messages, in order, before the final answer. Thinking and partial drafts do not appear.
 
-Tool activity shows only the tool name and one filtered detail. File tools show a short path in the workspace. Paths outside the workspace and secret-like files show no path. `web_fetch` shows only the host name. Shell, MCP, and other tools show only the tool name. Ultimate does not send commands, arguments, tool output, or error text. If an edit fails, Ultimate stops progress edits for that turn and does not send a replacement.
+Tool activity uses the same hints as Nanobot: the tool and its main argument, shortened to about 40 characters. Examples are `read …/telegram/README.md`, `$ git status --short`, `fetch https://example.com/docs/page`, and `codemode("const files = …")`. Tool output and error text are not sent. A token written directly into a command or path can appear in the hint. If an edit fails, Ultimate stops progress edits for that turn and does not send a replacement.
 
 ## Commands
 

@@ -35,20 +35,14 @@ export function telegramChannel(
   const state = ledger(harness, bot)
   const stopping = new AbortController()
   const sends = new Map<string, Promise<void>>()
-  const activity = turnActivity(
-    harness,
-    state,
-    bot,
-    {
-      ...statusTransport,
-      assistantUpdate: (from, id, entry, text) =>
-        ordered(from.chat, id, async () => {
-          const delivered = await sendEntry(from, id, String(entry), text)
-          if (delivered) activity.refresh(from.chat)
-        }),
-    },
-    host.projectRoot,
-  )
+  const activity = turnActivity(harness, state, bot, {
+    ...statusTransport,
+    assistantUpdate: (from, id, entry, text) =>
+      ordered(from.chat, id, async () => {
+        const delivered = await sendEntry(from, id, String(entry), text)
+        if (delivered) activity.refresh(from.chat)
+      }),
+  })
   const watchers = new Map<number, { controller: AbortController; scan: () => Promise<void> }>()
   const keyOf = ({ chat, message }: Address) => `${chat}:${message}`
   const notice = (message: string) => host.notice(`Telegram: ${message}`)

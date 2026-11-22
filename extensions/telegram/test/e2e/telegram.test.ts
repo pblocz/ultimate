@@ -720,25 +720,32 @@ it.each([false, true])(
   },
 )
 
-it('shows only filtered tool details in Telegram', async () => {
+it('shows Nanobot-style tool hints in Telegram', async () => {
   const bot = await fixture()
   const server = await bot.reopen()
-  await writeFile(join(server.host.projectRoot, 'preview-note.md'), 'TOOL_OUTPUT_SECRET\n')
-  await writeFile(join(server.host.projectRoot, '.env'), 'ENV_FILE_SECRET\n')
+  await writeFile(join(server.host.projectRoot, 'preview-note.md'), 'TOOL_OUTPUT_TEXT\n')
   server.host.faux!.setResponses([
     () =>
       fauxAssistantMessage(
         [
           fauxToolCall('read', { path: 'preview-note.md' }, { id: 'note' }),
-          fauxToolCall('read', { path: '.env' }, { id: 'env' }),
-          fauxToolCall('read', { path: '/etc/hostname' }, { id: 'outside' }),
-          fauxToolCall('bash', { command: 'echo SHELL_ARG_SECRET; exit 3' }, { id: 'shell' }),
           fauxToolCall(
-            'web_fetch',
-            { url: 'https://user:PASSWORD_SECRET@example.com/a?token=QUERY_SECRET' },
-            { id: 'fetch' },
+            'read',
+            { path: '/opt/ultimate/extensions/telegram/README.md' },
+            { id: 'long' },
           ),
-          fauxToolCall('mcp_probe', { secret: 'MCP_ARG_SECRET' }, { id: 'mcp' }),
+          fauxToolCall('bash', { command: 'git status --short' }, { id: 'shell' }),
+          fauxToolCall('web_fetch', { url: 'https://example.com/docs/page' }, { id: 'fetch' }),
+          fauxToolCall(
+            'codemode',
+            { code: 'const files = await tools.read({ path: "a" })\nreturn files' },
+            { id: 'code' },
+          ),
+          fauxToolCall(
+            'mcp',
+            { server: 'docs', tool: 'lookup', args: { query: 'pi durable' } },
+            { id: 'mcp' },
+          ),
         ],
         { stopReason: 'toolUse' },
       ),
@@ -750,31 +757,20 @@ it('shows only filtered tool details in Telegram', async () => {
     [...bot.sends, ...bot.edits].filter(({ text }) => text.startsWith('Tool activity')).at(-1)
       ?.text ?? ''
   await until(() => latest().split('\n').length === 7 && !/running|waiting/.test(latest()))
-  const last = latest()
-  expect(last.split('\n')).toEqual([
+  const status = (label: string) =>
+    expect.stringMatching(
+      new RegExp('^' + label.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&') + ' · (done|failed)$'),
+    )
+  expect(latest().split('\n')).toEqual([
     'Tool activity',
-    'Read · preview-note.md · done',
-    expect.stringMatching(/^Read · (done|failed)$/),
-    expect.stringMatching(/^Read · (done|failed)$/),
-    'Shell · failed',
-    'Web fetch · example.com · failed',
-    'mcp_probe · failed',
+    'read preview-note.md · done',
+    status('read …/extensions/telegram/README.md'),
+    status('$ git status --short'),
+    status('fetch https://example.com/docs/page'),
+    status('codemode("const files = await tools.read({ path: …")'),
+    status('docs::lookup("pi durable")'),
   ])
-  const wire = JSON.stringify([...bot.sends, ...bot.edits])
-  for (const leaked of [
-    'TOOL_OUTPUT_SECRET',
-    'ENV_FILE_SECRET',
-    '.env',
-    '/etc',
-    'SHELL_ARG_SECRET',
-    'echo',
-    'PASSWORD_SECRET',
-    'QUERY_SECRET',
-    'user:',
-    'MCP_ARG_SECRET',
-    'not available',
-  ])
-    expect(wire).not.toContain(leaked)
+  expect(JSON.stringify([...bot.sends, ...bot.edits])).not.toContain('TOOL_OUTPUT_TEXT')
 })
 
 it('keeps the old reply in its source chat and replays clear without creating a new conversation', async () => {

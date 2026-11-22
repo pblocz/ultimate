@@ -50,7 +50,6 @@ export function turnActivity(
   state: ReturnType<typeof ledger>,
   bot: string,
   transport: Transport,
-  root: string,
 ) {
   const controller = new AbortController()
   const inputs = new Map<string, Input>()
@@ -331,7 +330,7 @@ export function turnActivity(
     if (reply?.role === 'assistant')
       for (const part of reply.content)
         if (part.type === 'toolCall')
-          view.labels.set(`${view.round}:${part.id}`, toolPreview(part.name, part.arguments, root))
+          view.labels.set(`${view.round}:${part.id}`, toolPreview(part.name, part.arguments))
     if (view.round === undefined) return
     // Slot results and their entries publish in the same commit. Retain earlier row outcomes when another slot changes.
     for (const slot of live.tools) {
@@ -345,8 +344,7 @@ export function turnActivity(
       view.message.update(
         `${view.round}:${slot.callId}`,
         {
-          label:
-            view.labels.get(`${view.round}:${slot.callId}`) ?? toolPreview(slot.name, {}, root),
+          label: view.labels.get(`${view.round}:${slot.callId}`) ?? toolPreview(slot.name, {}),
           status:
             slot.status === 'pending'
               ? 'waiting'
