@@ -68,7 +68,10 @@ export function scheduler(
               metadata: host.metadata,
               label: RunLabel,
               title: `${a.name} · ${new Date(task.input.firedAt).toLocaleString()}`,
-              excludeTools: a.agent ? ['automation', 'subagent'] : ['automation'],
+              excludeTools:
+                profile && !profile.tools?.includes('subagent')
+                  ? ['automation', 'subagent']
+                  : ['automation'],
               excludeExtensions: ['automations'],
               cwd: (await tx.doc(AgentDoc, runtime.conversationId)).cwd ?? host.projectRoot,
               model: a.model,
@@ -155,11 +158,17 @@ export function scheduler(
   })
   /**
    * Every trigger kind fires here, manual runs included. The seventh fire within an hour (`recentFires`) pauses the
-   * automation and escalates instead; an overlapping prompt run is recorded as skipped, not queued.
+   * automation and escalates instead; an overlapping prompt run is recorded as skipped, not queued. Only fires that
+   * start a run or wake a subscriber count: a skipped fire starts nothing.
    */
   async function fire(tx: Tx, a: Automation, firedAt: number, text = '') {
+    // Scan for overlapping runs before any task/entry writes in this transaction.
+    const skip =
+      !!a.prompt &&
+      (a.runs.some((r) => r.status === 'running') || (await prepareFires(tx)).has(a.id))
+    const countsTowardCap = (!!a.prompt && !skip) || a.subscribers.length > 0
     a.recentFires = (a.recentFires ?? []).filter((at) => at > firedAt - 3600000)
-    if (a.recentFires.length >= 6) {
+    if (countsTowardCap && a.recentFires.length >= 6) {
       const reason = 'Fired more than 6 times in an hour; paused'
       a.enabled = false
       delete a.nextAt
@@ -171,9 +180,8 @@ export function scheduler(
       await deliver(tx, a, event.id, 'escalated', reason)
       return { id: a.id }
     }
-    // Scan for overlapping runs before any task/entry writes in this transaction.
-    const result = a.prompt ? await fireRun(tx, a, firedAt, text) : { id: a.id }
-    a.recentFires.push(firedAt)
+    const result = a.prompt ? await fireRun(tx, a, firedAt, text, skip) : { id: a.id }
+    if (countsTowardCap) a.recentFires.push(firedAt)
     a.fires++
     a.lastFireAt = firedAt
     const event = await host.emit(tx, Fired, { id: a.id, text, fire: a.fires })
@@ -203,9 +211,8 @@ export function scheduler(
     activeRuns.set(tx, ids)
     return ids
   }
-  async function fireRun(tx: Tx, a: Automation, firedAt: number, text: string) {
-    const running = a.runs.some((r) => r.status === 'running') || (await prepareFires(tx)).has(a.id)
-    if (running) {
+  async function fireRun(tx: Tx, a: Automation, firedAt: number, text: string, skip: boolean) {
+    if (skip) {
       a.runs.push({ id: `skipped:${firedAt}`, firedAt, finishedAt: firedAt, status: 'skipped' })
     } else {
       const id = await tx.createTask(

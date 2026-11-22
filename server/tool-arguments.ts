@@ -70,6 +70,7 @@ export function guardToolArguments<T extends Models>(models: T, trace?: ModelTra
       (signal) => models.streamSimple(model, context, { ...options, signal }),
       model,
       options?.signal,
+      options?.timeoutMs,
     )
     // An isolated call can use the session ID for routing without being part of agent generation.
     const isolated = options?.disableContinuation === true && options.cacheRetention === 'none'
@@ -187,6 +188,7 @@ export function guardStream(
   open: (signal: AbortSignal) => AssistantMessageEventStream,
   model: Pick<Model<Api>, 'api' | 'provider' | 'id'>,
   signal?: AbortSignal,
+  silenceMs?: number,
 ): AssistantMessageEventStream {
   const controller = new AbortController()
   const source = open(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal)
@@ -213,8 +215,27 @@ export function guardStream(
     const error = { ...partial, content: [...partial.content], stopReason: 'error' as const }
     guarded.push({ type: 'error', reason: 'error', error: { ...error, errorMessage } })
   }
+  // A stream that sends nothing for the request's timeout ends: pi-ai bounds only the wait for response headers, and
+  // keep-alive pings defeat the HTTP idle timeout. The wording misses Pi's retryable pattern on purpose, so Pi does not
+  // retry it silently; the watchdog gives it a visible retry.
+  let stalled = false
+  let stall: ReturnType<typeof setTimeout> | undefined
+  const restartStallDeadline = () => {
+    clearTimeout(stall)
+    if (silenceMs === undefined) return
+    stall = setTimeout(() => {
+      stalled = true
+      controller.abort()
+      fail(
+        `Model stream stalled: ${model.provider}/${model.id} sent nothing for ${Math.round(silenceMs / 1000)} s`,
+      )
+    }, silenceMs)
+  }
+  restartStallDeadline()
   void (async () => {
     for await (const event of source) {
+      if (stalled) return
+      restartStallDeadline()
       if ('partial' in event) partial = event.partial
       if (event.type === 'toolcall_delta') {
         let run = runs.get(event.contentIndex) ?? 0
@@ -238,10 +259,14 @@ export function guardStream(
       if (event.type === 'done' || event.type === 'error') return guarded.end()
     }
     // A source may also settle by its result alone, without a terminal event.
-    guarded.end(await source.result())
-  })().catch((error: unknown) => {
-    fail(`Model stream failed: ${String(error)}`)
-    guarded.end()
-  })
+    const result = await source.result()
+    if (!stalled) guarded.end(result)
+  })()
+    .catch((error: unknown) => {
+      if (stalled) return
+      fail(`Model stream failed: ${String(error)}`)
+      guarded.end()
+    })
+    .finally(() => clearTimeout(stall))
   return guarded
 }

@@ -29,9 +29,6 @@ export const DEFAULT_HTTP_IDLE_TIMEOUT_MS = 300_000
 // Node's 250ms default can terminate valid connection attempts on high-latency routes.
 const DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS = 2_000
 
-const originalGlobalFetch = globalThis.fetch
-let installedGlobalFetch: typeof globalThis.fetch | undefined
-
 export function parseHttpIdleTimeoutMs(value: unknown): number | undefined {
   if (typeof value === 'string') {
     const trimmed = value.trim()
@@ -111,16 +108,4 @@ export function configureHttpDispatcher(timeoutMs: number = DEFAULT_HTTP_IDLE_TI
   // turn-relay.ts sets its own attempt timeout or Node raises the default.
   setDefaultAutoSelectFamilyAttemptTimeout(DEFAULT_AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS)
   undici.setGlobalDispatcher(dispatcher)
-  // Keep fetch and the dispatcher on the same undici implementation. Node 26.0's
-  // bundled fetch can otherwise consume compressed responses through npm undici's
-  // dispatcher without decompressing them, causing response.json() failures.
-  // If a caller replaced fetch after module load, preserve that deliberate override.
-  const shouldInstallGlobals =
-    installedGlobalFetch === undefined
-      ? globalThis.fetch === originalGlobalFetch
-      : globalThis.fetch === installedGlobalFetch
-  if (shouldInstallGlobals) {
-    undici.install?.()
-    installedGlobalFetch = globalThis.fetch
-  }
 }

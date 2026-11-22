@@ -225,7 +225,7 @@ export function supervisor(
               once: m.once,
               ...(m.secrets ? { secrets: m.secrets } : {}),
               ...(target.to !== undefined ? { to: target.to } : {}),
-              conversationId: await agentConversation(tx, agent, id, m.name, host.projectRoot),
+              conversationId: await agentConversation(tx, agent, id, m.name),
               state: 'stopped',
             },
             subscribers: target.subscribers,
@@ -268,13 +268,7 @@ export function supervisor(
     for (const stop of removed) await apply(stop)
   }
   /** Create, inside `tx`, the ownerless conversation of automation `id`'s agent. */
-  async function agentConversation(
-    tx: Tx,
-    prepared: Prepared,
-    id: string,
-    name: string,
-    cwd: string,
-  ) {
+  async function agentConversation(tx: Tx, prepared: Prepared, id: string, name: string) {
     const child = await host.need(SubagentsApi).createChild(tx, {
       owner: { kind: 'ownerless' },
       definition: prepared.profile,
@@ -283,7 +277,7 @@ export function supervisor(
       metadata: host.metadata,
       label: WatcherLabel,
       title: `${id} · ${name}`,
-      cwd,
+      cwd: host.projectRoot,
     })
     return child.id
   }
@@ -341,12 +335,24 @@ export function supervisor(
       throw error
     }
   }
+  /** The watcher's brief or failure report; undefined once its automation stopped, so nothing reaches the watcher. */
   async function deliveryContent(sub: Automation, kind: 'writing' | 'failed', text: string) {
+    const now = (await host.harness().snapshot(Automations, BACKGROUND_CONTEXT))?.automations[
+      sub.id
+    ]
+    const script = now?.script
+    // A one-shot can be disabled while its watcher investigates an unplanned exit.
+    if (
+      !script ||
+      script.conversationId !== sub.script?.conversationId ||
+      script.state !== (kind === 'writing' ? 'writing' : 'investigating')
+    )
+      return undefined
     if (kind === 'writing') {
       await mkdir(join(folder(sub.id), 'state'), { recursive: true })
       return `${brief(sub)}\nWrite and briefly test run, then use automation resume {id:"${sub.id}"}. Ending your turn before resume or escalate escalates it.`
     }
-    return `Automation ${sub.id} "${sub.name}" failed (${sub.script!.failures ?? 1} of ${FAILURE_LIMIT} in a row; the ${FAILURE_LIMIT}rd escalates by itself): ${text}\nInvestigate, fix run, and use automation resume, or automation escalate with a clear reason when it cannot work. Ending your turn without resuming escalates it.\n${sub.scope === 'project' ? `${brief(sub)}\n` : ''}Last 50 log lines:\n${await tail(sub.id)}`
+    return `Automation ${sub.id} "${sub.name}" failed (${sub.script.failures ?? 1} of ${FAILURE_LIMIT} in a row; the ${FAILURE_LIMIT}rd escalates by itself): ${text}\nInvestigate, fix run, and use automation resume, or automation escalate with a clear reason when it cannot work. Ending your turn without resuming escalates it.\n${sub.scope === 'project' ? `${brief(sub)}\n` : ''}Last 50 log lines:\n${await tail(sub.id)}`
   }
   const readPid = (id: string) => readPidFile(join(folder(id), 'pid'))
   /** Pause, relaunch, delete, disable/release and shutdown all stop a script here: SIGTERM, three seconds, SIGKILL. */

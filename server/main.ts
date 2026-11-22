@@ -20,7 +20,6 @@ import { alive } from './lock.ts'
 import { realpath } from 'node:fs/promises'
 import { extensionModules } from './vite-extensions.ts'
 import { createAccess } from './request-security.ts'
-import { writeProject } from './project.ts'
 import { reportCore } from './supervisor-protocol.ts'
 import { viteLogger } from './vite-logger.ts'
 import type { Notice, SystemInfo } from '../shared/protocol.ts'
@@ -311,7 +310,6 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
         if (finalClosing) throw new Error('Server is closing')
         releaseRequested = false
         processInfo.activationError = activationError
-        await writeProject(host.home, host.projectRoot)
         return serve(await host.open(false))
       })
     },
@@ -321,13 +319,16 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
       releaseRequested = true
       backend?.closeAdmission()
       finalClose = serial(async () => {
-        await loaded.close()
+        // Release, then close the Harness before the extensions: work still running against a disposed service would
+        // fail, while work left in the closed Harness stays pending and resumes on the next open.
+        if (opened) await loaded.released()
         await backend?.close()
         backend = undefined
-        await ready.close()
-        await vite.close()
         await opened?.close()
         opened = undefined
+        await loaded.close()
+        await ready.close()
+        await vite.close()
       })
       return finalClose
     },
@@ -363,9 +364,16 @@ if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.met
       },
     )
   }
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
   if (process.env.ULTIMATE_SUPERVISED === '1' && process.send) {
+    const refuse = (signal: NodeJS.Signals) =>
+      reportCore({
+        type: 'log',
+        level: 'warn',
+        source: 'core',
+        text: `Ignored ${signal} sent to core pid ${process.pid}: the supervisor stops its core itself. Either Ultimate is stopping through its service (the signal went to the whole group), or a process outside it killed by port or name`,
+      })
+    process.on('SIGINT', refuse)
+    process.on('SIGTERM', refuse)
     try {
       server = await prepareServer()
       process.on('message', (message: SupervisorMessage) => {
@@ -396,6 +404,8 @@ if (process.argv[1] && resolvePath(process.argv[1]) === fileURLToPath(import.met
       process.exit(1)
     }
   } else {
+    process.on('SIGINT', shutdown)
+    process.on('SIGTERM', shutdown)
     server = await prepareServer()
     await server.go()
     // Previews read this line for the URL.

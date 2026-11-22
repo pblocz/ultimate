@@ -30,6 +30,9 @@ import { implementAction } from '../../lib/actions.ts'
 import { watchSteer } from '../../lib/steer.ts'
 import { CancelAction, CancelledDoc, Committed } from './refs.ts'
 
+/** Agent shells must not inherit the in-process Vite server's `NODE_ENV=development`. */
+const dropHostNodeEnv = 'unset NODE_ENV'
+
 /** Lets Pi's read tool shrink an image past the model's limits (2000x2000 by default) instead of refusing it. */
 const images = await createNodePhotonImages()
 
@@ -301,6 +304,7 @@ export default function codingTools(host: Pick<ExtensionHost, 'emit'>) {
       // One log per invocation: task ids repeat across projects and a retried call reruns its task.
       const log = join(tmpdir(), `ultimate-commits-${randomUUID()}.log`)
       const call = createBashTool({
+        commandPrefix: dropHostNodeEnv,
         prepare: (execution) => prepareBash(execution, api, log),
       })
       const run = (command: Context) => call.execute(args, api, command)

@@ -8,7 +8,7 @@
 - The core starts no listener. The optional `web` extension owns the HTTP listener, the browser API and the bundle ([its README](../extensions/web/README.md)); with it off, nothing listens, and other channels use `ChannelHost`.
 - The browser gets a production bundle of `web/` and every enabled `web.tsx` (`extensions/web/bundle.ts`), built by `server/web-build.ts` in a child process into `<home>/web/<id>/` and served precompressed; the bundler's memory goes when that child exits. While a page is open, a change to a bundled source rebuilds it about 150 ms later (a build takes about 2 s) and the page reloads onto the new `system.web.id`, resuming its view and drafts (`web/src/sdk/resume.ts`). With no page open a change only marks the bundle stale, and the next page load builds it. A `web.tsx` that does not build is left out: its loader rejects with the build error, so its error card shows while the rest runs, and a notice names the file; any other build failure keeps the previous bundle and raises a notice. In the server process Vite only loads server facets (`ssrLoadModule`) and watches files: no browser dependency optimizing, no HMR socket.
 - Call `restart` after editing `server/` or `shared/`, or after a landing that changed `patches/` or `pnpm-lock.yaml`, never for `web/`, `extensions/`, or `agents/`. `POST /api/restart` accepts the same swap; reconnect to events to observe the new generation. The supervisor type-checks and prepares a new child without storage, then waits for the old harness to close before opening the new one and resuming work. Failed checks/preparation keep the old child serving. The old child's web channel releases the port before the new one binds it, so a connection can fail during the handoff; pages reconnect and reload their saved state.
-- A crashed child restarts with backoff. After three failed boots the supervisor logs the error (`supervisor.log` and its output), serves nothing, and retries on changes in `server/`, `shared/`, or `extensions/`.
+- A crashed child restarts with backoff. A failed boot counts as a failure, and so does a crash within 60 seconds of `ready`. After three failures in a row the supervisor logs the error (`supervisor.log` and its output), serves nothing, and retries on changes in `server/`, `shared/`, or `extensions/`.
 - With Tailscale enabled, the server logs its HTTPS URL as `Ultimate: https://… (remote)` when Tailscale registers it (usually after startup), and logs again when it is no longer served; under the supervisor these are core log lines. The interactive dashboard also keeps the current remote URL at its top, with the local URL underneath, and updates it when remote access changes.
 - The web channel binds only `127.0.0.1`; `--port` or `ULTIMATE_PORT` sets the port, otherwise the first core under the supervisor takes the first free port from `4747`. Every later core binds the same port, so the URL stays across swaps and restarts.
 - `ULTIMATE_HOME` overrides state storage; the default is `<userHome>/.ultimate/projects/<basename>-<sha256(projectRoot) first 8 hex>/`. `ULTIMATE_USER_HOME` selects the Ultimate user home, else the OS home applies. Different projects can run concurrently, each its own dedicated process. Never run two storage owners on the same home. See [Workspace and state paths](#workspace-and-state-paths).
@@ -29,7 +29,11 @@
 - `tsconfig.swap.json` is the server-only type-check gate for swaps.
 - `tsconfig.json` (server, tests, tooling) references `tsconfig.web.json` (browser: `web/src`, `extensions/**/*.tsx`).
   `pnpm check` type-checks both; with plain `tsc`, run `tsc -b`.
-- The standalone server shuts down on SIGINT/SIGTERM; reopening resumes durable work.
+- The standalone server shuts down on SIGINT/SIGTERM; reopening resumes durable work. A supervised core ignores both
+  and logs a warning: the supervisor stops it over IPC, so such a signal either reached the whole group while the
+  service stops Ultimate, or came from outside (an agent's kill by port or name). Stop Ultimate through the supervisor (`pnpm start`'s process, or its service).
+- Closing a server runs the extensions' release callbacks, then closes the Harness before disposing them, so work running at shutdown stays pending and resumes
+  on the next open instead of faulting on a disposed extension.
 
 ## Workspace and state paths
 

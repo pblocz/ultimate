@@ -11,6 +11,7 @@ import {
   McpAbortError,
   McpClient,
   McpError,
+  McpHttpError,
   McpTimeoutError,
   StdioTransport,
   StreamableHttpTransport,
@@ -163,6 +164,8 @@ export async function secrets(host: ExtensionHost) {
   }))
 }
 
+const rateLimited = (error: unknown) => error instanceof McpHttpError && error.status === 429
+const schemaOf = (tool: Tool) => `${tool.name} input: ${JSON.stringify(tool.inputSchema)}`
 const listing = (server: Server) =>
   [
     `${server.name}: ${server.tools.length} tools. Call one with mcp {server, tool, args}.`,
@@ -377,9 +380,12 @@ export default async function mcp(host: ExtensionHost) {
                 })
                 return { output: toLlmContent(result), isError: result.isError === true }
               } catch (error) {
-                // A JSON-RPC error, a timeout or a cancel leaves the connection usable. Anything else (an HTTP
-                // failure, an expired session, a closed transport) does: connect again, never resend the call.
+                // A JSON-RPC error, a rate limit (HTTP 429), a timeout or a cancel leaves the connection usable.
+                // Anything else (an HTTP failure, an expired session, a closed transport) does: connect again,
+                // never resend the call.
                 const broken = !(
+                  rateLimited(error) ||
+                  context.abortSignal?.aborted ||
                   error instanceof McpError ||
                   error instanceof McpTimeoutError ||
                   error instanceof McpAbortError
@@ -387,7 +393,12 @@ export default async function mcp(host: ExtensionHost) {
                 // restart never rejects; the server's state shows how it went.
                 // oxlint-disable-next-line typescript/no-floating-promises -- see above.
                 if (broken && server.client === client) void restart(server)
-                return failure(`MCP ${name}/${tool} failed: ${redact(server, error)}`)
+                // A JSON-RPC error is often bad arguments: show the tool's input schema with it.
+                const known = server.tools.find((entry) => entry.name === tool)
+                return failure(
+                  `MCP ${name}/${tool} failed: ${redact(server, error)}` +
+                    (error instanceof McpError && known ? `\n${schemaOf(known)}` : ''),
+                )
               }
             },
           }),

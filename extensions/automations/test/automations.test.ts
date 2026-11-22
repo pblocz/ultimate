@@ -7,8 +7,14 @@ import { fauxAssistantMessage, fauxText, fauxToolCall } from '@earendil-works/pi
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { afterEach, expect, it, vi } from 'vitest'
 import { obj } from '@earendil-works/pi-schema'
-import { defineDoc, defineExtension, defineTool, configure } from '@earendil-works/pi-durable'
-import type { JsonObject, TaskId } from '@earendil-works/pi-durable'
+import {
+  AgentDoc,
+  defineDoc,
+  defineExtension,
+  defineTool,
+  configure,
+} from '@earendil-works/pi-durable'
+import type { ConversationId, JsonObject, TaskId } from '@earendil-works/pi-durable'
 import { context, prepareHarness } from '../../../server/harness.ts'
 import type { OpenHost } from '../../../server/harness.ts'
 import { Metadata } from '../../../server/metadata.ts'
@@ -39,6 +45,18 @@ async function fixture() {
     join(root, 'agents/writer.md'),
     '---\nname: writer\ndescription: Writes\ntools: [hold]\nisolate: worktree\n---\nOnly write the report.\n',
   )
+  await writeFile(
+    join(root, 'agents/watcher.md'),
+    '---\nname: watcher\ndescription: Watches\ntools: []\n---\nCheck the script.\n',
+  )
+  await writeFile(
+    join(root, 'agents/delegator.md'),
+    '---\nname: delegator\ndescription: Delegates\ntools: [hold, subagent]\n---\nDelegate.\n',
+  )
+  await writeFile(
+    join(root, 'agents/inheritor.md'),
+    '---\nname: inheritor\ndescription: Inherits\n---\nInherit.\n',
+  )
   const prepared = await prepareHarness({
     ultimateRoot: root,
     userHome,
@@ -67,6 +85,13 @@ async function fixture() {
             )
             return { output: [{ type: 'text', text: 'Released' }] }
           },
+        }),
+        defineTool({
+          name: 'subagent',
+          description: 'Delegate',
+          parameters: obj({}),
+          replay: 'safe',
+          execute: async () => ({ output: [{ type: 'text', text: 'Delegated' }] }),
         }),
       ],
     }),
@@ -104,6 +129,10 @@ async function fixture() {
         : last.content.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('')
     if (last.role === 'user' && text === 'HOLD')
       return fauxAssistantMessage([fauxToolCall('hold', {})], { stopReason: 'toolUse' })
+    if (last.role === 'user' && text.startsWith('AUTOMATION '))
+      return fauxAssistantMessage([fauxToolCall('automation', JSON.parse(text.slice(11)))], {
+        stopReason: 'toolUse',
+      })
     return fauxAssistantMessage([fauxText(`Answer: ${text}\nSecond line`)])
   }
   prepared.faux!.setResponses([route])
@@ -252,6 +281,29 @@ it('pause keeps a running profile run alive, skips overlap, and abort cancels a 
   await expect(f.action('update', { id: a.id, agent: 'missing' })).rejects.toThrow('Unknown agent')
 })
 
+it('keeps subagent for a definition that lists it, as subagent start does', async () => {
+  // A reviewer whose definition lists subagent to hand deep dives to a helper lost it when an automation ran it.
+  const f = await fixture()
+  const tools = async (agent: string) => {
+    const a = (await f.action('create', {
+      name: agent,
+      prompt: 'Report',
+      schedule: { kind: 'at', time: new Date(Date.now() + 3_600_000).toISOString() },
+      agent,
+    })) as Automation
+    await f.action('run', { id: a.id })
+    await until(async () => {
+      const record = (await f.records()).find((r) => r.id === a.id)!
+      return record.runs[0]?.status === 'done'
+    })
+    const run = (await f.records()).find((r) => r.id === a.id)!.runs[0]
+    const child = (await f.opened.harness.conversation(run.conversationId!, context))!
+    return (await child.agent(context)).tools.map((t) => t.name)
+  }
+  expect(await tools('delegator')).toEqual(['hold', 'subagent'])
+  expect(await tools('inheritor')).not.toContain('subagent')
+})
+
 it('fires nothing while the host is paused and catches up once after Play', async () => {
   const f = await fixture()
   const a = (await f.action('create', {
@@ -377,6 +429,27 @@ it('validates one trigger, project script scope and action targets before creati
   expect(prompt.subscribers).toEqual([])
 })
 
+it("starts the watcher in the project root, not in the creating branch's worktree", async () => {
+  const f = await fixture()
+  const branch = await f.opened.harness.createConversation(
+    { ownership: { kind: 'ownerless' } },
+    context,
+  )
+  await f.opened.harness.commit(async (tx) => {
+    ;(await tx.doc(AgentDoc, branch.id)).cwd = '/removed/worktree'
+  }, context)
+  const a = (await f.action(
+    'create',
+    { name: 'Watch', ask: 'Watch a PR' },
+    branch.id,
+  )) as Automation
+  const watcher = (await f.opened.harness.conversation(
+    a.script!.conversationId as ConversationId,
+    context,
+  ))!
+  expect((await watcher.agent(context)).cwd).toBe(f.prepared.projectRoot)
+})
+
 it('removes the prompt on an empty update only while subscribers remain', async () => {
   const f = await fixture()
   const caller = await f.opened.harness.createConversation(
@@ -401,6 +474,41 @@ it('removes the prompt on an empty update only while subscribers remain', async 
   await expect(
     f.action('create', { name: 'Empty', prompt: '', schedule: 'every 1d' }),
   ).rejects.toThrow('At least one')
+})
+
+it('replaces subscribers on update instead of dropping them', async () => {
+  // A prompt automation updated with subscribers: ["@ultimate"] kept none, so its runs reached no one.
+  const f = await fixture()
+  const [first, second] = await f.opened.harness.commit(async (tx) => {
+    const made = []
+    for (let i = 0; i < 2; i++) {
+      const child = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+      await configure(tx, child.id, {})
+      made.push(child.id)
+    }
+    return made
+  }, context)
+  const a = (await f.action('create', {
+    name: 'Briefing',
+    prompt: 'Hello',
+    schedule: 'every 1d',
+  })) as Automation
+  const added = (await f.action('update', {
+    id: a.id,
+    prompt: 'Hello again',
+    subscribers: [`#${first}`, second],
+  })) as Automation
+  expect(added.subscribers).toEqual([first, second])
+  expect(
+    ((await f.action('update', { id: a.id, subscribers: [] })) as Automation).subscribers,
+  ).toEqual([])
+  await f.action('update', { id: a.id, prompt: '', subscribers: [first] })
+  await expect(f.action('update', { id: a.id, subscribers: [] })).rejects.toThrow('At least one')
+  await expect(f.action('update', { id: a.id, subscribers: [99999] })).rejects.toThrow(
+    'Unknown subscriber',
+  )
+  const [kept] = await f.records()
+  expect([kept.prompt, kept.subscribers]).toEqual([undefined, [first]])
 })
 
 it('migrates schedule records saved before scripts and subscribers', async () => {
@@ -473,4 +581,41 @@ it('preserves the next interval fire on rename, even when the same schedule is s
   expect(reordered.nextAt).toBe(a.nextAt)
   const changed = (await f.action('update', { id: a.id, schedule: 'every 2d' })) as Automation
   expect(changed.nextAt).toBeGreaterThan(a.nextAt!)
+})
+
+it('names the next fire in UTC and from now in the tool receipt and list', async () => {
+  const f = await fixture()
+  vi.setSystemTime(Date.parse('2026-11-19T19:00:00Z'))
+  const receipt = async (args: JsonObject) => {
+    const conversation = f.opened.root
+    const results = async () =>
+      (await conversation.context(context)).entries.filter(
+        (entry) => entry.kind === 'pi.tool-result',
+      )
+    const before = (await results()).length
+    await conversation.submit(
+      { type: 'input', content: `AUTOMATION ${JSON.stringify(args)}` },
+      context,
+    )
+    await until(async () => (await results()).length > before)
+    const result = (await results()).at(-1)!.model![0] as unknown as {
+      content: { text: string }[]
+    }
+    return result.content.map((part) => part.text).join('')
+  }
+  expect(
+    await receipt({ action: 'create', name: 'Daily', schedule: 'cron "0 13 * * *" UTC' }),
+  ).toContain('At 13:00 (UTC) — next: 2026-11-20T13:00:00Z, in 18h — enabled')
+  expect(await receipt({ action: 'create', name: 'Soon', schedule: 'every 90m' })).toContain(
+    'next: 2026-11-19T20:30:00Z, in 1h 30m',
+  )
+  expect(await receipt({ action: 'create', name: 'Later', schedule: 'in 3d' })).toContain(
+    'next: 2026-11-22T19:00:00Z, in 3d',
+  )
+  expect(await receipt({ action: 'pause', id: 'A2' })).not.toContain('next:')
+  const list = (await receipt({ action: 'list' })).split('\n')
+  expect(list).toHaveLength(3)
+  expect(list[0]).toContain('next: 2026-11-20T13:00:00Z')
+  expect(list[1]).not.toContain('next:')
+  expect(list[2]).toContain('next: 2026-11-22T19:00:00Z')
 })

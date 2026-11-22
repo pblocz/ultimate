@@ -8,7 +8,6 @@ import type { JsonValue } from '@earendil-works/chord/json'
 import { arr, bool, int, lit, map, num, obj, opt, str, union } from '@earendil-works/pi-schema'
 import { strEnum } from '../../lib/schema.ts'
 import {
-  AgentDoc,
   defineDoc,
   defineExtension,
   defineTool,
@@ -30,6 +29,7 @@ import { groupAlive } from '../../lib/process-group.ts'
 import { writeJson } from '../../lib/json-file.ts'
 import { SubagentsApi } from '../subagents/api.ts'
 import { MessagesApi } from '../messages/api.ts'
+import { ConversationsApi } from '../conversations/api.ts'
 import { AutomationsApi, AutomationsWorkflow } from './api.ts'
 import {
   CreateAction,
@@ -47,7 +47,7 @@ import {
   EscalateAction,
   EventsAction,
 } from './refs.ts'
-import { describeSchedule, nextAt, parseSchedule } from './schedule.ts'
+import { describeNext, describeSchedule, nextAt, parseSchedule } from './schedule.ts'
 import { scheduler } from './scheduler.ts'
 import { triggers, TRIGGER_EVENTS, describeTrigger } from './triggers.ts'
 import { notifications } from './delivery.ts'
@@ -72,7 +72,7 @@ import type {
   Manifest,
   Subscriber,
 } from './types.ts'
-import { isId, isSlug, STANDING } from './types.ts'
+import { isId, isSlug, STANDING, WatcherLabel } from './types.ts'
 export type { Automation, Run } from './types.ts'
 export { handshake as launchHandshake } from '../../lib/process-group.ts'
 type Ledger = { next: number; automations: Record<string, Automation> }
@@ -106,7 +106,7 @@ export const Automations = defineDoc<Ledger>({
     return ledger
   },
 })
-type Change = { result: JsonValue; abort?: TaskId; effect?: Effect }
+type Change = { result: JsonValue; abort?: TaskId; effect?: Effect; stop?: ConversationId }
 /** Per tool call, by call id: a codemode script's nested calls share its task, so the task alone does not name a call. */
 const Receipts = defineDoc<Record<string, Partial<Change>>>({
   kind: 'ultimate.automation-receipts',
@@ -269,6 +269,9 @@ function backend(host: ExtensionHost) {
     }
     throw new Error('subscribers must be #id or @name')
   }
+  const resolveAll = async (values: unknown[]) => [
+    ...new Set(await Promise.all(values.map((value) => subscriber(value)))),
+  ]
   async function prepareScript(args: Args, caller?: number): Promise<Prepared> {
     const { trusted, agentFor, projectDir, manifest, resolveManifest, configurationError } =
       await scripts()
@@ -481,15 +484,7 @@ function backend(host: ExtensionHost) {
         return { result: sub }
       }
       const id = `A${state.next++}`
-      const conversationId = await (
-        await scripts()
-      ).agentConversation(
-        tx,
-        prepared,
-        id,
-        name,
-        (await tx.doc(AgentDoc, caller as ConversationId)).cwd ?? host.projectRoot,
-      )
+      const conversationId = await (await scripts()).agentConversation(tx, prepared, id, name)
       const now = Date.now()
       const sub: Automation = {
         id,
@@ -530,6 +525,12 @@ function backend(host: ExtensionHost) {
       sub.subscribers = sub.subscribers.filter((s) => s !== prepared.subscriber)
       reachesSomeone(sub)
     } else if (args.action === 'resume' || args.action === 'run') {
+      if (
+        sub.script!.state === 'stopped' &&
+        caller !== undefined &&
+        (await tx.doc(host.metadata, caller as ConversationId)).label === WatcherLabel
+      )
+        throw new Error(`Automation ${id} is stopped; only its owner resumes it`)
       sub.enabled = true
       sub.script!.state = 'running'
       // Retain the old pid until launch so onOpen can sweep it if the process dies before the effect.
@@ -544,16 +545,24 @@ function backend(host: ExtensionHost) {
       }
     } else if (args.action === 'pause' || args.action === 'delete' || args.action === 'escalate') {
       const pid = sub.script!.pid
+      const watcher = sub.script!.conversationId as ConversationId
+      const stopsWatcher = args.action !== 'escalate' && caller !== watcher
       if (args.action === 'escalate')
         await (await scripts()).escalate(tx, sub, required(args.reason, 'reason'))
       else {
         sub.enabled = false
         if (sub.script!.state !== 'done') sub.script!.state = 'stopped'
       }
-      if (args.action === 'delete') delete state.automations[id]
+      if (args.action === 'delete') {
+        delete state.automations[id]
+        const conversations = host.need(ConversationsApi)
+        if (stopsWatcher && !(await conversations.concludedIn(tx)).has(watcher))
+          await conversations.concludeIn(tx, [watcher])
+      }
       return {
         result: args.action === 'delete' ? { id } : sub,
         effect: { id, action: 'pause', ...(pid ? { previousPid: pid } : {}) },
+        ...(stopsWatcher ? { stop: watcher } : {}),
       }
     }
     return { result: sub }
@@ -595,8 +604,6 @@ function backend(host: ExtensionHost) {
         args.scope !== 'project'
       )
         throw new Error('At least one of prompt or subscribers is required')
-      if (args.subscribers !== undefined && !Array.isArray(args.subscribers))
-        throw new Error('subscribers must be #id or @name')
       if (args.key !== undefined && (typeof args.key !== 'string' || !args.key.trim()))
         throw new Error('key must be a non-empty string')
     }
@@ -622,6 +629,8 @@ function backend(host: ExtensionHost) {
       if (!target || !(await host.harness().conversation(target, BACKGROUND_CONTEXT)))
         throw new Error(`Unknown of: ${c.of}`)
     }
+    if (args.subscribers !== undefined && !Array.isArray(args.subscribers))
+      throw new Error('subscribers must be #id or @name')
     if (args.name !== undefined) required(args.name, 'name')
     // An empty prompt on update removes the run action; create needs a real one.
     if (args.prompt !== undefined && (args.action === 'create' || args.prompt !== ''))
@@ -667,6 +676,13 @@ function backend(host: ExtensionHost) {
       ).some((a) => a.key === args.key)
     )
       return { keyed: true }
+    const createdByWatcher =
+      args.action === 'create' &&
+      caller !== undefined &&
+      (await host.harness().snapshot(host.metadata, caller as ConversationId, BACKGROUND_CONTEXT))
+        ?.label === WatcherLabel
+    if (createdByWatcher)
+      throw new Error('A watcher repairs only its own automation; it cannot create one')
     await validate(args, caller)
     if (args.action === 'create') {
       if (args.ask !== undefined) await scripts()
@@ -674,7 +690,7 @@ function backend(host: ExtensionHost) {
         destination !== undefined
           ? [await subscriber(destination)]
           : args.subscribers?.length
-            ? [...new Set(await Promise.all(args.subscribers.map((value) => subscriber(value))))]
+            ? await resolveAll(args.subscribers)
             : undefined
       const prepared: Prepared = {
         ...(args.ask !== undefined ? await prepareScript(args, caller) : {}),
@@ -693,6 +709,8 @@ function backend(host: ExtensionHost) {
     const prepared = sub.script
       ? await prepareScript(args, caller)
       : await prepareSubscriber(args, caller)
+    if (args.action === 'update' && args.subscribers)
+      prepared.subscribers = await resolveAll(args.subscribers)
     const condition =
       args.condition ??
       (args.action === 'resume' ? (await status(required(args.id, 'id'))).condition : undefined)
@@ -855,6 +873,10 @@ function backend(host: ExtensionHost) {
   }
   async function apply(receipt: Partial<Change>) {
     if (receipt.abort) await host.harness().abortTask(receipt.abort, BACKGROUND_CONTEXT)
+    if (receipt.stop)
+      await (
+        await host.harness().conversation(receipt.stop, BACKGROUND_CONTEXT)
+      )?.abort(BACKGROUND_CONTEXT, { background: true })
     if (receipt.effect) await (await scripts()).apply(receipt.effect)
   }
   async function operate(args: Args, caller?: number): Promise<JsonValue> {
@@ -981,6 +1003,7 @@ export const pollActions = ['list', 'log', 'script']
 export default function automations(host: ExtensionHost) {
   host.need(SubagentsApi)
   host.need(MessagesApi)
+  host.need(ConversationsApi)
   const api = backend(host)
   host.implement(AutomationsApi, {
     create: async (args) => (await api.operate({ ...args, action: 'create' })) as Automation,
@@ -1136,7 +1159,8 @@ function concise(value: JsonValue): string {
   if (value && typeof value === 'object' && 'enabled' in value) {
     const a = value as Automation
     const to = a.subscribers.map((s) => (typeof s === 'number' ? `#${s}` : s)).join(', ')
-    return `${a.id} ${a.name} — ${describeTrigger(a)} — ${a.enabled ? 'enabled' : 'paused'}${to ? ` → ${to}` : ''}`
+    const next = a.nextAt !== undefined ? ` — ${describeNext(a.nextAt, Date.now())}` : ''
+    return `${a.id} ${a.name} — ${describeTrigger(a)}${next} — ${a.enabled ? 'enabled' : 'paused'}${to ? ` → ${to}` : ''}`
   }
   if (value && typeof value === 'object' && typeof value.text === 'string') return value.text
   return JSON.stringify(value)

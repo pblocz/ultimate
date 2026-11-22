@@ -25,6 +25,9 @@ Exactly one per automation:
   Any other unplanned exit wakes only the watcher, to repair or escalate. The third failure in a row (a FIRE or an hour
   of running resets the count), or a watcher whose turn ends mid-repair, escalates instead: the script stops as
   `failed`, and subscribers get `automations.escalated`. With `coding-workflow`, @ultimate also receives a message.
+  Pausing stops the watcher's turn and its queued inputs, deleting also concludes it, and briefs or failures still on
+  their way to a stopped automation's watcher are dropped. A watcher cannot create automations, nor resume one its owner
+  paused.
 
 ## Actions
 
@@ -44,27 +47,30 @@ subscriber list.
 
 Without either, create subscribes the caller; nothing may leave an automation with neither. To be reminded, subscribe:
 a prompt run costs a whole agent turn per fire. The seventh fire within an hour pauses the automation instead,
-escalating with `Fired more than 6 times in an hour; paused`. Subscribers receive this notification without a
+escalating with `Fired more than 6 times in an hour; paused`. Only fires that start a run or wake a subscriber count:
+one skipped beside a still-working run starts nothing, so a long deploy run does not pause its train. Subscribers receive this notification without a
 coordinator.
 
 `delivery.ts` owns the existing `ultimate.automation-delivery` task kind and stored input. `supervisor.ts` loads only
 for script operations, existing script records, script process cleanup, and trusted project manifests. If the file is
 absent, ordinary schedules keep working, explicit script requests fail, and stored script records stay unchanged.
 
-An optional `agent` runs prompt runs with that definition's instructions, tools (minus `automation` and `subagent`),
-model and thinking, discovered as in subagents; its isolate is ignored and unknown names are refused. Without one, runs
-copy the root agent minus the automation tool, on the default model. `model {provider, modelId}` and `thinking`
-override either. Enabled automations add a line each to the prompt, such as `when @ultimate context ≥ 80%`.
+An optional `agent` runs prompt runs with that definition's instructions, tools (minus `automation`, and `subagent`
+unless its `tools` lists it), model and thinking, discovered as in subagents; its isolate is ignored and unknown names
+are refused. Without one, runs copy the root agent minus the automation tool, on the default model.
+`model {provider, modelId}` and `thinking` override either. Enabled automations add a line each to the prompt, such as `when @ultimate context ≥ 80%`.
 
 ## Tool
 
 `automation` is replay-safe and takes `events`, `list`, `create`, `update`, `pause`, `resume`, `run`, `runs`, `log`,
-`abort`, `escalate`, `subscribe`, `unsubscribe`, `delete`.
+`abort`, `escalate`, `subscribe`, `unsubscribe`, `delete`. Its receipt and `list` give each scheduled automation's next
+fire in UTC and from now (`next: 2026-11-20T13:00:00Z, in 18h`), so a wrong day shows at once.
 
 - `create {name, schedule?|ask?|event?|condition?, once?, secrets?, prompt?, agent?, model?, thinking?, subscribers?,
   scope?, slug?, to?, destination?, key?}`. `key` makes it idempotent: a key an automation already has returns that automation.
   New ids are `A<n>`; project scripts use slugs.
-- `update {id, …, destination?}` may switch between schedule, event and condition; a script stays a script.
+- `update {id, …, destination?}` may switch between schedule, event and condition; a script stays a script. `subscribers` replaces
+  the whole list; `subscribe` / `unsubscribe` change one.
 - `pause` / `resume`; `run` fires now, or relaunches a script; `runs {id}`; `abort {id, runId}`; `log {id, lines?}`
   (default 50, at most 2000); `subscribe` / `unsubscribe {id, to?}` (default the caller); `escalate {id, reason}`;
   `delete` keeps files and conversations.

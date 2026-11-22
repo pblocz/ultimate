@@ -205,12 +205,12 @@ function createReporter() {
                 },
               }
             }
-            // Provider failures belong to the watchdog, which marks the action `given-up` once it reports
+            // Provider failures and runs a restart cut off belong to the watchdog, which marks the action `given-up` once it reports
             // instead of retrying. Either way recover() delivers the answer of a later watchdog retry (or
             // manual continuation).
             if (
               settled.status === 'unanswered' &&
-              (settled.reason === 'model_error' || settled.reason === 'no_model')
+              ['model_error', 'no_model', 'interrupted', 'restart_limit'].includes(settled.reason)
             ) {
               action.status = 'failed'
               return { status: 'running', checkpoint: { phase: 'report' } }
@@ -298,7 +298,7 @@ function createReporter() {
         const action = Object.values(state.actions).find(
           (candidate) => candidate.reporter === task.id,
         )!
-        action.status = 'unanswered'
+        action.status ??= 'unanswered'
         return { status: 'terminal', outcome: { status: 'aborted' } }
       }, context),
   })
@@ -700,68 +700,76 @@ export default function subagents(
   })
   const resolveDestination = defaultDestination(host)
   async function openStanding(name: string, ctx: Context, expected?: ConversationId) {
-    const definitions = await residentDefinitions()
-    const definition = definitions.find((item) => item.name === name)
-    if (!definition) {
-      if (expected !== undefined)
-        throw new ChannelError('conflict', `Standing address @${name} is no longer available`)
-      await pruneRetired(ctx)
-      throw new Error(
-        `Unknown standing agent @${name}. Standing agents: ${definitions.map((item) => `@${item.name}`).join(', ') || 'none'}`,
-      )
-    }
     const root = (await host.harness().conversation(ROOT_CONVERSATION_ID, ctx))!
     const main = await root.agent(ctx)
     const defaults = { ...main, ...(await hostDefault(host)) }
-    return host.harness().commit(async (tx) => {
-      const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
-      let id = Object.hasOwn(index, name) ? index[name] : undefined
-      const previous = id !== undefined && (await tx.conversation(id)) ? id : undefined
-      if (expected !== undefined && previous !== expected)
-        throw new ChannelError(
-          'conflict',
-          `Standing address @${name} no longer points to #${expected}`,
+    const result = await host
+      .harness()
+      .commit(async (tx): Promise<{ id: ConversationId } | { missing: string[] }> => {
+        // Read inside the commit: commits run one at a time, so a read made before it could put back instructions that
+        // a turn applying an edited or removed overlay had just replaced.
+        const definitions = await residentDefinitions()
+        const definition = definitions.find((item) => item.name === name)
+        if (!definition) {
+          if (expected !== undefined)
+            throw new ChannelError('conflict', `Standing address @${name} is no longer available`)
+          return { missing: definitions.map((item) => `@${item.name}`) }
+        }
+        const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
+        let id = Object.hasOwn(index, name) ? index[name] : undefined
+        const previous = id !== undefined && (await tx.conversation(id)) ? id : undefined
+        if (expected !== undefined && previous !== expected)
+          throw new ChannelError(
+            'conflict',
+            `Standing address @${name} no longer points to #${expected}`,
+          )
+        let created: ConversationRecord | undefined
+        const own = previous === undefined ? undefined : await tx.doc(AgentDoc, previous)
+        const base = {
+          ...defaults,
+          ...(own?.model && { model: own.model }),
+          ...(own?.thinkingLevel && { thinkingLevel: own.thinkingLevel }),
+        }
+        const replacing = expected !== undefined
+        const change = definitionAgent(
+          definition,
+          base,
+          host.modelRuntime,
+          replacing
+            ? {
+                model: own?.model,
+                thinking: own?.thinkingLevel,
+              }
+            : undefined,
         )
-      let created: ConversationRecord | undefined
-      const own = previous === undefined ? undefined : await tx.doc(AgentDoc, previous)
-      const base = {
-        ...defaults,
-        ...(own?.model && { model: own.model }),
-        ...(own?.thinkingLevel && { thinkingLevel: own.thinkingLevel }),
-      }
-      const replacing = expected !== undefined
-      const change = definitionAgent(
-        definition,
-        base,
-        host.modelRuntime,
-        replacing
-          ? {
-              model: own?.model,
-              thinking: own?.thinkingLevel,
-            }
-          : undefined,
+        const family = replacing
+          ? (await tx.doc(Family, expected)).name
+          : definitionFamily(definition, change)
+        if (replacing || previous === undefined) {
+          created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+          id = created.id
+          index[name] = id
+          if (replacing) await conversations.setStanding(tx, expected, false)
+        } else {
+          id = previous
+        }
+        await configure(tx, id, { ...change, cwd: host.projectRoot })
+        ;(await tx.doc(Family, id)).name = family
+        Object.assign(await tx.doc(host.metadata, id), { label: 'agent', title: `@${name}` })
+        await conversations.setAutomaticSummaries(tx, id, false)
+        await conversations.setStanding(tx, id, true)
+        ;(await tx.doc(Profile, id)).definition = name
+        setMark(await tx.doc(Marks, ROOT_CONVERSATION_ID), definition)
+        if (created) await started(host, tx, created, name, 'standing')
+        return { id }
+      }, ctx)
+    if ('missing' in result) {
+      await pruneRetired(ctx)
+      throw new Error(
+        `Unknown standing agent @${name}. Standing agents: ${result.missing.join(', ') || 'none'}`,
       )
-      const family = replacing
-        ? (await tx.doc(Family, expected)).name
-        : definitionFamily(definition, change)
-      if (replacing || previous === undefined) {
-        created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
-        id = created.id
-        index[name] = id
-        if (replacing) await conversations.setStanding(tx, expected, false)
-      } else {
-        id = previous
-      }
-      await configure(tx, id, { ...change, cwd: host.projectRoot })
-      ;(await tx.doc(Family, id)).name = family
-      Object.assign(await tx.doc(host.metadata, id), { label: 'agent', title: `@${name}` })
-      await conversations.setAutomaticSummaries(tx, id, false)
-      await conversations.setStanding(tx, id, true)
-      ;(await tx.doc(Profile, id)).definition = name
-      setMark(await tx.doc(Marks, ROOT_CONVERSATION_ID), definition)
-      if (created) await started(host, tx, created, name, 'standing')
-      return id
-    }, ctx)
+    }
+    return result.id
   }
   const service: SubagentsService = {
     destinationAddress,

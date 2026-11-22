@@ -16,7 +16,12 @@ export type Delivery = {
 }
 export function notifications(
   host: ExtensionHost,
-  scriptContent: (sub: Automation, kind: 'writing' | 'failed', text: string) => Promise<string>,
+  /** A script's content for its watcher, or undefined when the automation stopped and the watcher gets nothing. */
+  scriptContent: (
+    sub: Automation,
+    kind: 'writing' | 'failed',
+    text: string,
+  ) => Promise<string | undefined>,
 ) {
   const Deliver = defineTask<Delivery, { phase: 'deliver' }, null>({
     name: 'ultimate.automation-delivery',
@@ -29,6 +34,13 @@ export function notifications(
           kind === 'writing' || kind === 'failed'
             ? await scriptContent(sub, kind, text)
             : `Automation ${sub.id} "${sub.name}" ${kind}: ${text}`
+        if (content === undefined) {
+          await runtime.commit(
+            () => ({ status: 'terminal', outcome: { status: 'completed', result: null } }),
+            ctx,
+          )
+          return
+        }
         let coordinator: ConversationId | undefined
         if (kind === 'escalated') {
           try {

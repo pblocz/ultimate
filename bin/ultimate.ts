@@ -117,6 +117,7 @@ let swapping = false
 let stopping = false
 let waiting = false
 let failures = 0
+const stableAfterMs = 60000
 let generation = 0
 let announced = false
 let stderr = ''
@@ -156,6 +157,7 @@ function publish(report: CoreReport) {
 type Core = {
   child: ChildProcess
   generation: number
+  readyAt?: number
   stderr: string
   messages: ChildMessage[]
   reports: Map<'web' | 'access', CoreReport>
@@ -268,6 +270,7 @@ function boot(previousBuild?: BuildInfo): Core {
     if (core === active && !swapping && !stopping) {
       active = undefined
       publish({ type: 'web', state: 'stopped' })
+      failures = Date.now() - core.readyAt! < stableAfterMs ? failures + 1 : 0
       display.lifecycle('crashed')
       display.log('error', 'supervisor', `Core ${core.generation} exited unexpectedly`)
       void recover().catch((error: unknown) =>
@@ -328,7 +331,7 @@ async function start(core: Core) {
     return
   }
   activate(core)
-  failures = 0
+  core.readyAt = Date.now()
   waiting = false
 }
 async function swap(old: Core, requestId: string, previousBuild?: BuildInfo) {

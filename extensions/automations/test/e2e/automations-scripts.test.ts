@@ -243,6 +243,11 @@ it('delivers FIRE once, investigates exits only in the owning agent, recovers, a
     ask: 'Keep watching',
     once: false,
   })) as Automation
+  // This test covers delivery after a script exit, not inputs queued behind a failed model turn.
+  const watcherId = recurring.script!.conversationId as ConversationId
+  await until(async () => (await entries(watcherId, 'automations.writing')).length === 1)
+  const watcher = (await app.harness.conversation(watcherId, context))!
+  await watcher.waitForIdle(context)
   await script(recurring.id, 'echo FIRE tick; exit 0')
   await invoke('resume', { id: recurring.id })
   await until(
