@@ -475,6 +475,7 @@ export const actions = {
           ...new Map([...main.tools, ...main.deferred].map((tool) => [tool.name, tool])).values(),
         ].map((tool) => ({ name: tool.name, description: tool.description })),
       },
+      skills: host.skills(host.projectRoot).map(({ name, description }) => ({ name, description })),
       scopes: {
         user: join(host.userHome, '.ultimate/agents'),
         project: join(host.projectRoot, '.ultimate/agents'),
@@ -527,6 +528,7 @@ export const actions = {
       family,
       tools,
       denyTools,
+      skills,
       isolate,
       resident,
       fast,
@@ -548,6 +550,12 @@ export const actions = {
       (!Array.isArray(denyTools) || !denyTools.every((tool) => typeof tool === 'string'))
     )
       throw new Error('denyTools must be a list of tool names')
+    if (
+      skills !== undefined &&
+      skills !== null &&
+      (!Array.isArray(skills) || !skills.every((skill) => typeof skill === 'string'))
+    )
+      throw new Error('skills must be a list of skill names or null for all skills')
     if (isolate !== undefined && isolate !== 'none' && isolate !== 'worktree')
       throw new Error('isolate must be none or worktree')
     if (resident !== undefined && typeof resident !== 'boolean')
@@ -563,6 +571,7 @@ export const actions = {
     )
     const existing = definitions.find((definition) => definition.name === name)
     if (create === true && existing) throw new Error(`A definition named ${name} exists already`)
+    const selectedSkills = skills === undefined ? existing?.skills : skills
     const fields: DefinitionFields = {
       description,
       ...(model ? { model } : {}),
@@ -570,6 +579,7 @@ export const actions = {
       ...(family ? { family } : {}),
       ...(tools ? { tools } : {}),
       ...(denyTools?.length ? { denyTools } : {}),
+      ...(selectedSkills ? { skills: selectedSkills } : {}),
       ...(isolate ? { isolate } : {}),
       ...(resident !== undefined ? { resident } : {}),
       ...(fast ? { fast } : {}),

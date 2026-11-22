@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { expect, it, vi } from 'vitest'
 import { context } from '../server/harness.ts'
+import { Profile } from '../extensions/subagents/api.ts'
 import { fauxServer, temp, removeTemp, until } from './helpers.ts'
 
 it('renders only enabled guidance, lists off building blocks, and adds the self skill live', async () => {
@@ -42,7 +43,8 @@ it('renders only enabled guidance, lists off building blocks, and adds the self 
               conversationId: server.root.id,
               agent: { ...agent, cwd },
               env: useEnv ? { cwd } : undefined,
-            } as Parameters<typeof section.render>[0],
+              read: server.harness,
+            } as unknown as Parameters<typeof section.render>[0],
             context,
           )
           if (value) sections[section.key] = value
@@ -94,6 +96,26 @@ it('renders only enabled guidance, lists off building blocks, and adds the self 
       expect(isolated.skills).toContain('<name>isolated-only</name>')
     }
     expect((await render()).skills).not.toContain('<name>isolated-only</name>')
+    const folder = join(home, '.ultimate/agents')
+    await mkdir(folder, { recursive: true })
+    for (const [name, skills] of [
+      ['limited', '[ultimate-only]'],
+      ['none', '[]'],
+    ])
+      await writeFile(
+        join(folder, `${name}.md`),
+        `---\nname: ${name}\ndescription: Test\nskills: ${skills}\n---\nFollow the selected persona.\n`,
+      )
+    const listed = async (name: string) => {
+      await server.harness.commit(async (tx) => {
+        ;(await tx.doc(Profile, server.root.id)).definition = name
+      }, context)
+      return (await render()).skills
+    }
+    const limited = await listed('limited')
+    expect(limited).toContain('<name>ultimate-only</name>')
+    expect(limited).not.toContain('<name>maintain-ultimate</name>')
+    expect(await listed('none')).toBeUndefined()
   } finally {
     await server.close()
     await removeTemp(home)

@@ -10,7 +10,7 @@ import type { Automation, Subscriber } from './types.ts'
 export type Delivery = {
   sub: Automation
   event: number | string
-  kind: 'writing' | 'fired' | 'failed' | 'escalated'
+  kind: 'writing' | 'fired' | 'failed' | 'escalated' | 'finished'
   text: string
   targets: Subscriber[]
 }
@@ -57,11 +57,17 @@ export function notifications(
           }
         }
         for (const target of targets) {
-          const id = (
-            typeof target === 'string'
-              ? await host.need(SubagentsApi).standing(target.slice(1), ctx)
-              : target
-          ) as ConversationId
+          let id = target as ConversationId
+          if (typeof target === 'string') {
+            // Pin the resolved result target before submit. If @name moves, replay still uses the same inbox.
+            const key = `result-target:${target}`
+            const saved = kind === 'finished' ? await runtime.memo(key, ctx) : undefined
+            id =
+              typeof saved === 'number'
+                ? (saved as ConversationId)
+                : await host.need(SubagentsApi).standing(target.slice(1), ctx)
+            if (kind === 'finished' && saved === undefined) await runtime.memo(key, id, ctx)
+          }
           if (kind === 'escalated' && id === coordinator) continue
           // Preserve the existing rule for legacy lander subscribers, which accept no input.
           if ((await runtime.snapshot(host.metadata, id, ctx))?.label === 'lander') continue
@@ -96,6 +102,14 @@ export function notifications(
     kind: Delivery['kind'],
     text: string,
   ) {
+    const targets =
+      kind === 'writing' || kind === 'failed'
+        ? [sub.script!.conversationId]
+        : sub.subscribers.filter((target) => {
+            const result = sub.resultSubscribers?.includes(target) ?? false
+            return kind === 'finished' ? result : kind !== 'fired' || !result
+          })
+    if (!targets.length && kind !== 'escalated') return
     await tx.createTask(
       Deliver,
       {
@@ -103,10 +117,7 @@ export function notifications(
         event,
         kind,
         text,
-        targets:
-          kind === 'writing' || kind === 'failed'
-            ? [sub.script!.conversationId]
-            : [...sub.subscribers],
+        targets,
       },
       {
         ownership: { kind: 'conversation' },

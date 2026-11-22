@@ -96,7 +96,7 @@ export type FamiliesView = {
   assign: Record<string, string>
   /** Whose families these are: this project's own, the most recently saved ones, or the built-in ones. */
   from: 'project' | 'recent' | 'builtin'
-  /** Settings problems: a `modelFamilies` layer that fails to parse counts as empty. */
+  /** Settings problems, with the source named. An invalid layer counts as empty. */
   errors: string[]
 }
 

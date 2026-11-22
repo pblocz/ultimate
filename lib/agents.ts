@@ -33,6 +33,7 @@ export interface AgentDefinition {
   /** Tools overlays added to a definition without a `tools` list: it has every tool already, and deferred ones load. */
   addTools?: string[]
   denyTools?: string[]
+  skills?: string[]
   isolate?: 'none' | 'worktree'
   /** A standing agent: one conversation per project, started on first use. */
   resident?: boolean
@@ -268,6 +269,7 @@ const fields = new Set([
   'family',
   'tools',
   'denyTools',
+  'skills',
   'isolate',
   'resident',
   'fast',
@@ -289,6 +291,7 @@ function parseSettings(frontmatter: Record<string, unknown>): Partial<
     | 'fast'
     | 'summaries'
     | 'denyTools'
+    | 'skills'
     | 'title'
     | 'icon'
     | 'tint'
@@ -306,6 +309,7 @@ function parseSettings(frontmatter: Record<string, unknown>): Partial<
     fast,
     summaries,
     denyTools,
+    skills,
     title,
     icon,
     tint,
@@ -314,6 +318,8 @@ function parseSettings(frontmatter: Record<string, unknown>): Partial<
     throw new Error('family must be a family name: lowercase letters, digits and -')
   if (denyTools !== undefined && !isTools(denyTools))
     throw new Error('denyTools must be a list of tool names')
+  if (skills !== undefined && !isTools(skills))
+    throw new Error('skills must be a list of skill names')
   if (description !== undefined && (typeof description !== 'string' || !description.trim()))
     throw new Error('description is required')
   if (thinking !== undefined && (typeof thinking !== 'string' || !Object.hasOwn(levels, thinking)))
@@ -343,6 +349,7 @@ function parseSettings(frontmatter: Record<string, unknown>): Partial<
     ...(fast !== undefined ? { fast } : {}),
     ...(summaries !== undefined ? { summaries } : {}),
     ...(denyTools !== undefined ? { denyTools } : {}),
+    ...(skills !== undefined ? { skills } : {}),
     ...(title !== undefined ? { title: title.trim() } : {}),
     ...(icon !== undefined ? { icon } : {}),
     ...(tint !== undefined ? { tint } : {}),
@@ -544,6 +551,7 @@ export interface DefinitionFields {
   family?: string
   tools?: string[]
   denyTools?: string[]
+  skills?: string[]
   isolate?: 'none' | 'worktree'
   resident?: boolean
   fast?: boolean
@@ -581,6 +589,7 @@ export function serializeDefinition(
     ...(frontmatter.family ? [`family: ${scalar(frontmatter.family)}`] : []),
     ...(frontmatter.tools ? [`tools: ${toolList(frontmatter.tools)}`] : []),
     ...(frontmatter.denyTools?.length ? [`denyTools: ${toolList(frontmatter.denyTools)}`] : []),
+    ...(frontmatter.skills ? [`skills: ${toolList(frontmatter.skills)}`] : []),
     ...(frontmatter.isolate === 'worktree' ? ['isolate: worktree'] : []),
     ...(frontmatter.resident !== undefined ? [`resident: ${frontmatter.resident}`] : []),
     ...(frontmatter.fast ? ['fast: true'] : []),
@@ -705,6 +714,10 @@ export async function saveOverlay(
   if (undenied.length) throw cannot(`allow ${undenied.join(', ')} again`)
   const denyTools = (form.denyTools ?? []).filter((tool) => !baseDeny.includes(tool))
   if (denyTools.length) settings.push(`denyTools: ${toolList(denyTools)}`)
+  if (JSON.stringify(form.skills) !== JSON.stringify(base.skills)) {
+    if (!form.skills) throw cannot('give every skill back')
+    settings.push(`skills: ${toolList(form.skills)}`)
+  }
 
   const start = base.instructions.trim()
   const text = instructions.trim()

@@ -1,7 +1,7 @@
 // Phase 3: the ordinary web application runs without the coding modules. A new page opens on the empty new-chat screen,
 // creates no primary agent and sends no model request; two chats share one persona, run on different presets, share
 // files and keep separate histories; the selection survives a reload; settings and provider controls open.
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { cp, readFile, writeFile, mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   fauxAssistantMessage,
@@ -40,6 +40,8 @@ it('creates and uses two independent persona chats on different presets without 
   const userHome = join(home, 'user')
   const projectRoot = join(home, 'workspace')
   const source = await ordinarySource(join(home, 'source'))
+  // Add the optional Context extension to exercise the Agent card in this test.
+  await cp(resolve('extensions/context'), join(source, 'extensions/context'), { recursive: true })
   await mkdir(join(userHome, '.ultimate/agents'), { recursive: true })
   await mkdir(projectRoot, { recursive: true })
   await writeFile(join(userHome, '.ultimate/onboarding.json'), '{"firstRunDone":true}\n')
@@ -47,9 +49,16 @@ it('creates and uses two independent persona chats on different presets without 
     join(userHome, '.ultimate/settings.json'),
     '{"summaryModel":"unavailable/test"}\n',
   )
+  const definition = join(userHome, '.ultimate/agents/helper.md')
   await writeFile(
-    join(userHome, '.ultimate/agents/helper.md'),
-    '---\nname: helper\ndescription: Ordinary helper\ntools: [read, write]\n---\nYou are the ordinary helper persona.\n',
+    definition,
+    '---\nname: helper\ndescription: Ordinary helper\ntools: [read, write]\nskills: [check-note, missing-skill]\n---\nYou are the ordinary helper persona.\n',
+  )
+  const skill = join(userHome, '.ultimate/skills/check-note/SKILL.md')
+  await mkdir(join(skill, '..'), { recursive: true })
+  await writeFile(
+    skill,
+    '---\nname: check-note\ndescription: Check the shared note\n---\nRead the shared note.',
   )
   await writeFamilies(userHome, projectRoot, {
     families: {
@@ -73,7 +82,7 @@ it('creates and uses two independent persona chats on different presets without 
       [
         asked.includes('Write')
           ? fauxToolCall('write', { path: 'shared.txt', content: 'from chat A' })
-          : fauxToolCall('read', { path: 'shared.txt' }),
+          : fauxToolCall('read', { path: asked.includes('Read the skill') ? skill : 'shared.txt' }),
       ],
       { stopReason: 'toolUse' },
     )
@@ -92,7 +101,7 @@ it('creates and uses two independent persona chats on different presets without 
   // Only the inventory loaded, from the copy; nothing that needs a missing service, no cycle, no build error.
   const extensions = server.system.current().extensions
   const loaded = extensions.map((extension) => extension.name)
-  expect(loaded.toSorted()).toEqual(ordinaryExtensions.toSorted())
+  expect(loaded.toSorted()).toEqual([...ordinaryExtensions, 'context'].toSorted())
   // Every server facet loaded: a module that fails to evaluate records its error here, not in the diagnostics.
   expect(
     extensions.flatMap((extension) =>
@@ -196,6 +205,54 @@ it('creates and uses two independent persona chats on different presets without 
     .locator(`#app [data-ui="ordinary-row"][data-conversation="${right}"][aria-current="page"]`)
     .waitFor()
   await page.locator(`#app [data-ui="ordinary-row"][data-conversation="${left}"]`).waitFor()
+
+  const composer = page.locator(`#app [data-ui="composer"] textarea[data-conversation="${right}"]`)
+  await composer.fill('Read the skill')
+  await composer.press('Enter')
+  await page.locator('#app').getByText('Done on faux-2:').last().waitFor()
+  await page.locator('#app').getByText('Read the shared note.', { exact: false }).last().waitFor()
+  const header = page.locator('#app [data-ui="turn-header"]').first()
+  await header.getByRole('button').first().filter({ hasText: '1 skill' }).click()
+  const badges = header.locator('[data-ui="agent-skills"]')
+  const badge = badges.getByRole('button', { name: 'check-note', exact: true })
+  expect(await badge.getAttribute('class')).toContain('bg-brand/10')
+  expect(await badges.getByText('missing-skill', { exact: true }).getAttribute('title')).toContain(
+    'No skill named',
+  )
+  await badge.click()
+  await until(async () => (await composer.inputValue()) === '/skill:check-note ')
+  await composer.fill('')
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await page.getByPlaceholder('Run a command…').fill('Show agent definitions')
+  await page.getByText('Show agent definitions', { exact: true }).click()
+  await page.getByRole('button', { name: /^helper\b.*Ordinary helper/ }).click()
+  const editor = page.getByRole('dialog')
+  const allSkills = editor.getByRole('switch', { name: 'All skills' })
+  const pick = editor.getByRole('checkbox', { name: 'check-note', exact: true })
+  const missing = editor.getByRole('checkbox', { name: 'missing-skill', exact: true })
+  const saveButton = editor.getByRole('button', { name: 'Save', exact: true })
+  const save = async () => {
+    await saveButton.click()
+    await until(() => saveButton.isDisabled())
+  }
+  expect(await pick.isChecked()).toBe(true)
+  await editor.getByRole('textbox', { name: 'Description' }).fill('Updated helper')
+  await save()
+  await until(async () =>
+    (await readFile(definition, 'utf8')).includes('description: Updated helper'),
+  )
+  expect(await readFile(definition, 'utf8')).toContain('skills: [check-note, missing-skill]')
+  await pick.uncheck()
+  // Removing an unknown name removes its checkbox, rather than leaving it unchecked.
+  await missing.click()
+  await missing.waitFor({ state: 'detached' })
+  await save()
+  await until(async () => (await readFile(definition, 'utf8')).includes('skills: []'))
+  await allSkills.click()
+  await save()
+  await until(async () => !(await readFile(definition, 'utf8')).includes('skills:'))
+  await editor.getByRole('button', { name: 'Close', exact: true }).click()
 
   // Generic settings and provider controls open without starting a model turn.
   const before = requests.length

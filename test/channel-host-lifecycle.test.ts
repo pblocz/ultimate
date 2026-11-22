@@ -135,10 +135,10 @@ export default host => {
     expect(state.receipt.submissionId).toBeGreaterThan(0)
     await opened.harness.waitForIdle(context)
     await until(async () => (await read(files.readyHealthy)) === 'healthy')
-    await until(() =>
-      server.extensions.info
-        .diagnostics()
-        .includes('Extension onReady failed: Error: optional readiness failed'),
+    await until(async () =>
+      (await server.extensions.info.diagnostics()).includes(
+        'Extension onReady failed: Error: optional readiness failed',
+      ),
     )
     expect(await read(files.openFailedReady)).toBe('')
 
@@ -324,19 +324,19 @@ export const actions = {
   }
 })
 
-it('runs final facet cleanup without requiring an earlier release', async () => {
+it('releases before final facet cleanup exactly once without an explicit release call', async () => {
   const { home, server } = await fixture((root) => ({
     'final-close-probe': `import { defineExtension } from '@earendil-works/pi-durable'
-import { writeFile } from 'node:fs/promises'
+import { appendFile } from 'node:fs/promises'
+const log = ${JSON.stringify(join(root, 'final-close'))}
 export default host => {
-  host.onRelease(async () => writeFile(${JSON.stringify(join(root, 'unexpected-release'))}, 'release'))
-  host.onClose(async () => writeFile(${JSON.stringify(join(root, 'final-close'))}, 'close'))
+  host.onRelease(async () => appendFile(log, 'release\\n'))
+  host.onClose(async () => appendFile(log, 'close\\n'))
   return defineExtension({ name: 'final-close-probe' })
 }`,
   }))
   await server.go()
   await server.close()
   await server.close()
-  expect(await read(join(home, 'final-close'))).toBe('close')
-  expect(await read(join(home, 'unexpected-release'))).toBe('')
+  expect(await read(join(home, 'final-close'))).toBe('release\nclose\n')
 })

@@ -54,7 +54,7 @@ export async function createSystem(
   watchRepo: Watch,
   /** The web channel's URL; absent while no web channel listens. */
   url: () => string | undefined,
-  registry: (() => ExtensionInfo[]) & { diagnostics: () => string[] },
+  registry: (() => ExtensionInfo[]) & { diagnostics: () => Promise<string[]> },
   emit: (info: SystemInfo) => void,
   notice: (message: string) => void = () => {},
   processInfo: { activationError?: string } = {},
@@ -140,7 +140,7 @@ export async function createSystem(
       code,
       web: web(),
       extensions: registry(),
-      extensionDiagnostics: registry.diagnostics(),
+      extensionDiagnostics: await registry.diagnostics(),
       ...skillInfo(projectSkills(host, host.projectRoot, registry())),
       contextFiles: loadProjectContextFiles({
         cwd: host.projectRoot,
@@ -159,7 +159,17 @@ export async function createSystem(
       emit(value)
     }
   }
+  const changed = () => {
+    if (!closed) chain = chain.then(() => refresh()).catch(reportError)
+    return chain
+  }
+  const secrets = join(host.userHome, '.ultimate/secrets.json')
   const schedule = (_event?: string, path?: string | null) => {
+    if (path === secrets) {
+      // This process rebuilds diagnostics from the current secret metadata on open.
+      void changed().catch(reportError)
+      return
+    }
     if (path && /^(server|shared)\//.test(relative(host.ultimateRoot, path))) {
       coreStale = true
       code.coreStale = true
@@ -181,6 +191,7 @@ export async function createSystem(
       join(host.projectRoot, '.ultimate'),
       join(host.userHome, '.ultimate/extensions'),
       join(host.userHome, '.ultimate/skills'),
+      secrets,
       join(host.projectRoot, '.agents/skills'),
       join(host.projectRoot, '.pi/skills'),
     ])
@@ -197,10 +208,7 @@ export async function createSystem(
   await refresh(true)
   return {
     current: () => value,
-    changed() {
-      if (!closed) chain = chain.then(() => refresh()).catch(reportError)
-      return chain
-    },
+    changed,
     async close() {
       closed = true
       clearTimeout(timer)

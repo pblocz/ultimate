@@ -18,9 +18,10 @@ import { Dot, looks, openAutomationsPanel, useOpenAutomation } from './parts.tsx
 import type { Look } from './parts.tsx'
 import { AutomationsSection } from './sidebar.tsx'
 
-type Kind = 'fired' | 'failed' | 'escalated' | 'writing'
+type Kind = 'fired' | 'finished' | 'failed' | 'escalated' | 'writing'
 const kinds: Record<Kind, { look: Look; word: string; border: string }> = {
   fired: { look: 'watching', word: 'fired', border: 'border-l-success/70' },
+  finished: { look: 'watching', word: 'finished', border: 'border-l-success/70' },
   failed: { look: 'investigating', word: 'failed', border: 'border-l-warning/70' },
   escalated: { look: 'failed', word: 'escalated', border: 'border-l-error/70' },
   writing: { look: 'writing', word: 'assigned', border: 'border-l-brand/60' },
@@ -42,7 +43,7 @@ function body(text: string) {
 const card = (kind: Kind) =>
   function AutomationEntry({ entry }: { entry: EntryRecord }) {
     const { id, name, text } = entry.data as { id: string; name: string; text: string }
-    const look = kinds[kind]
+    const look = kinds[kind === 'finished' && text.startsWith('Run failed: ') ? 'failed' : kind]
     const open = useOpenAutomation()
     const label: ReactNode = (
       <>
@@ -196,6 +197,7 @@ export default defineWebExtension({
   },
   entries: {
     'automations.fired': card('fired'),
+    'automations.finished': card('finished'),
     'automations.failed': card('failed'),
     'automations.escalated': card('escalated'),
     'automations.writing': card('writing'),

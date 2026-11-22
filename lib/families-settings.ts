@@ -2,13 +2,15 @@
  * Where model families live: `~/.ultimate/model-families.json` keeps each project's families (keyed like its trust
  * decision, so a linked worktree shares its main checkout's) and the most recently saved ones, which every project
  * without its own starts from. A project's `.ultimate/settings.json` `modelFamilies` is the team's default: it applies
- * over the most recent ones, and a person's own families for the project apply over it.
+ * over the most recent ones, and a person's own families for the project apply over it. User settings supply defaults
+ * below all of these layers.
  */
 import { join, resolve } from 'node:path'
 import type { JsonObject } from '@earendil-works/pi-durable'
 import { mergeFamilies, parseFamilies } from './families.ts'
 import type { Families } from './families.ts'
 import { readJson, updateJson } from './json-file.ts'
+import { readSettings, userSettingsPath } from './settings.ts'
 // oxlint-disable-next-line no-restricted-imports -- family settings follow the core project trust decision, as definitions do
 import { decisionRoot, projectSettings } from '../server/project-setup.ts'
 
@@ -38,6 +40,8 @@ async function readStored(path: string): Promise<Stored> {
 }
 
 export type FamilyLayers = {
+  /** User settings, below all project and saved layers. */
+  user: Layer
   /** The project's own families, else the most recent ones; `from` says which. */
   base: Layer
   from: 'project' | 'recent' | 'builtin'
@@ -70,9 +74,15 @@ export async function readFamilyLayers(
     errors.push(String(error))
     return {}
   })
+  const userPath = userSettingsPath(userHome)
+  const user = await readSettings(userPath).catch((error: unknown): JsonObject => {
+    errors.push(`${userPath}: ${String(error)}`)
+    return {}
+  })
   const own = isObject(stored.projects) ? stored.projects[projectKey(projectRoot)] : undefined
   const from = own !== undefined ? 'project' : stored.recent !== undefined ? 'recent' : 'builtin'
   return {
+    user: layer(user.modelFamilies, 'user settings: modelFamilies'),
     base: layer(own ?? stored.recent, `${familiesPath(userHome)} (${from})`),
     from,
     project: layer(
@@ -83,9 +93,9 @@ export async function readFamilyLayers(
   }
 }
 
-/** The layers merged: the built-ins, then the most recent families, the team settings, the project's own families. */
-export const mergeLayers = ({ base, from, project }: FamilyLayers) =>
-  from === 'project' ? mergeFamilies(project, base) : mergeFamilies(base, project)
+/** Merge built-ins and user defaults, then apply the existing project and saved family precedence. */
+export const mergeLayers = ({ user, base, from, project }: FamilyLayers) =>
+  from === 'project' ? mergeFamilies(user, project, base) : mergeFamilies(user, base, project)
 
 /** The effective families of `projectRoot`. */
 export async function readFamilies(

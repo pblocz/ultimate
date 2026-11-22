@@ -41,6 +41,8 @@ import type { ConversationOutput } from '../shared/channel-host.ts'
 import type { LocalChannelHost } from './conversation-host.ts'
 import type { WebChannelRuntime } from './web-channel.ts'
 
+import { secretMetadata } from '../lib/secrets.ts'
+
 export type ExtensionHost = Pick<
   PreparedHost,
   | 'ultimateRoot'
@@ -57,7 +59,7 @@ export type ExtensionHost = Pick<
   | 'chapter'
 > & {
   access: Pick<Access, 'allow'>
-  notice(message: string): void
+  notice(message: string, options?: { untilSecretSet?: string }): void
   /**
    * Provide the service of `api`. Facet scope only: staged until the facet installs, replaced on reload, kept when a
    * reload fails, and removed when the facet is disabled, removed or closed.
@@ -195,7 +197,8 @@ export async function loadExtensions(
   let open = false
   let ready = false
   /** Each facet's distinct notice messages, and whether each is recorded as an event yet. */
-  const facetNotices = new Map<ExtensionHost, Map<string, boolean>>()
+  type FacetNotice = { recorded: boolean; untilSecretSet?: string }
+  const facetNotices = new Map<ExtensionHost, Map<string, FacetNotice>>()
   let closed = false
   const extensionOf = (facetHost: ExtensionHost) =>
     [...facetHosts].find(([, current]) => current === facetHost)?.[0]
@@ -467,14 +470,14 @@ export async function loadExtensions(
       need: <S>(api: Api<string, S>): S =>
         apis.need(facetHost, name, api, facetHosts.get(name) !== facetHost),
       want: <S>(api: Api<string, S>): S | undefined => apis.want(facetHost, name, api),
-      notice: (message) => {
+      notice: (message, options) => {
         // Each distinct message once per facet load: a notice raised by a commit watcher cannot loop through its event.
         // One raised while storage is closed is recorded when it opens.
         const messages = facetNotices.get(facetHost)
         // Pending facet work can finish after reload or shutdown; it must not revive a disposed facet's notices.
         if (!messages) return
         if (!messages.has(message)) {
-          messages.set(message, open)
+          messages.set(message, { recorded: open, ...options })
           if (open) log.notice(name, message)
         }
         notice(message)
@@ -1147,14 +1150,23 @@ export async function loadExtensions(
   })
   return {
     info: Object.assign(info, {
-      diagnostics: () => [
-        ...new Set([
-          ...diagnostics,
-          ...[...facetNotices.values()].flatMap((messages) => [...messages.keys()]),
-          ...apis.missing(),
-          ...projectDiagnostics(host.projectRoot, host.userHome),
-        ]),
-      ],
+      diagnostics: async () => {
+        const notices = [...facetNotices.values()].flatMap((messages) => [...messages])
+        const stored = notices.some(([, item]) => item.untilSecretSet)
+          ? await secretMetadata(host.userHome).catch(() => [])
+          : []
+        const names = new Set(stored.map(({ name }) => name))
+        return [
+          ...new Set([
+            ...diagnostics,
+            ...notices.flatMap(([message, item]) =>
+              item.untilSecretSet && names.has(item.untilSecretSet) ? [] : [message],
+            ),
+            ...apis.missing(),
+            ...projectDiagnostics(host.projectRoot, host.userHome),
+          ]),
+        ]
+      },
     }),
     action(name: string, action: string) {
       const table = actions.get(name)
@@ -1187,10 +1199,10 @@ export async function loadExtensions(
       processReadyState = undefined
       for (const [name, facetHost] of facetHosts) {
         openState(facetHost, generation)
-        for (const [message, recorded] of facetNotices.get(facetHost) ?? [])
-          if (!recorded) {
+        for (const [message, item] of facetNotices.get(facetHost) ?? [])
+          if (!item.recorded) {
             log.notice(name, message)
-            facetNotices.get(facetHost)!.set(message, true)
+            item.recorded = true
           }
       }
       await Promise.all([

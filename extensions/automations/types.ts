@@ -23,6 +23,7 @@ export type Run = {
 }
 /** A conversation an automation wakes: `#id` as a number, or a standing agent's `@name`, resolved at each delivery. */
 export type Subscriber = DestinationAddress
+export type SubscriptionMode = 'notification' | 'result'
 export type Automation = {
   id: string
   scope?: 'project'
@@ -71,6 +72,8 @@ export type Automation = {
   model?: { provider: string; modelId: string }
   thinking?: ModelThinkingLevel
   subscribers: Subscriber[]
+  /** Subscribers that receive prompt results instead of fire notifications. */
+  resultSubscribers?: Subscriber[]
   nextAt?: number
   scheduler?: TaskId
   runs: Run[]
@@ -110,6 +113,7 @@ export type Args = Partial<CreateArgs> & {
   action: string
   id?: string
   runId?: string
+  mode?: SubscriptionMode
   to?: string
   lines?: number
   reason?: string

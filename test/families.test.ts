@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { definitionRuns, mergeFamilies, parseFamilies } from '../lib/families.ts'
@@ -55,6 +55,15 @@ it("keeps each project's families and starts a project without its own from the 
     ' ' +
     (await readFamilies(userHome, root, {})).families.tiny.model
   expect(await tiny(a)).toBe('builtin openai-codex/gpt-6-luna')
+  await mkdir(join(userHome, '.ultimate'))
+  const settings = join(userHome, '.ultimate/settings.json')
+  await writeFile(
+    settings,
+    JSON.stringify({
+      modelFamilies: { families: { tiny: { model: 'vllm/user', thinking: 'high' } } },
+    }),
+  )
+  expect(await tiny(a)).toBe('builtin vllm/user')
   await writeFamilies(userHome, a, { families: { tiny: { model: 'vllm/a' } } })
   await writeFamilies(userHome, b, { families: { tiny: { model: 'vllm/b' } } })
   // Each keeps its own; a project that never saved starts from the last save, b's.
@@ -64,5 +73,22 @@ it("keeps each project's families and starts a project without its own from the 
   // The project's team settings apply over the most recent families, and its own families apply over them.
   const team = { modelFamilies: { families: { tiny: { model: 'acme/team' } } } }
   expect((await readFamilies(userHome, c, team)).families.tiny.model).toBe('acme/team')
-  expect((await readFamilies(userHome, a, team)).families.tiny.model).toBe('vllm/a')
+  expect((await readFamilies(userHome, a, team)).families.tiny).toMatchObject({
+    model: 'vllm/a',
+    thinking: 'high',
+  })
+  await writeFile(
+    settings,
+    JSON.stringify({
+      modelFamilies: { families: { tiny: { model: 'vllm/user', color: 'green' } } },
+    }),
+  )
+  expect((await readFamilyLayers(userHome, a, team)).errors).toEqual([
+    expect.stringMatching(/^user settings: modelFamilies: .*color/),
+  ])
+  expect((await readFamilies(userHome, a, team)).families.tiny).toEqual({
+    model: 'vllm/a',
+    color: 'emerald',
+    thinking: 'low',
+  })
 })

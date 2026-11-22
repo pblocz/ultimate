@@ -43,11 +43,11 @@ export const DescribeAction = actionRef<{ schedule: string | Schedule }, Describ
   'automations',
   'describe',
 )
-/** Subscribe #id or @name; default caller. */
-export const SubscribeAction = actionRef<Id & { to?: string }, Automation>(
-  'automations',
-  'subscribe',
-)
+/** Subscribe #id or @name (default caller) to fire notifications or prompt results. */
+export const SubscribeAction = actionRef<
+  Id & { to?: string; mode?: import('./types.ts').SubscriptionMode },
+  Automation
+>('automations', 'subscribe')
 /** Remove a subscriber; default caller. */
 export const UnsubscribeAction = actionRef<Id & { to?: string }, Automation>(
   'automations',

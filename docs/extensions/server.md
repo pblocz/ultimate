@@ -47,7 +47,7 @@ Server factories receive exactly these `ExtensionHost` fields (import its type o
 - `emit(tx, event, data)`, `react(name, events, handler)`, `eventLog`: durable events; see [events](events.md).
 - `trace`: the recorded calls (services, actions, reactor runs, tools); see [tracing](introspection.md#tracing).
 - `access.allow({ origin, verify })`: register an HTTP origin with an identity verifier; returns a disposer and is automatically removed when the facet unloads or reloads. HTTP, API, and websocket upgrades use the same admission rules.
-- `notice(message)`: publish a warning notice and retain it in this facet's system diagnostics for later clients, until unload/reload.
+- `notice(message, { untilSecretSet }?)`: publish a warning notice and retain it in this facet's system diagnostics until unload or reload. If `untilSecretSet` names a saved secret, hide the notice from current diagnostics. Its event history stays unchanged.
 - `resource(key, create)`, `onOpen(callback)`, `onRelease(callback)`, `onClose(cleanup)`: shared reload-stable resources, async work each
   time the harness opens (at once if it is open; the server serves once it settles; reads work, conversation mutations wait for `onReady`), async work each time before it closes while the process stays (a core swap; drop commit subscriptions there), and async cleanup. Facet-level callbacks are removed on unload/reload, with cleanup run before the replacement opens. Callbacks registered inside a shared resource's creation belong to that reload-stable resource and survive until server shutdown.
   Keep only process state in a resource (running children, in-flight promises, flags); never capture document or task

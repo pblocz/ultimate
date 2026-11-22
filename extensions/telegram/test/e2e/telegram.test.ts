@@ -35,7 +35,17 @@ afterEach(async () => {
   vi.unstubAllEnvs()
 })
 
-async function fixture() {
+it('clears the missing bot token notice when the token is saved', async () => {
+  const bot = await fixture(false)
+  const server = await bot.reopen()
+  const warning = 'Telegram: set TELEGRAM_BOT_TOKEN in Secrets.'
+  await until(() => server.system.current().extensionDiagnostics.includes(warning))
+  expect(bot.polls()).toBe(0)
+  await bot.saveToken()
+  await until(() => !server.system.current().extensionDiagnostics.includes(warning))
+})
+
+async function fixture(withToken = true) {
   const home = await temp('ultimate-telegram-')
   const user = join(home, 'user')
   const state = join(home, 'state')
@@ -53,7 +63,8 @@ async function fixture() {
     join(user, '.ultimate/agents/fixture.md'),
     '---\nname: fixture\ndescription: Test persona\n---\nTest instructions.\n',
   )
-  await writeSecret(user, 'TELEGRAM_BOT_TOKEN', '42:fixture')
+  const saveToken = () => writeSecret(user, 'TELEGRAM_BOT_TOKEN', '42:fixture')
+  if (withToken) await saveToken()
   type Update = { update_id: number; message: object }
   let next = 0
   let updates: Update[] = []
@@ -184,6 +195,7 @@ async function fixture() {
       typingMode = mode
     },
     reopen,
+    saveToken,
     polls: () => polls,
     async disable() {
       await writeFile(

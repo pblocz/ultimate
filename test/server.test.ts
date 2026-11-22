@@ -24,6 +24,8 @@ import { fixture, orderedSource, servers } from './server-fixture.ts'
 import { eventHost } from './helpers.ts'
 import { UserInputEvent } from '../shared/events.ts'
 
+import { writeSecret } from '../extensions/secrets/store.ts'
+
 describe('server', () => {
   it('admits registered identities for API, SSE, actions and assets, then revokes on disposal and unload', async () => {
     const origin = 'https://rog.example.ts.net:5799'
@@ -248,11 +250,27 @@ export default host => {
     expect(() => previous('retired notice')).not.toThrow()
     const current = (await server.vite.ssrLoadModule(path)).raise as (message: string) => void
     current('current notice')
-    expect(server.extensions.info.diagnostics()).toContain('current notice')
-    expect(server.extensions.info.diagnostics()).not.toContain('retired notice')
+    expect(await server.extensions.info.diagnostics()).toContain('current notice')
+    expect(await server.extensions.info.diagnostics()).not.toContain('retired notice')
     servers.splice(servers.indexOf(server), 1)
     await server.close()
     expect(() => current('shutdown notice')).not.toThrow()
+  })
+
+  it('clears a missing-secret notice when the secret is saved', async () => {
+    const { server, options } = await fixture(false, {
+      'needs-key': `import { defineExtension } from '@earendil-works/pi-durable'
+export default host => {
+  host.notice('Missing TEST_KEY', { untilSecretSet: 'TEST_KEY' })
+  host.notice('Other warning')
+  return defineExtension({ name: 'needs-key' })
+}`,
+    })
+    await until(() => server.system.current().extensionDiagnostics.includes('Missing TEST_KEY'))
+    await writeSecret(options.userHome, 'TEST_KEY', 'fixture-value')
+    server.vite.watcher.emit('all', 'add', join(options.userHome, '.ultimate/secrets.json'))
+    await until(() => !server.system.current().extensionDiagnostics.includes('Missing TEST_KEY'))
+    expect(server.system.current().extensionDiagnostics).toContain('Other warning')
   })
 
   it('runs late facet openers immediately and continues after throwing cleanups', async () => {

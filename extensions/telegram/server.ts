@@ -35,15 +35,21 @@ export default function telegram(host: ExtensionHost) {
     const token = await readSecret(host.userHome, 'TELEGRAM_BOT_TOKEN')
     const bot = token && /^([1-9]\d*):[\w-]+$/.exec(token)?.[1]
     if (
-      !token ||
-      !bot ||
       !Array.isArray(allow) ||
       !allow.length ||
       allow.some((id) => typeof id !== 'string' || !/^[1-9]\d*$/.test(id))
     ) {
-      host.notice(
-        'Telegram: set TELEGRAM_BOT_TOKEN and a non-empty telegram.allow list in user settings.',
-      )
+      host.notice('Telegram: set a non-empty telegram.allow list in user settings.')
+      return
+    }
+    if (!token) {
+      host.notice('Telegram: set TELEGRAM_BOT_TOKEN in Secrets.', {
+        untilSecretSet: 'TELEGRAM_BOT_TOKEN',
+      })
+      return
+    }
+    if (!bot) {
+      host.notice('Telegram: TELEGRAM_BOT_TOKEN is invalid.')
       return
     }
     const allowed = new Set(allow)

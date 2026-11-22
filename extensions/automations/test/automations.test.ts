@@ -21,6 +21,8 @@ import { Metadata } from '../../../server/metadata.ts'
 import { Profile } from '../../subagents/api.ts'
 import automations, { actions, Automations } from '../server.ts'
 import messages from '../../messages/server.ts'
+import { MessagesApi } from '../../messages/api.ts'
+import type { MessagesService } from '../../messages/api.ts'
 import type { Automation } from '../server.ts'
 import type { ActionContext } from '../../../server/actions.ts'
 import type { SubagentsService } from '../../subagents/api.ts'
@@ -127,6 +129,11 @@ async function fixture() {
       typeof last.content === 'string'
         ? last.content
         : last.content.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('')
+    if (last.role === 'user' && text === 'Fail the prompt')
+      return fauxAssistantMessage('', {
+        stopReason: 'error',
+        errorMessage: 'Test provider failure',
+      })
     if (last.role === 'user' && text === 'HOLD')
       return fauxAssistantMessage([fauxToolCall('hold', {})], { stopReason: 'toolUse' })
     if (last.role === 'user' && text.startsWith('AUTOMATION '))
@@ -157,6 +164,8 @@ async function fixture() {
     },
     action,
     records,
+    messages: () => host.want(MessagesApi)!,
+    useMessages: (service: MessagesService) => provided.set(MessagesApi.name, service),
     held: () => !!release,
     release: () => release!(),
     async reopen() {
@@ -213,6 +222,77 @@ it('fires every 2s into distinct answered conversations and supports pause, resu
   await f.action('delete', { id: a.id })
   expect(await f.records()).toEqual([])
   expect(await f.opened.harness.conversation(runs[0].conversationId!, context)).toBeDefined()
+})
+
+it('delivers only the selected subscription mode, including after restart', async () => {
+  const f = await fixture()
+  const create = () =>
+    f.opened.harness.createConversation({ ownership: { kind: 'ownerless' } }, context)
+  const notification = await create()
+  const result = await create()
+  const a = (await f.action('create', {
+    name: 'Briefing',
+    prompt: 'Brief me',
+    schedule: 'every 1d',
+    subscribers: [notification.id, result.id],
+  })) as Automation
+  const mode = (value: string) =>
+    f.action('subscribe', { id: a.id, to: `#${result.id}`, mode: value })
+  await expect(mode('typo')).rejects.toThrow('mode must be notification or result')
+  await mode('result')
+  const messageService = f.messages()
+  let attempts = 0
+  const accepted = Promise.withResolvers<void>()
+  f.useMessages({
+    ...messageService,
+    notify: async (conversation, input, ctx) => {
+      await messageService.notify(conversation, input, ctx)
+      if (input.entry.kind === 'automations.finished' && ++attempts === 1) {
+        accepted.resolve()
+        await awaitWithContext(new Promise<void>(() => {}), ctx)
+      }
+    },
+  })
+  const run = () => f.action('run', { id: a.id })
+  await run()
+  await accepted.promise
+  await f.reopen()
+  const received = async (id: ConversationId) => {
+    const conversation = (await f.opened.harness.conversation(id, context))!
+    return (await conversation.context(context)).entries
+      .filter(
+        (entry) => entry.kind === 'automations.fired' || entry.kind === 'automations.finished',
+      )
+      .map(({ kind, data }) => ({ kind, data }))
+  }
+  await until(async () => attempts === 2 && (await received(result.id)).length > 0)
+  expect(await received(notification.id)).toEqual([
+    { kind: 'automations.fired', data: { id: a.id, name: 'Briefing', text: '' } },
+  ])
+  expect(await received(result.id)).toEqual([
+    {
+      kind: 'automations.finished',
+      data: { id: a.id, name: 'Briefing', text: 'Answer: Brief me\nSecond line' },
+    },
+  ])
+
+  await f.action('update', { id: a.id, prompt: 'Fail the prompt' })
+  await run()
+  await until(async () => (await received(result.id)).length === 2)
+  expect((await received(result.id))[1]).toEqual({
+    kind: 'automations.finished',
+    data: { id: a.id, name: 'Briefing', text: 'Run failed: Test provider failure' },
+  })
+
+  await f.action('update', { id: a.id, prompt: 'HOLD' })
+  const pending = (await run()) as { id: string }
+  await until(f.held)
+  await f.action('abort', { id: a.id, runId: pending.id })
+  await until(async () => (await f.records())[0].runs.at(-1)?.status === 'aborted')
+  expect((await received(result.id)).map(({ kind }) => kind)).toEqual([
+    'automations.finished',
+    'automations.finished',
+  ])
 })
 
 it('fires a subscriber-only schedule without creating a run conversation', async () => {

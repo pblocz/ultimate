@@ -296,7 +296,24 @@ export default function watchdog(host: ExtensionHost) {
           ...(hint ? { hint } : {}),
         }
         const content = `[run failed] #${conversation} "${title}": ${error}. Last step: ${step}.${retries ? ` After ${retries === 1 ? 'one automatic retry' : `${retries} automatic retries`}.` : ''}${hint ? ` ${hint}.` : ''}`
-        if (!target) {
+        const standing =
+          recipient === conversation && !task.input.delivery
+            ? await runtime.snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
+            : undefined
+        const own = Object.values(standing ?? {}).includes(conversation as ConversationId)
+          ? await runtime.conversation(recipient, ctx)
+          : undefined
+        if (own) {
+          // Pi resumes the report task. A replay of this write uses the same request ID and starts no turn.
+          await own.submit(
+            {
+              type: 'write',
+              entry: { kind: 'watchdog.standing-failure', data },
+              requestId: `watchdog-report:${failedTask}`,
+            },
+            ctx,
+          )
+        } else if (!target) {
           // Notices are process-local diagnostics, not submissions; a reopened facet retains no old notice.
           host.notice(content)
         } else {

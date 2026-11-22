@@ -70,9 +70,13 @@ fire in UTC and from now (`next: 2026-11-20T13:00:00Z, in 18h`), so a wrong day 
   scope?, slug?, to?, destination?, key?}`. `key` makes it idempotent: a key an automation already has returns that automation.
   New ids are `A<n>`; project scripts use slugs.
 - `update {id, …, destination?}` may switch between schedule, event and condition; a script stays a script. `subscribers` replaces
-  the whole list; `subscribe` / `unsubscribe` change one.
+  the whole list; `subscribe` / `unsubscribe` change one. The `notification` mode (default) sends `automations.fired`
+  at fire time. The `result` mode requires a prompt and sends `automations.finished` instead, with the answer or
+  failure. An aborted run sends no result. Removing the prompt returns its subscriptions to notification mode.
+  The run result and delivery task commit together. Pi Durable resumes the task after restart, with stable request IDs
+  and a saved conversation ID for each resolved `@name` result target.
 - `pause` / `resume`; `run` fires now, or relaunches a script; `runs {id}`; `abort {id, runId}`; `log {id, lines?}`
-  (default 50, at most 2000); `subscribe` / `unsubscribe {id, to?}` (default the caller); `escalate {id, reason}`;
+  (default 50, at most 2000); `subscribe {id, to?, mode?}` / `unsubscribe {id, to?}` (default the caller); `escalate {id, reason}`;
   `delete` keeps files and conversations.
 
 Lifecycle events: `automations.started`, `.fired` `{id, text, fire}`, `.done`, `.exited`, `.escalated`.

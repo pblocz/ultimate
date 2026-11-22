@@ -36,6 +36,8 @@ export type Definition = {
   runs?: { family?: string; model?: ModelRef; thinking?: string; via: 'pin' | 'family' }
   tools?: string[]
   denyTools?: string[]
+  /** The skills it is given by name; absent, every skill. */
+  skills?: string[]
   isolate?: 'none' | 'worktree'
   resident?: boolean
   fast?: boolean
@@ -51,6 +53,8 @@ export type Discovery = {
   errors: Invalid[]
   /** The main conversation's model and tools; a definition may list a subset of the tools. */
   main: { model?: ModelRef; thinking?: string; tools: { name: string; description: string }[] }
+  /** The project's skills a definition may list. */
+  skills: { name: string; description: string }[]
   /** The folder each scope saves to. */
   scopes: Record<Scope, string>
   /** The user's choice on the project's `.ultimate/` setup; the project scope needs it trusted. */
@@ -74,6 +78,8 @@ export type DefinitionFields = {
   family?: string
   tools?: string[]
   denyTools?: string[]
+  /** Null selects all skills; omitted leaves the saved choice unchanged. */
+  skills?: string[] | null
   isolate?: 'none' | 'worktree'
   resident?: boolean
   fast?: boolean
@@ -105,7 +111,7 @@ export const RunsDoc = docRef<Record<string, Run>>('subagents.runs')
 /** `{ [name]: conversationId }` of the standing agents, on conversation 1. */
 export const StandingDoc = docRef<Record<string, number>>('ultimate.standing-agents')
 /** The agent definition a conversation selected, if any. */
-export const ProfileDoc = docRef<{ definition?: string }>('ultimate.agent-profile')
+export const ProfileDoc = docRef<{ definition?: string; adhoc?: true }>('ultimate.agent-profile')
 
 /** `{ name }` → the conversation id of standing agent `name`, created or refreshed from its definition. */
 export const StandingAction = actionRef<{ name: string }, number>('subagents', 'standing')

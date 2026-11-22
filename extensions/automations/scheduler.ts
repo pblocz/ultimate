@@ -37,7 +37,7 @@ export function scheduler(
     tx: Tx,
     a: Automation,
     event: number | string,
-    kind: 'fired' | 'escalated',
+    kind: 'fired' | 'escalated' | 'finished',
     text: string,
   ) => Promise<void>,
 ) {
@@ -86,13 +86,7 @@ export function scheduler(
         } catch (error) {
           if (runtime.signal.aborted) throw error
           await runtime.commit(async (tx) => {
-            finish(
-              await tx.doc(Automations),
-              task.input.automation.id,
-              String(task.id),
-              'failed',
-              String(error),
-            )
+            await settle(tx, task.input.automation.id, String(task.id), 'failed', String(error))
             return terminal
           }, context)
         }
@@ -121,9 +115,13 @@ export function scheduler(
             const text =
               answer?.role === 'assistant'
                 ? answer.content.flatMap((p) => (p.type === 'text' ? [p.text] : [])).join('')
-                : undefined
-            finish(
-              await tx.doc(Automations),
+                : result.status === 'unanswered'
+                  ? typeof result.detail === 'string'
+                    ? result.detail
+                    : `Ended without an answer (${result.reason})`
+                  : undefined
+            await settle(
+              tx,
               task.input.automation.id,
               String(task.id),
               result.status === 'done'
@@ -138,13 +136,7 @@ export function scheduler(
         } catch (error) {
           if (runtime.signal.aborted) throw error
           await runtime.commit(async (tx) => {
-            finish(
-              await tx.doc(Automations),
-              task.input.automation.id,
-              String(task.id),
-              'failed',
-              String(error),
-            )
+            await settle(tx, task.input.automation.id, String(task.id), 'failed', String(error))
             return terminal
           }, context)
         }
@@ -156,6 +148,16 @@ export function scheduler(
         return { status: 'terminal', outcome: { status: 'aborted' } }
       }, context),
   })
+  async function settle(tx: Tx, id: string, runId: string, status: Run['status'], answer?: string) {
+    const state = await tx.doc(Automations)
+    finish(state, id, runId, status, answer)
+    const automation = state.automations[id]
+    if (!automation || status === 'aborted') return
+    const text =
+      status === 'done' ? answer?.trim() || '(no answer)' : `Run failed: ${answer || 'No answer'}`
+    // Pi resumes the delivery task. The run outcome and its delivery commit together.
+    await deliver(tx, automation, `run:${runId}`, 'finished', text)
+  }
   /**
    * Every trigger kind fires here, manual runs included. The seventh fire within an hour (`recentFires`) pauses the
    * automation and escalates instead; an overlapping prompt run is recorded as skipped, not queued. Only fires that
@@ -166,7 +168,9 @@ export function scheduler(
     const skip =
       !!a.prompt &&
       (a.runs.some((r) => r.status === 'running') || (await prepareFires(tx)).has(a.id))
-    const countsTowardCap = (!!a.prompt && !skip) || a.subscribers.length > 0
+    const countsTowardCap =
+      (!!a.prompt && !skip) ||
+      a.subscribers.some((target) => !a.resultSubscribers?.includes(target))
     a.recentFires = (a.recentFires ?? []).filter((at) => at > firedAt - 3600000)
     if (countsTowardCap && a.recentFires.length >= 6) {
       const reason = 'Fired more than 6 times in an hour; paused'

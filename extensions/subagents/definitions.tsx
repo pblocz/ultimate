@@ -23,6 +23,7 @@ import {
   inputClass,
   ModelField,
   Segmented,
+  SkillsField,
   ToolsField,
   StandingField,
   SummariesField,
@@ -69,6 +70,7 @@ const fieldsOf = (draft: Draft): DefinitionFields => ({
   ...(!draft.model && draft.family ? { family: draft.family } : {}),
   ...(draft.tools ? { tools: draft.tools } : {}),
   ...(draft.denyTools.length ? { denyTools: draft.denyTools } : {}),
+  skills: draft.skills,
   resident: draft.resident,
   ...(draft.isolate === 'worktree' ? { isolate: 'worktree' as const } : {}),
   ...(draft.fast ? { fast: true } : {}),
@@ -184,6 +186,7 @@ interface Draft {
   tools: string[] | null
   /** Kept as read: the form has no control for it, and a save must not drop it. */
   denyTools: string[]
+  skills: string[] | null
   resident: boolean
   isolate: 'none' | 'worktree'
   fast: boolean
@@ -198,6 +201,7 @@ const draftOf = (definition?: Shown['definition'], name = ''): Draft => ({
   family: definition?.family ?? null,
   tools: definition?.tools ?? null,
   denyTools: definition?.denyTools ?? [],
+  skills: definition?.skills ?? null,
   resident: definition?.resident ?? false,
   isolate: definition?.isolate ?? 'none',
   fast: definition?.fast ?? false,
@@ -504,6 +508,11 @@ function Form({
             onChange={(tools) => set({ tools })}
             tools={discovery.main.tools}
             value={draft.tools}
+          />
+          <SkillsField
+            onChange={(skills) => set({ skills })}
+            skills={discovery.skills}
+            value={draft.skills}
           />
         </div>
         <div className="flex min-h-[20rem] min-w-0 flex-1 flex-col gap-1.5">

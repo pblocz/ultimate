@@ -147,10 +147,10 @@ it('serves separate chats through a ChannelHost-only adapter, from readiness thr
     })
     expect(await binding(server, 'early')).toBeNull()
     // The other channel's listener failed; this one is served, and the failure stays an operator diagnostic.
-    await until(() =>
-      server.extensions.info
-        .diagnostics()
-        .includes('Extension onReady failed: Error: fake listener failed'),
+    await until(async () =>
+      (await server.extensions.info.diagnostics()).includes(
+        'Extension onReady failed: Error: fake listener failed',
+      ),
     )
 
     server.host.faux!.setResponses(Array.from({ length: 8 }, () => echo))

@@ -52,6 +52,25 @@ it('adds overlay denials to the base list, preserving it through an empty overla
   ])
 })
 
+it('replaces the definition skill list with the overlay list, including an empty list', async () => {
+  const root = await temp('ultimate-skills-overlay-')
+  const userHome = join(root, 'user')
+  const overlay = join(userHome, '.ultimate/agents/restricted.md')
+  await mkdir(join(root, 'agents'))
+  await mkdir(join(overlay, '..'), { recursive: true })
+  await writeFile(join(root, 'agents/restricted.md'), definition('skills: [first, second]'))
+  const runtime = await ModelRuntime.create()
+  for (const [value, expected] of [
+    ['[third]', ['third']],
+    ['[]', []],
+  ] as const) {
+    await writeFile(overlay, definition(`addTools: []\nskills: ${value}`))
+    const found = await discoverAgents(root, root, userHome, runtime)
+    expect(found.errors).toEqual([])
+    expect(found.definitions).toMatchObject([{ name: 'restricted', skills: expected }])
+  }
+})
+
 it('denies instance to children with inherited or explicit tools without changing the parent', async () => {
   const home = await temp('ultimate-deny-child-')
   const root = await sourceCopy(home)

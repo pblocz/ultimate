@@ -1831,7 +1831,7 @@ describe('subagents', () => {
   it('saves a definition as a project override that start uses, writes nothing when invalid, and deletes it', async () => {
     const { prepared, opened, ultimateRoot, userHome } = await fixture()
     const ctx = {
-      host: { ...prepared, harness: () => opened.harness },
+      host: { ...prepared, harness: () => opened.harness, skills: () => [] },
     } as unknown as ActionContext
     const project = join(prepared.projectRoot, '.ultimate/agents')
     const override = {

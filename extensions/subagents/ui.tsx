@@ -14,6 +14,7 @@ export {
   DefaultDestinationAction,
   DefinitionAction,
   DefinitionsAction,
+  ProfileDoc,
   StandingAction,
   StandingDoc,
 } from './refs.ts'

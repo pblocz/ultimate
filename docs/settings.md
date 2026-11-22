@@ -12,7 +12,8 @@ Facet load priority does not change this order.
 The installed application's top-level `skills/` folder no longer loads.
 Disabling or removing an extension removes its skills from subsequent discovery, not from existing history. Every agent's
 system prompt lists each skill's name, description and path after the project context, and the agent reads `SKILL.md`
-when a task matches (`disable-model-invocation: true` leaves a skill out of that list). The user runs one with
+when a task matches. `disable-model-invocation: true` leaves a skill out of that list. The persona editor's **Skills** field
+can narrow the list. The expanded Agent card shows the listed skills. The user runs one with
 `/skill:name request` in the composer or ⌘K → Run a skill: the server sends the skill's body in Pi's `<skill>` block
 ahead of the request. The Info tab lists skills with their scope (`extension`, `user`, or `project`), owner, overrides and Pi's load warnings; a read of a
 `SKILL.md` shows as `skill <name>` in the transcript. Personal instructions load from `~/.ultimate/AGENTS.md`
@@ -33,6 +34,7 @@ produce a notice. To skip onboarding on a machine whose user knows Ultimate, set
 reminder, while the Extensions panel and ⌘K Get ready… stay available and an undecided project setup keeps its
 status-line reminder. Model families (⌘K Model families…, `extensions/models/README.md`) are kept per project in
 `~/.ultimate/model-families.json`, with the most recently saved ones as the start for projects without their own; a
+user's `.ultimate/settings.json` `modelFamilies` supplies defaults below the recent and project layers. The
 project's `.ultimate/settings.json` `modelFamilies` is the team's default: it applies over that start, and a person's own families for the project apply over it. `summaryModel` (`"provider/id[:thinking]"`; project over user; without it the
 summaries family's model, by default the tiny family's `openai-codex/gpt-6-luna:low`)
 pins the model for automatic titles, summaries, reply summaries and tree abstracts. Set it in either file or with

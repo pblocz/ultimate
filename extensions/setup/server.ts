@@ -15,6 +15,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverAgents } from '../../lib/agents.ts'
+import { readFamilyLayers } from '../../lib/families-settings.ts'
 import { isolatable } from '../../lib/git.ts'
 import { implementAction } from '../../lib/actions.ts'
 import { readSettings, userSettingsPath } from '../../lib/settings.ts'
@@ -364,6 +365,20 @@ async function memoryArea(host: CheckHost, read: ReadDoc): Promise<SetupIssue | 
   }
 }
 
+async function familiesArea(host: CheckHost): Promise<SetupIssue[]> {
+  const { errors } = await readFamilyLayers(
+    host.userHome,
+    host.projectRoot,
+    await host.projectSettings(),
+  )
+  return errors.map((error) => ({
+    area: 'Model families',
+    status: 'warn',
+    summary: 'a modelFamilies setting is invalid',
+    impact: `${error}. None of its families apply until it is fixed.`,
+  }))
+}
+
 /** Every area, warnings first, then information, then what is set up; a failing area is skipped, not fatal. */
 export async function check(
   host: CheckHost,
@@ -375,6 +390,7 @@ export async function check(
         loginArea,
         summaryArea,
         agentsArea,
+        familiesArea,
         providersArea,
         secretsArea,
         extensionsArea,

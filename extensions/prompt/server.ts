@@ -11,7 +11,8 @@ import {
   hook,
   section,
 } from '@earendil-works/pi-durable'
-import type { ConversationId, Tx } from '@earendil-works/pi-durable'
+import type { ConversationId, PromptInput, Tx } from '@earendil-works/pi-durable'
+import type { Context } from '@earendil-works/chord/context'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import type { ConversationSummary } from '../../shared/protocol.ts'
 import { agentRoots, discoverAgents } from '../../lib/agents.ts'
@@ -214,6 +215,18 @@ export function instructionNote(changes: { instructions: string[]; docs: string[
     .join('\n')
 }
 
+async function definitionSkills(host: ExtensionHost, input: PromptInput, context: Context) {
+  const profile = await input.read.snapshot(Profile, input.conversationId, context)
+  if (profile?.adhoc || !profile?.definition) return undefined
+  const { definitions } = await discoverAgents(
+    host.ultimateRoot,
+    host.projectRoot,
+    host.userHome,
+    host.modelRuntime,
+  )
+  return definitions.find((definition) => definition.name === profile.definition)?.skills
+}
+
 export default function prompt(host: ExtensionHost) {
   return defineExtension({
     name: 'prompt',
@@ -323,12 +336,17 @@ export default function prompt(host: ExtensionHost) {
           )
           .join('\n\n'),
       ),
-      section('skills', (input) => {
-        const skills = host.skills(input.env?.cwd ?? input.agent.cwd ?? host.projectRoot)
+      section('skills', async (input, context) => {
         // As Pi's buildSystemPromptSections: name the tool the agent can load a skill with, and list none without one.
         const names = new Set((input.agent.tools ?? []).map((tool) => tool.name))
         const reader = (['read', 'bash'] as const).find((name) => names.has(name))
-        const listed = reader ? formatSkillsForPrompt(skills, reader).trim() : ''
+        if (!reader) return undefined
+        const skills = host.skills(input.env?.cwd ?? input.agent.cwd ?? host.projectRoot)
+        const allowed = await definitionSkills(host, input, context)
+        const listed = formatSkillsForPrompt(
+          allowed ? skills.filter((skill) => allowed.includes(skill.name)) : skills,
+          reader,
+        ).trim()
         return listed
           ? `${listed}\nWhen a task matches a listed skill, read it before you start; it carries the steps the project expects.`
           : undefined

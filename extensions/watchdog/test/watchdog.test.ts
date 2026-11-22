@@ -917,18 +917,43 @@ it('injects idle changes before @ultimate inputs only, never as a system section
   ).not.toContain('Open branches idle')
 })
 
-it('uses a notice, not a card, when @ultimate fails after every retry', async () => {
-  const f = await fixture(() => error(overloaded))
+it('keeps one display-only card after a standing agent exhausts its retries and the report replays', async () => {
+  let modelCalls = 0
+  const barrier = Promise.withResolvers<void>()
+  const held = { phase: 'report' as const, entered: false, promise: barrier.promise }
+  const f = await fixture(
+    () => {
+      modelCalls++
+      return error(overloaded)
+    },
+    true,
+    held,
+  )
   await (await f.submit(f.ultimate, 'fail')).wait(context)
   for (const delay of RETRY_DELAYS_MS) {
-    await f.sleeping()
+    const retry = await f.sleeping()
     f.advance(delay)
-    await until(async () => (await f.tasks()).every((task) => task.state.status !== 'running'))
-    await f.harness.waitForIdle(context)
+    await until(
+      async () =>
+        (await f.tasks()).find((task) => task.id === retry.id)?.state.status === 'terminal',
+    )
   }
-  await until(async () => f.notices.length === 1)
-  expect(f.notices[0]).toContain('After 4 automatic retries')
+  await until(() => held.entered)
+  const cards = () => f.entries(f.ultimate, 'watchdog.standing-failure')
+  expect(await cards()).toHaveLength(1)
+  await f.reopen()
+  barrier.resolve()
+  await until(async () => (await f.tasks()).every((task) => task.state.status === 'terminal'))
+  await f.harness.waitForIdle(context)
+  expect(await cards()).toHaveLength(1)
+  expect((await cards())[0].data).toMatchObject({
+    conversation: f.ultimate,
+    retried: true,
+    retries: 4,
+  })
   expect(await f.entries()).toHaveLength(0)
+  expect(f.notices).toEqual([])
+  expect(modelCalls).toBe(1 + RETRY_DELAYS_MS.length)
 })
 
 it('reports a broken login at once, with a hint to log in again and no retry', async () => {

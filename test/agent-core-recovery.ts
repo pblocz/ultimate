@@ -178,7 +178,7 @@ export async function recoveredAgentCore(f: Fixture, ids: PendingAgentCore) {
     scheduleAnswer: record.runs[0]?.answer,
     schedulerRecovered:
       scheduler?.kind === 'ultimate.automation-scheduler' && scheduler.state.status !== 'terminal',
-    diagnostics: f.extensions.info.diagnostics(),
+    diagnostics: await f.extensions.info.diagnostics(),
     missing: f.extensions.catalogue().missing,
     cycles: f.extensions.catalogue().cycles,
   }

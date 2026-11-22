@@ -117,6 +117,12 @@ const Receipts = defineDoc<Record<string, Partial<Change>>>({
 })
 const json = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
 /** A fire must reach someone: a run, a subscriber, or both. Refuses a change that would leave neither. */
+function pruneResultSubscribers(a: Automation) {
+  const results = a.resultSubscribers?.filter((target) => a.subscribers.includes(target))
+  if (results?.length) a.resultSubscribers = results
+  else delete a.resultSubscribers
+}
+
 function reachesSomeone(a: Automation) {
   if (!a.prompt && !a.subscribers.length)
     throw new Error('At least one of prompt or subscribers is required')
@@ -519,10 +525,18 @@ function backend(host: ExtensionHost) {
     if (args.action === 'log')
       return { result: { text: await (await scripts()).tail(id, args.lines) } }
     sub.updatedAt = Date.now()
-    if (args.action === 'subscribe')
-      sub.subscribers = [...new Set([...sub.subscribers, prepared.subscriber!])]
-    else if (args.action === 'unsubscribe') {
+    if (args.action === 'subscribe') {
+      const target = prepared.subscriber!
+      if (args.mode === 'result' && !sub.prompt)
+        throw new Error('Result subscriptions require a prompt')
+      sub.subscribers = [...new Set([...sub.subscribers, target])]
+      const results = (sub.resultSubscribers ?? []).filter((s) => s !== target)
+      if (args.mode === 'result') results.push(target)
+      if (results.length) sub.resultSubscribers = results
+      else delete sub.resultSubscribers
+    } else if (args.action === 'unsubscribe') {
       sub.subscribers = sub.subscribers.filter((s) => s !== prepared.subscriber)
+      pruneResultSubscribers(sub)
       reachesSomeone(sub)
     } else if (args.action === 'resume' || args.action === 'run') {
       if (
@@ -629,6 +643,11 @@ function backend(host: ExtensionHost) {
       if (!target || !(await host.harness().conversation(target, BACKGROUND_CONTEXT)))
         throw new Error(`Unknown of: ${c.of}`)
     }
+    if (
+      args.mode !== undefined &&
+      (args.action !== 'subscribe' || (args.mode !== 'notification' && args.mode !== 'result'))
+    )
+      throw new Error('mode must be notification or result, on subscribe only')
     if (args.subscribers !== undefined && !Array.isArray(args.subscribers))
       throw new Error('subscribers must be #id or @name')
     if (args.name !== undefined) required(args.name, 'name')
@@ -790,11 +809,17 @@ function backend(host: ExtensionHost) {
     }
     let effect: Effect | undefined
     if (args.action === 'create' || args.action === 'update') {
-      if (prepared.subscribers) a.subscribers = prepared.subscribers
+      if (prepared.subscribers) {
+        a.subscribers = prepared.subscribers
+        pruneResultSubscribers(a)
+      }
       if (args.name !== undefined) a.name = required(args.name, 'name')
       if (args.prompt !== undefined) {
         if (args.prompt) a.prompt = required(args.prompt, 'prompt')
-        else delete a.prompt
+        else {
+          delete a.prompt
+          delete a.resultSubscribers
+        }
       }
       reachesSomeone(a)
       if (args.schedule !== undefined) {
@@ -1070,7 +1095,7 @@ export default function automations(host: ExtensionHost) {
         // subscribe meant to replace it and be refused for leaving nobody to wake.
         executionMode: 'sequential',
         description:
-          'Automate background work: one trigger (schedule, ask, event or condition) and one or both actions (prompt, subscribers: #id|@name). create {name, trigger, prompt?, subscribers?, key?, …}; with neither action the caller subscribes. To be reminded or woken, subscribe (cheap); add a prompt only when fresh work must run (a whole agent turn every fire). schedule: cron "0 9 * * 1-5" Europe/Vienna, at <ISO time>, in 30m, every 15m. ask: a watcher writes a supervised script that fires on stdout FIRE (tokens only for setup and repair); once defaults to true, so the first FIRE finishes it: pass once:false to keep watching. event {name,where?}: action events lists them. condition {metric:"context",of:"@name"|"#id",above}. list; these take {id}: update, pause, resume, run, runs, log, abort {runId}, escalate {reason}, subscribe/unsubscribe {to?}, delete. Details: extensions/automations/README.md in the Ultimate clone.',
+          'Automate background work: one trigger (schedule, ask, event or condition) and one or both actions (prompt, subscribers: #id|@name). create {name, trigger, prompt?, subscribers?, key?, …}; with neither action the caller subscribes. To be reminded or woken, subscribe (cheap); add a prompt only when fresh work must run (a whole agent turn every fire). schedule: cron "0 9 * * 1-5" Europe/Vienna, at <ISO time>, in 30m, every 15m. ask: a watcher writes a supervised script that fires on stdout FIRE (tokens only for setup and repair); once defaults to true, so the first FIRE finishes it: pass once:false to keep watching. event {name,where?}: action events lists them. condition {metric:"context",of:"@name"|"#id",above}. list; these take {id}: update, pause, resume, run, runs, log, abort {runId}, escalate {reason}, subscribe {to?, mode?: notification|result}, unsubscribe {to?}, delete. Details: extensions/automations/README.md in the Ultimate clone.',
         parameters: obj({
           action: strEnum(operations),
           id: opt(str()),
@@ -1101,6 +1126,7 @@ export default function automations(host: ExtensionHost) {
             strEnum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const),
           ),
           subscribers: opt(arr(union([int({ minimum: 1 }), str()]))),
+          mode: opt(strEnum(['notification', 'result'] as const)),
           destination: opt(destinationSchema),
           scope: opt(strEnum(['user', 'project'])),
           slug: opt(str()),

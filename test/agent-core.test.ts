@@ -126,7 +126,7 @@ it('loads only the retained services and neutral definitions, without coding mod
   expect(f.extensions.info().every((extension) => !extension.server?.error)).toBe(true)
   expect(f.extensions.catalogue().missing).toEqual([])
   expect(f.extensions.catalogue().cycles).toEqual([])
-  expect(f.extensions.info.diagnostics()).toEqual([])
+  await expect(f.extensions.info.diagnostics()).resolves.toEqual([])
   const loaded = f.loadedModules()
   for (const name of agentCoreExtensions)
     expect(loaded.some((file) => file.includes(`/extensions/${name}/server.ts`))).toBe(true)
@@ -296,7 +296,7 @@ it('runs schedules and event notifications without a supervisor or fixed coordin
   })
   expect(records.find((record) => record.id === event.id)).toMatchObject({ fires: 1 })
   expect(f.extensions.catalogue().missing).toEqual([])
-  expect(f.extensions.info.diagnostics()).toEqual([])
+  await expect(f.extensions.info.diagnostics()).resolves.toEqual([])
 })
 it('recovers a pending child report, message reply and schedule once through the real lifecycle', async () => {
   const f = await agentCoreFixture()
