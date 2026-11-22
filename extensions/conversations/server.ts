@@ -366,7 +366,7 @@ export default (host: ExtensionHost) => {
     ...summaries,
     hooks: [
       ...summaries.hooks,
-      // Pi upstream: @earendil-works/pi-durable@1.5.2 — patched transactional beforeInput hook. Drop when Pi ships input-placement hooks.
+      // Pi upstream: @earendil-works/pi-durable@1.6.0 — patched transactional beforeInput hook. Drop when Pi ships input-placement hooks.
       // Any input that starts a run (typed, message or reply, report, automation) brings the conversation and its
       // concluded ancestors back, in the commit that places it. Writes (notes) start no run and never get here.
       hook(GenerationTask, {

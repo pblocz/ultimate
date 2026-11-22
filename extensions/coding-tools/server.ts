@@ -13,6 +13,7 @@ import {
   LiveDoc,
   type ToolExecutionApi,
   type ToolExecutionResult,
+  type ToolPark,
   type ToolRegistration,
   wrapTool,
 } from '@earendil-works/pi-durable'
@@ -128,11 +129,11 @@ function took(ms: number) {
  * notice, as an ordinary result.
  */
 async function untilStopped(
-  run: (context: Context) => Promise<ToolExecutionResult>,
+  run: (context: Context) => Promise<ToolExecutionResult | ToolPark>,
   api: ToolExecutionApi,
   interruptible: boolean | undefined,
   context: Context,
-): Promise<ToolExecutionResult> {
+): Promise<ToolExecutionResult | ToolPark> {
   const id = api.conversationId
   // A watch needs the document to exist; created once per conversation.
   if (!(await api.snapshot(Cancelled, id, context)))

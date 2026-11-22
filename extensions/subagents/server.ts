@@ -1214,7 +1214,7 @@ export default function subagents(
               ? await requireWorktrees().warning(parent.cwd ?? host.projectRoot)
               : ''
             const task = await api.getTask(api.taskId, context)
-            // Pi upstream: @earendil-works/pi-durable@1.5.2 src/harness/tool.ts — internal ToolTaskInput.assistant locates the calling assistant. Drop when ToolExecutionApi exposes the calling assistant entry ID.
+            // Pi upstream: @earendil-works/pi-durable@1.6.0 src/harness/tool.ts — internal ToolTaskInput.assistant locates the calling assistant. Drop when ToolExecutionApi exposes the calling assistant entry ID.
             const assistant = (task?.input as { assistant: EntryId } | undefined)?.assistant
             // A fork copies the parent's visible history up to the entry before the calling assistant message. Documents
             // follow their fork policy: `pi.agent`, `codemode.store` and `ultimate.ui` copy as of that entry (the web

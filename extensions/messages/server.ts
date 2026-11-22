@@ -200,7 +200,7 @@ export default function messages(host: ExtensionHost) {
     tasks: [delivery(host)],
     hooks: [
       hook(GenerationTask, {
-        // Pi upstream: @earendil-works/pi-durable@1.5.2 provides the patched transactional beforeInput hook.
+        // Pi upstream: @earendil-works/pi-durable@1.6.0 provides the patched transactional beforeInput hook.
         beforeInput: async (_input, api) =>
           openQuestionsNote(
             api.tx,

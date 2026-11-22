@@ -348,7 +348,7 @@ export function turnActivity(
           status:
             slot.status === 'pending'
               ? 'waiting'
-              : slot.status === 'running'
+              : slot.status !== 'done'
                 ? 'running'
                 : outcome?.role === 'toolResult'
                   ? outcome.isError
