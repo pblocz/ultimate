@@ -6,8 +6,8 @@
 import { LoaderCircleIcon, MoonIcon, MoonStarIcon } from 'lucide-react'
 import { useState } from 'react'
 import { api, errorMessage, useDocOf, useUltimate } from '@/sdk'
-import { useConcludedSince } from '../conversations/ui.tsx'
-import { talkToUltimate } from '../subagents/ui.tsx'
+import { useConcludedSince } from '@ultimate/ext/conversations/ui.tsx'
+import { talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
 import { DismissAction, DreamDoc, ReadyAction } from './refs.ts'
 import { dreamStage } from './stage.ts'
 

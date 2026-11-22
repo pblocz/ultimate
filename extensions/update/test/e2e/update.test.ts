@@ -1,11 +1,11 @@
 import { mkdir, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { beforeEach, expect, it } from 'vitest'
-import { git } from '../../../../lib/git.ts'
-import { fastForward, Refusal } from '../../../../lib/fast-forward.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { fastForward, Refusal } from '@ultimate/lib/fast-forward.ts'
 import { cloneState, fetchIfDue, layersOf, withLock } from '../../clone.ts'
 import { gitIn, installOwed } from '../../server.ts'
-import { temp } from '../../../../test/helpers.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 let upstream: string
 let clone: string

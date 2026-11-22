@@ -1,5 +1,5 @@
 /** Context in the browser: the action that reads the prompt a conversation runs with now. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 import type { Diff, Prompt } from './types.ts'
 
 /** The prompt in effect now, the `pi.system` entry it was last patched at, and its changes since an earlier one. */

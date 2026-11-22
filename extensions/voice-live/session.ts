@@ -1,5 +1,5 @@
 /** Browser WebRTC lifecycle, independent of React and the shell. Never holds an API key. */
-import type { ActionRef } from '../../shared/extension-api.ts'
+import type { ActionRef } from '@ultimate/shared/extension-api.ts'
 import { EndAction, HeardAction, LogAction, StartAction } from './refs.ts'
 import { Relay } from './relay.ts'
 import type { LiveEvent, RelayOut } from './relay.ts'

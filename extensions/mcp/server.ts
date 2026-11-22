@@ -18,11 +18,11 @@ import {
   toLlmContent,
 } from '@earendil-works/pi-mcp'
 import type { Tool } from '@earendil-works/pi-mcp'
-import { implementAction } from '../../lib/actions.ts'
-import { readSecret } from '../../lib/secrets.ts'
-import { readSettings, userSettingsPath } from '../../lib/settings.ts'
-import type { ExtensionAction } from '../../server/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { readSecret } from '@ultimate/lib/secrets.ts'
+import { readSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
+import type { ExtensionAction } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { ReconnectAction, StatusAction } from './refs.ts'
 import type { McpServerStatus } from './refs.ts'
 

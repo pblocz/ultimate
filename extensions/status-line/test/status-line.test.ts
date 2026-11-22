@@ -5,9 +5,9 @@ import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import { describe, expect, it, vi } from 'vitest'
 import { createRateSampler, type Rates } from '../rates.ts'
 import statusLine, { actions } from '../server.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { prepareHarness } from '../../../server/harness.ts'
-import { temp } from '../../../test/helpers.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { prepareHarness } from '@ultimate/server/harness.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 const counters = (output: number): Rates => ({
   input: output * 2,

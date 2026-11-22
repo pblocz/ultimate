@@ -16,7 +16,7 @@ import {
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
 import { LoginDialog } from './login.tsx'
-import { familyTitle } from '../../lib/families.ts'
+import { familyTitle } from '@ultimate/lib/families.ts'
 import { agentsPanel, FamilyDot, familyOf, useFamilies } from './families.tsx'
 import { ModelPicker } from './picker.tsx'
 import { nextThinking, openLogin, openPicker, thinkingDialog, useCurrentModel } from './state.tsx'

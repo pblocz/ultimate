@@ -2,7 +2,7 @@
  * Questions in the browser: the actions that answer an agent's questions to the user from its message's card.
  * Browser-safe.
  */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** One answered question: the question's text and the chosen or typed answer, a multiple choice's as a list. */
 export type Answer = { question: string; answer: string | string[] }

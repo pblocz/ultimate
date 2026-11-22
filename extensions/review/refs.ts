@@ -1,5 +1,5 @@
 /** Review in the browser: the local diff of a spec, and the specs worth choosing from. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 import type { ReviewComment } from './types.ts'
 
 /**

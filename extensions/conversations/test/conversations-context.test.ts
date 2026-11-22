@@ -6,7 +6,7 @@ import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
 import { createRegistry, Harness, MemoryStorage } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryRecord } from '@earendil-works/pi-durable'
 import { afterEach, expect, it } from 'vitest'
-import { onCommit } from '../../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { ContextUsageDoc } from '../api.ts'
 import { contextBehavior } from '../context.ts'
 import {
@@ -14,8 +14,8 @@ import {
   estimateAfterHead,
   lastAssistant,
   promptTokens,
-} from '../../../lib/context-usage.ts'
-import { until } from '../../../test/helpers.ts'
+} from '@ultimate/lib/context-usage.ts'
+import { until } from '@ultimate/test/helpers.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {

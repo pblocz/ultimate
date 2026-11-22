@@ -18,7 +18,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Kbd } from '@/components/ui/kbd'
 import { api, cn, errorMessage, useDialog, useUltimate } from '@/sdk'
-import { familyTitle } from '../../lib/families.ts'
+import { familyTitle } from '@ultimate/lib/families.ts'
 import {
   agentsPanel,
   FamilyDot,

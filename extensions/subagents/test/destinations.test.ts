@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import type { JsonObject } from '@earendil-works/pi-durable'
-import { apis, removeTemp, temp } from '../../../test/helpers.ts'
+import { apis, removeTemp, temp } from '@ultimate/test/helpers.ts'
 import { SubagentsWorkflow } from '../api.ts'
 import { defaultDestination, destinationAddress } from '../destinations.ts'
 

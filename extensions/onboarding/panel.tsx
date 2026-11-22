@@ -39,8 +39,8 @@ import {
 import { ExtensionDetails } from './points.tsx'
 import { AdoptProjectSetupAction, DecideAction, DetailsAction, SetExtensionAction } from './refs.ts'
 import { switchScope } from './choices.tsx'
-import { ListAction } from '../secrets/ui.tsx'
-import type { Secret } from '../secrets/refs.ts'
+import { ListAction } from '@ultimate/ext/secrets/ui.tsx'
+import type { Secret } from '@ultimate/ext/secrets/refs.ts'
 
 type Scope = 'project' | 'user'
 

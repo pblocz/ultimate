@@ -1,6 +1,6 @@
 import type { EntryRecord } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
-import { setAsideIds } from '../../../web/src/app/compact.ts'
+import { setAsideIds } from '@/app/compact.ts'
 import { breakdownAt, diffAt, modelLine, opensContext, ownStart, promptAt } from '../breakdown.ts'
 
 let next = 1

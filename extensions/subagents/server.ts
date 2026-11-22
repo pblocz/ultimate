@@ -1,12 +1,12 @@
 import { existsSync } from 'node:fs'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BACKGROUND_CONTEXT, withCancel } from '@earendil-works/chord/context'
 import type { Context } from '@earendil-works/chord/context'
 import type { JsonValue } from '@earendil-works/chord/json'
 import { arr, bool, int, obj, opt, str } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import type { AssistantMessage, ModelThinkingLevel } from '@earendil-works/pi-ai'
 import {
   AgentDoc,
@@ -33,9 +33,9 @@ import type {
   ToolExecutionApi,
   SubmissionRecord,
 } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import type { Source } from '../../server/project.ts'
-import { ChannelError } from '../../shared/channel-host.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import type { Source } from '@ultimate/server/project.ts'
+import { ChannelError } from '@ultimate/shared/channel-host.ts'
 import {
   agentRoots,
   definitionAgent,
@@ -47,19 +47,19 @@ import {
   previewModel,
   saveDefinition,
   saveOverlay,
-} from '../../lib/agents.ts'
-import type { AgentDefinition, DefinitionFields } from '../../lib/agents.ts'
+} from '@ultimate/lib/agents.ts'
+import type { AgentDefinition, DefinitionFields } from '@ultimate/lib/agents.ts'
 import { createChild, started } from './children.ts'
 import { defaultDestination, destinationAddress } from './destinations.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { shortTitle } from '../../lib/title.ts'
-import { ConversationsApi, Marks, WorktreeSupport } from '../conversations/api.ts'
-import type { AgentMarkStyle } from '../conversations/refs.ts'
-import { Family, Pin } from '../models/api.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { shortTitle } from '@ultimate/lib/title.ts'
+import { ConversationsApi, Marks, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
+import type { AgentMarkStyle } from '@ultimate/ext/conversations/refs.ts'
+import { Family, Pin } from '@ultimate/ext/models/api.ts'
 import { Profile, Runs, Standing, Subagents, SubagentsApi, SubagentsWorkflow } from './api.ts'
 import type { SubagentsService } from './api.ts'
-import { definitionRuns, refName, refOf } from '../../lib/families.ts'
-import { readFamilies } from '../../lib/families-settings.ts'
+import { definitionRuns, refName, refOf } from '@ultimate/lib/families.ts'
+import { readFamilies } from '@ultimate/lib/families-settings.ts'
 import {
   ClearConversationAction,
   DefaultDestinationAction,

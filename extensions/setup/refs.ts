@@ -1,5 +1,5 @@
 /** Setup in the browser: what isn't set up on this machine and what that costs. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** What fixes an issue: a command to run, or a secret to open in the Secrets panel. */
 export type SetupFix = { label: string; command?: string; secret?: string }

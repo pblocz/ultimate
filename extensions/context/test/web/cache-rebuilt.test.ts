@@ -2,19 +2,19 @@ import type { EntryRecord } from '@earendil-works/pi-durable'
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it, vi } from 'vitest'
-import type { ExtensionRecord } from '../../../../web/src/sdk/registry.ts'
-import { defineWebExtension, provide } from '../../../../web/src/sdk/types.ts'
-import type { EntryRenderer } from '../../../../web/src/sdk/types.ts'
+import type { ExtensionRecord } from '@/sdk/registry.ts'
+import { defineWebExtension, provide } from '@/sdk/types.ts'
+import type { EntryRenderer } from '@/sdk/types.ts'
 
 const state = vi.hoisted(() => ({
   records: [] as ExtensionRecord[],
   entries: [] as EntryRecord[],
 }))
 // The real client and hooks connect to a server; the line needs only the loaded transcript and the installed facets.
-vi.mock('../../../../web/src/sdk/client.ts', () => ({}))
-vi.mock('../../../../web/src/sdk/resume.ts', () => ({ resumed: false, covered: () => false }))
-vi.mock('../../../../web/src/sdk/hooks.ts', async (original) => ({
-  ...(await original<typeof import('../../../../web/src/sdk/hooks.ts')>()),
+vi.mock('@/sdk/client.ts', () => ({}))
+vi.mock('@/sdk/resume.ts', () => ({ resumed: false, covered: () => false }))
+vi.mock('@/sdk/hooks.ts', async (original) => ({
+  ...(await original<typeof import('@/sdk/hooks.ts')>()),
   useExtensions: () => state.records,
   useSystem: () => undefined,
   useTranscript: () => state.entries,

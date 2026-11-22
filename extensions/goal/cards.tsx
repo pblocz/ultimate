@@ -27,7 +27,7 @@ import {
 } from '@/sdk'
 import { plural } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import { EndAction, GoalDoc, ImagesAction } from './refs.ts'
 import type { Criterion, Decision, Goal, GoalEntry } from './refs.ts'
 

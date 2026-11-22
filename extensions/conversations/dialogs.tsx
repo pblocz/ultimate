@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { api, cn, errorMessage, useDialog, useModels } from '@/sdk'
-import { ModelRow } from '../models/ui.tsx'
+import { ModelRow } from '@ultimate/ext/models/ui.tsx'
 import { SetSummaryModelAction, SummaryModelAction } from './refs.ts'
 import type { SummaryModelSetting } from './refs.ts'
 import { parseSummaryModel } from './summary-model-ref.ts'

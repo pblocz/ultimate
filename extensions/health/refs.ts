@@ -1,5 +1,5 @@
 /** Health in the browser: this machine's model provider health, which the status line warns about. Browser-safe. */
-import { defineEvent } from '../../shared/events.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 /** One provider's health on this machine. */
 export interface ProviderHealth {

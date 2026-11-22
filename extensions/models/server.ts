@@ -10,11 +10,11 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor } from '@earendil-works/pi-durable'
-import type { ActionContext } from '../../server/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { Family, LoginChanged } from './api.ts'
-import { implementAction } from '../../lib/actions.ts'
-import type { ActionInput } from '../../lib/actions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import type { ActionInput } from '@ultimate/lib/actions.ts'
 import {
   AnswerAction,
   CancelAction,
@@ -27,7 +27,7 @@ import {
   SetFamilyAction,
 } from './refs.ts'
 import type { SaveFamilies } from './refs.ts'
-import { DEFAULT_FAMILY } from '../../lib/families.ts'
+import { DEFAULT_FAMILY } from '@ultimate/lib/families.ts'
 import { familiesView, saveFamilies, setDefault } from './families.ts'
 import { fallback } from './fallback.ts'
 

@@ -17,6 +17,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
+import { modulePrefixes } from '../lib/module-names.ts'
 
 const clone = resolve(import.meta.dirname, '..')
 const own = resolve('.ultimate/extensions')
@@ -69,7 +70,24 @@ try {
         outDir: undefined,
         noEmit: true,
         types: [...options.types, 'node'],
-        paths: { '@/*': [join(clone, 'web/src/*')] },
+        paths: {
+          '@/*': [join(clone, 'web/src/*')],
+          ...Object.fromEntries(
+            Object.entries(modulePrefixes).map(([prefix, folder]) => [
+              `${prefix}*`,
+              [join(clone, folder, '*')],
+            ]),
+          ),
+          // A checked folder that is no built-in is what its name resolves to (`lib/module-names.ts`).
+          ...Object.fromEntries(
+            links
+              .filter(({ folder }) => !existsSync(join(clone, 'extensions', basename(folder))))
+              .map(({ link, folder }) => [
+                `@ultimate/ext/${basename(folder)}/*`,
+                [join(temp, link, '*')],
+              ]),
+          ),
+        },
       },
       include: ['ext/*/web.tsx', 'ext/*/server.ts'],
     }),

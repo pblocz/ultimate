@@ -16,7 +16,7 @@ import {
   useSystem,
   useUltimate,
 } from '@/sdk'
-import { agentsPanel, FamilyLabel, refreshFamilies, useFamilies } from '../models/ui.tsx'
+import { agentsPanel, FamilyLabel, refreshFamilies, useFamilies } from '@ultimate/ext/models/ui.tsx'
 import {
   Field,
   InstructionsEditor,

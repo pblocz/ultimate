@@ -2,8 +2,8 @@
  * Subagents in the browser: the standing agents' conversations, and the actions that open a standing agent and read,
  * save and delete agent definitions. Browser-safe.
  */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 export type DestinationAddress = number | string
 /** Read the current default address without opening a conversation. */

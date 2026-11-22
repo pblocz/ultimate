@@ -2,7 +2,7 @@
 import type { Context } from '@earendil-works/chord/context'
 import { section } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 /** Whether `id` is an ordinary chat or works for one: a `chat` label on it, its owner, or a fork's parent. */
 async function inChat(host: ExtensionHost, id: ConversationId, ctx: Context) {

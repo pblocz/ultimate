@@ -11,7 +11,7 @@ agent, and the agent docked on the right. It needs nothing but `git`. Put the th
 ```ts
 import type { JsonValue } from '@earendil-works/chord/json'
 import { defineExtension } from '@earendil-works/pi-durable'
-import type { ActionContext } from '../../../server/actions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
 
 export default defineExtension({ name: 'commits' })
 

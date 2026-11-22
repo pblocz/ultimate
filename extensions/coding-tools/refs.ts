@@ -1,6 +1,6 @@
 /** Coding tools in the browser: the event each commit made through the bash tool records. Browser-safe. */
-import { defineEvent } from '../../shared/events.ts'
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 /** Per conversation: the bash calls the user cancelled and are still running, by call id → when (ms). */
 export const CancelledDoc = docRef<{ calls: Record<string, number> }>('coding-tools.cancelled')

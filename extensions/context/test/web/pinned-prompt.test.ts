@@ -2,8 +2,8 @@ import { createElement as h } from 'react'
 import type { EffectCallback } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { StreamedView } from '../../../../shared/protocol.ts'
-import { FakeSource, fakeSubscriptions } from '../../../../test/web/fake-source.ts'
+import type { StreamedView } from '@ultimate/shared/protocol.ts'
+import { FakeSource, fakeSubscriptions } from '@ultimate/test/web/fake-source.ts'
 
 const harness = vi.hoisted(() => ({
   sources: [] as FakeSource[],
@@ -24,12 +24,12 @@ vi.mock('use-stick-to-bottom', async (original) => ({
     isAtBottom: true,
   }),
 }))
-vi.mock('../../../../web/src/sdk/client.ts', async () => {
-  const { createStore } = await import('../../../../web/src/sdk/store.ts')
-  const { createApi } = await import('../../../../web/src/sdk/api.ts')
-  const { createRegistry } = await import('../../../../web/src/sdk/registry.ts')
-  const { createUiState } = await import('../../../../web/src/sdk/ui-state.ts')
-  const { FakeSource } = await import('../../../../test/web/fake-source.ts')
+vi.mock('@/sdk/client.ts', async () => {
+  const { createStore } = await import('@/sdk/store.ts')
+  const { createApi } = await import('@/sdk/api.ts')
+  const { createRegistry } = await import('@/sdk/registry.ts')
+  const { createUiState } = await import('@/sdk/ui-state.ts')
+  const { FakeSource } = await import('@ultimate/test/web/fake-source.ts')
   const store = createStore({
     eventSource: (url) => {
       const stream = new FakeSource(url)
@@ -40,7 +40,7 @@ vi.mock('../../../../web/src/sdk/client.ts', async () => {
     retryMs: 5,
   })
   const api = createApi(store, { fetch: harness.fetch })
-  const { createReads } = await import('../../../../web/src/sdk/reads.ts')
+  const { createReads } = await import('@/sdk/reads.ts')
   return {
     store,
     api,
@@ -49,9 +49,9 @@ vi.mock('../../../../web/src/sdk/client.ts', async () => {
     uiState: createUiState(undefined),
   }
 })
-vi.mock('../../../../web/src/sdk/resume.ts', () => ({ covered: () => false }))
+vi.mock('@/sdk/resume.ts', () => ({ covered: () => false }))
 
-import { store, uiState } from '../../../../web/src/sdk/client.ts'
+import { store, uiState } from '@/sdk/client.ts'
 import { PinnedPrompt } from '../../pinned.tsx'
 
 const server = fakeSubscriptions(harness.sources)

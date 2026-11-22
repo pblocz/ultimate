@@ -1,7 +1,7 @@
 import { FileDiffIcon } from 'lucide-react'
 import { lazy, Suspense } from 'react'
 import { defineWebExtension, provide } from '@/sdk'
-import { Review } from '../workspaces/ui.tsx'
+import { Review } from '@ultimate/ext/workspaces/ui.tsx'
 import { ReviewCard } from './card.tsx'
 import { openReview, ReviewLink } from './link.tsx'
 import { Frame, Loading } from './parts.tsx'

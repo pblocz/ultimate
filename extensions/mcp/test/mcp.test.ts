@@ -3,11 +3,11 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import mcp, { actions, secrets } from '../server.ts'
-import { actions as secretActions } from '../../secrets/server.ts'
-import { writeSecret } from '../../secrets/store.ts'
+import { actions as secretActions } from '@ultimate/ext/secrets/server.ts'
+import { writeSecret } from '@ultimate/ext/secrets/store.ts'
 import type { McpServerStatus } from '../refs.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { removeTemp, temp, until } from '../../../test/helpers.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {

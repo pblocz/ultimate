@@ -19,9 +19,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { api, cn, errorMessage, formatAgo, Provided, useDocOf } from '@/sdk'
-import { useShell } from '../sidebar/ui.tsx'
+import { useShell } from '@ultimate/ext/sidebar/ui.tsx'
 import { store } from '@/sdk/client'
-import { MessagesDoc, conversationState, emptyMessages } from '../messages/ui.tsx'
+import { MessagesDoc, conversationState, emptyMessages } from '@ultimate/ext/messages/ui.tsx'
 import {
   AgentMark,
   ConversationEpic,
@@ -30,13 +30,13 @@ import {
   FeatureTag,
   RenameAction,
   useAgentTitle,
-} from '../conversations/ui.tsx'
-import type { Presence } from '../conversations/ui.tsx'
-import { Review } from '../workspaces/ui.tsx'
-import { RunName } from '../subagents/ui.tsx'
-import type { WorkspaceConversation as ConversationSummary } from '../workspaces/ui.tsx'
-import type { OverviewRow } from '../conversations/types.ts'
-import type { ConversationState } from '../messages/ui.tsx'
+} from '@ultimate/ext/conversations/ui.tsx'
+import type { Presence } from '@ultimate/ext/conversations/ui.tsx'
+import { Review } from '@ultimate/ext/workspaces/ui.tsx'
+import { RunName } from '@ultimate/ext/subagents/ui.tsx'
+import type { WorkspaceConversation as ConversationSummary } from '@ultimate/ext/workspaces/ui.tsx'
+import type { OverviewRow } from '@ultimate/ext/conversations/types.ts'
+import type { ConversationState } from '@ultimate/ext/messages/ui.tsx'
 import { SummaryHistory } from './summaries.tsx'
 
 /** What a row's mark and state word say for each settled state; `working` and `idle` show no icon. */

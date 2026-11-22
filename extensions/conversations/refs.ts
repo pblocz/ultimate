@@ -2,8 +2,8 @@
  * Conversations in the browser: the overview of what each conversation is about, and the actions that rename,
  * conclude and resume conversations and pick the summary model. Browser-safe.
  */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import type { KeptWork, OverviewState, SummaryRecord } from './types.ts'
 
 /**

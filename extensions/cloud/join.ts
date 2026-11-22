@@ -1,9 +1,9 @@
 /** Joining this machine to the user's cloud backups: the Join card's `cloud.join` and `cloud.joinState` actions. */
 import { hostname } from 'node:os'
 import type { JsonObject } from '@earendil-works/pi-durable'
-import { httpBase } from '../../lib/cloud.ts'
-import { secretMetadata } from '../../lib/secrets.ts'
-import { readSettings, updateSettings, userSettingsPath } from '../../lib/settings.ts'
+import { httpBase } from '@ultimate/lib/cloud.ts'
+import { secretMetadata } from '@ultimate/lib/secrets.ts'
+import { readSettings, updateSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
 import type { JoinResult, JoinState } from './refs.ts'
 
 export const TOKEN = 'ULTIMATE_CLOUD_TOKEN'

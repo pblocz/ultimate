@@ -19,9 +19,9 @@ import {
   useTranscript,
   useUltimate,
 } from '@/sdk'
-import { Diff, parsePatch } from '../coding-tools/ui.tsx'
-import { AgentMark } from '../conversations/ui.tsx'
-import { DefinitionAction, ProfileDoc } from '../subagents/ui.tsx'
+import { Diff, parsePatch } from '@ultimate/ext/coding-tools/ui.tsx'
+import { AgentMark } from '@ultimate/ext/conversations/ui.tsx'
+import { DefinitionAction, ProfileDoc } from '@ultimate/ext/subagents/ui.tsx'
 import { modelLine } from './breakdown.ts'
 import type { Breakdown, Diff as PromptDiff, Section, Tool } from './breakdown.ts'
 

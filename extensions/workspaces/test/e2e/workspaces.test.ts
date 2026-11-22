@@ -4,13 +4,13 @@ import { mkdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { afterEach, expect, it } from 'vitest'
-import { context, prepareHarness } from '../../../../server/harness.ts'
-import { Metadata } from '../../../../server/metadata.ts'
-import type { ExtensionHost } from '../../../../server/extensions.ts'
+import { context, prepareHarness } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import workspaceExtension from '../../server.ts'
 import { workspaces } from '../../workspaces.ts'
-import { git } from '../../../../lib/git.ts'
-import { temp, until } from '../../../../test/helpers.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { temp, until } from '@ultimate/test/helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -95,10 +95,15 @@ it('clears and reruns a configured add command a crash interrupted', async () =>
     await writeFile(${JSON.stringify(idFile)}, String((await actions.create({}, { host })).id));
     setInterval(() => {}, 1000);
   `
-  const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
-    cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
+  // Node runs the extension without Vite: the hook resolves its @ultimate/… imports.
+  const child = spawn(
+    process.execPath,
+    ['--import', './lib/node-names.ts', '--input-type=module', '-e', script],
+    {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  )
   let output = ''
   child.stderr.on('data', (data) => {
     output += data.toString()
@@ -179,16 +184,20 @@ exec /usr/bin/git "$@"
 `,
       { mode: 0o755 },
     )
-    const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
-      cwd: process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        ...(scenario === 'branch creation before registration'
-          ? { PATH: `${bin}:${process.env.PATH}` }
-          : {}),
+    const child = spawn(
+      process.execPath,
+      ['--import', './lib/node-names.ts', '--input-type=module', '-e', script],
+      {
+        cwd: process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          ...(scenario === 'branch creation before registration'
+            ? { PATH: `${bin}:${process.env.PATH}` }
+            : {}),
+        },
       },
-    })
+    )
     let output = ''
     child.stderr.on('data', (data) => {
       output += data.toString()

@@ -2,21 +2,21 @@
 import { bool, num, obj, opt, str } from '@earendil-works/pi-schema'
 import { configure, defineTool, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import {
   definitionAgent,
   definitionFamily,
   discoverAgents,
   hostDefault,
   onFamily,
-} from '../../lib/agents.ts'
-import { Family } from '../models/api.ts'
-import { readFamilies } from '../../lib/families-settings.ts'
-import { LineageApi, Roots } from '../lineage/api.ts'
-import { actingAs } from '../../lib/acting-as.ts'
-import { Messages, MessagesApi, Started } from '../messages/api.ts'
-import { imagesParameter } from '../../lib/entries.ts'
-import { isOwed } from '../../lib/message-state.ts'
+} from '@ultimate/lib/agents.ts'
+import { Family } from '@ultimate/ext/models/api.ts'
+import { readFamilies } from '@ultimate/lib/families-settings.ts'
+import { LineageApi, Roots } from '@ultimate/ext/lineage/api.ts'
+import { actingAs } from '@ultimate/lib/acting-as.ts'
+import { Messages, MessagesApi, Started } from '@ultimate/ext/messages/api.ts'
+import { imagesParameter } from '@ultimate/lib/entries.ts'
+import { isOwed } from '@ultimate/lib/message-state.ts'
 
 export const branchTool = (host: ExtensionHost) =>
   defineTool({

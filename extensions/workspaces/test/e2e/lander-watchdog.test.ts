@@ -2,8 +2,8 @@ import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { runLanderCheck } from '../../lander.ts'
-import { context } from '../../../../server/harness.ts'
-import { removeTemp, temp } from '../../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 it('kills a silent process group on stall and a printing process on the total cap', async () => {
   const directory = await temp('ultimate-lander-watchdog-')

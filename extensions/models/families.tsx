@@ -5,7 +5,7 @@
  */
 import { useEffect, useSyncExternalStore } from 'react'
 import { api, cn, useSystem } from '@/sdk'
-import { DEFAULT_FAMILY, familyColor, familyTitle } from '../../lib/families.ts'
+import { DEFAULT_FAMILY, familyColor, familyTitle } from '@ultimate/lib/families.ts'
 import { FamiliesAction } from './refs.ts'
 import type { FamiliesView, FamilyView } from './refs.ts'
 

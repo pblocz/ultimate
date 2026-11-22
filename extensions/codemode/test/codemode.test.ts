@@ -20,15 +20,15 @@ import {
   linkDependencies,
   linkWeb,
   post,
-} from '../../../test/helpers.ts'
-import { context } from '../../../server/harness.ts'
-import { FIRST_CHAPTER, requestChapter } from '../../../lib/chapters.ts'
+} from '@ultimate/test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { FIRST_CHAPTER, requestChapter } from '@ultimate/lib/chapters.ts'
 import { Store, SummaryDoc } from '../server.ts'
 import { Summarized } from '../refs.ts'
-import planExtension from '../../plan/server.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import type { CallTree } from '../../../server/trace.ts'
+import planExtension from '@ultimate/ext/plan/server.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import type { CallTree } from '@ultimate/server/trace.ts'
 
 const servers: Awaited<ReturnType<typeof createServer>>[] = []
 const directories: string[] = []
@@ -61,8 +61,8 @@ async function fixture() {
   await writeFile(
     join(ultimateRoot, 'extensions/codemode/server.ts'),
     (await readFile(resolve('extensions/codemode/server.ts'), 'utf8'))
-      .replace("'../../lib/agents.ts'", JSON.stringify(resolve('lib/agents.ts')))
-      .replace("'../../lib/api-files.ts'", JSON.stringify(resolve('lib/api-files.ts'))),
+      .replace("'@ultimate/lib/agents.ts'", JSON.stringify(resolve('lib/agents.ts')))
+      .replace("'@ultimate/lib/api-files.ts'", JSON.stringify(resolve('lib/api-files.ts'))),
   )
   for (const file of ['api.ts', 'chapters.ts', 'refs.ts', 'summary.ts'])
     await cp(resolve('extensions/codemode', file), join(ultimateRoot, 'extensions/codemode', file))

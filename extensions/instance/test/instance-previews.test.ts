@@ -13,9 +13,9 @@ import {
   seedUserHome,
   stopped,
 } from '../server.ts'
-import { saveDefinition } from '../../../lib/agents.ts'
-import { writeFamilies } from '../../../lib/families-settings.ts'
-import { writeJson } from '../../../lib/json-file.ts'
+import { saveDefinition } from '@ultimate/lib/agents.ts'
+import { writeFamilies } from '@ultimate/lib/families-settings.ts'
+import { writeJson } from '@ultimate/lib/json-file.ts'
 import { at, label } from '../links.ts'
 
 const homes: string[] = []

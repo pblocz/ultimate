@@ -9,8 +9,8 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import { MemoryHeader } from '../lineage/ui.tsx'
-import { StandingDoc, talkToUltimate } from '../subagents/ui.tsx'
+import { MemoryHeader } from '@ultimate/ext/lineage/ui.tsx'
+import { StandingDoc, talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
 import {
   chapterLabel,
   ChaptersDialog,

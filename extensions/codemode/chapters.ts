@@ -7,8 +7,8 @@ import type {
   JsonObject,
 } from '@earendil-works/pi-durable'
 import { DatabaseSync } from 'node:sqlite'
-import { chapterFiles, readChapters } from '../../lib/chapters.ts'
-import { shortTitle } from '../../lib/title.ts'
+import { chapterFiles, readChapters } from '@ultimate/lib/chapters.ts'
+import { shortTitle } from '@ultimate/lib/title.ts'
 
 export const limit = (value: unknown, fallback = 100) => {
   const n = value ?? fallback

@@ -11,7 +11,7 @@ import {
   provide,
   useUltimate,
 } from '@/sdk'
-import { StandingAction, talkToUltimate } from '../subagents/ui.tsx'
+import { StandingAction, talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
 import {
   NoGit,
   onboardingCommands,

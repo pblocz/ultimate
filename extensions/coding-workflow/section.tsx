@@ -2,7 +2,7 @@ import { ChevronRightIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { cn } from '@/sdk'
-import { useSidebarState } from '../sidebar/ui.tsx'
+import { useSidebarState } from '@ultimate/ext/sidebar/ui.tsx'
 
 /**
  * A folding sidebar section: a quiet mono heading with a count bubble, as automations'

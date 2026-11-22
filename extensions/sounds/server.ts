@@ -1,8 +1,8 @@
 import diagnostics from 'node:diagnostics_channel'
 import { defineExtension } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { readSecret } from '../../lib/secrets.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { readSecret } from '@ultimate/lib/secrets.ts'
 import { SayAction } from './refs.ts'
 
 const MODEL = 'gpt-realtime-2.1-mini'

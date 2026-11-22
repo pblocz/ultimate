@@ -1,6 +1,6 @@
 /** Update in the browser: whether the Ultimate clone is behind origin, and updating it. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 /** Which layers a range touches, by how they go live (AGENTS.md "Layers and how they reload"). */
 export type Layers = {

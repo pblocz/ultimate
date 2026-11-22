@@ -21,8 +21,8 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { ToolCallView } from '@/sdk'
-import { ConversationTask } from '../conversations/ui.tsx'
-import { agentsPanel } from '../models/ui.tsx'
+import { ConversationTask } from '@ultimate/ext/conversations/ui.tsx'
+import { agentsPanel } from '@ultimate/ext/models/ui.tsx'
 import { DefinitionDialog } from './definitions.tsx'
 import { PersonaButton } from './persona.tsx'
 import { AgentsOverview } from './overview.tsx'

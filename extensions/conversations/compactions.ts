@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { CompactionEntry, CompactionTask } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { Compacted } from './refs.ts'
 
 /**

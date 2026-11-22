@@ -1,5 +1,5 @@
-import type { Message } from '../messages/refs.ts'
-import type { OverviewRow } from '../conversations/types.ts'
+import type { Message } from '@ultimate/ext/messages/refs.ts'
+import type { OverviewRow } from '@ultimate/ext/conversations/types.ts'
 
 /** A notification sound; `started` (a new branch) sounds only with the narrator and its branch announcements on. */
 export type Sound = 'input' | 'finished' | 'failed' | 'landed' | 'started'

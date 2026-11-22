@@ -5,18 +5,21 @@ import type { JsonValue } from '@earendil-works/chord/json'
 import { fauxProvider } from '@earendil-works/pi-ai/providers/faux'
 import { configure, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { afterEach, expect, it, vi } from 'vitest'
-import { writeJson } from '../../../lib/json-file.ts'
-import { prepareHarness } from '../../../server/harness.ts'
-import type { OpenHost } from '../../../server/harness.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import type { ActionContext } from '../../../server/actions.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import { docs as lineageDocs } from '../../lineage/server.ts'
-import { Messages } from '../../messages/api.ts'
-import { Todos } from '../../todos/server.ts'
-import { Standing } from '../../subagents/api.ts'
-import { ContextUsageDoc } from '../../conversations/api.ts'
-import automations, { actions as automationActions, Automations } from '../../automations/server.ts'
+import { writeJson } from '@ultimate/lib/json-file.ts'
+import { prepareHarness } from '@ultimate/server/harness.ts'
+import type { OpenHost } from '@ultimate/server/harness.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import { docs as lineageDocs } from '@ultimate/ext/lineage/server.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { Todos } from '@ultimate/ext/todos/server.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { ContextUsageDoc } from '@ultimate/ext/conversations/api.ts'
+import automations, {
+  actions as automationActions,
+  Automations,
+} from '@ultimate/ext/automations/server.ts'
 import dream, { actions, branched, Next, toolStats, userActions } from '../server.ts'
 import {
   AUTOMATION_NAME,
@@ -25,7 +28,7 @@ import {
   PAUSE_NAME,
   PauseDoc,
 } from '../built-ins.ts'
-import { apis, eventHost, temp, until } from '../../../test/helpers.ts'
+import { apis, eventHost, temp, until } from '@ultimate/test/helpers.ts'
 
 const openedHosts: OpenHost[] = []
 /** The extensions' close callbacks: automations' minute timer stops before its harness closes. */

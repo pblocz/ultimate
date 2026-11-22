@@ -30,9 +30,9 @@ vi.mock('@/sdk', () => ({
 }))
 vi.mock('../../pages.tsx', () => ({}))
 vi.mock('../../panel.tsx', () => ({ ExtensionsPanel: () => null }))
-vi.mock('../../../workspaces/ui.tsx', () => ({ IsolationAction: {} }))
-vi.mock('../../../lineage/ui.tsx', () => ({ MemoryDoc: {}, useRoots: () => undefined }))
-vi.mock('../../../subagents/ui.tsx', () => ({ StandingDoc: {} }))
+vi.mock('@ultimate/ext/workspaces/ui.tsx', () => ({ IsolationAction: {} }))
+vi.mock('@ultimate/ext/lineage/ui.tsx', () => ({ MemoryDoc: {}, useRoots: () => undefined }))
+vi.mock('@ultimate/ext/subagents/ui.tsx', () => ({ StandingDoc: {} }))
 vi.mock('@/components/ui/button', () => ({ Button: () => null }))
 vi.mock('@/components/ui/tooltip', () => ({
   Tooltip: ({ children }: { children: unknown }) => children,
@@ -44,7 +44,7 @@ async function statusLine(dismissed: boolean, off = false) {
   state.dismissed = dismissed
   state.off = off
   // The Git link moved to the coding workflow; it still renders before onboarding's project setup link.
-  const { NoGit } = await import('../../../coding-workflow/onboarding.tsx')
+  const { NoGit } = await import('@ultimate/ext/coding-workflow/onboarding.tsx')
   const facet = (await import('../../web.tsx')).default as unknown as {
     slots: { 'statusline.right': { component: ComponentType }[] }
   }

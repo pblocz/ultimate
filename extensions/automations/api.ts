@@ -1,7 +1,7 @@
 /** Automations: resume, pause, run and inspect scheduled, event, context or supervised script triggers. */
 import type { Context } from '@earendil-works/chord/context'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { Automation, AutomationListItem, CreateArgs } from './types.ts'
 export type { Destination } from './types.ts'
 export type AutomationsService = {

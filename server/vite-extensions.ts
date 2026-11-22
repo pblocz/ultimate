@@ -5,13 +5,15 @@ import type { Plugin } from 'vite-plus'
 import { discoverExtensions } from './discovery.ts'
 import { discoveryRoots } from './project.ts'
 import { useProjectSetup } from './project-setup.ts'
+import { resolveModuleName } from './vite-names.ts'
 import { extensionTests } from '../shared/extension-api.ts'
 
 const virtual = 'virtual:ultimate/web-facets'
 const resolved = '\0' + virtual
 /**
- * The `virtual:ultimate/web-facets` loader map and the extension sources of Tailwind's stylesheet. `broken` names facets
- * whose loader fails with the given message instead of importing them, so one broken facet leaves the bundle buildable.
+ * The `virtual:ultimate/web-facets` loader map, the extension sources of Tailwind's stylesheet, and the `@ultimate/…`
+ * names for server and browser code in every root. `broken` names facets whose loader fails with the given message
+ * instead of importing them, so one broken facet leaves the bundle buildable.
  */
 export function extensionModules(
   ultimateRoot: string,
@@ -47,6 +49,18 @@ export function extensionModules(
     },
     async resolveId(id, importer, options) {
       if (id === virtual) return resolved
+      // A name of an extension that is no built-in resolves to the folder discovery found for it.
+      const named = await resolveModuleName(
+        ultimateRoot,
+        id,
+        importer,
+        (file) => this.resolve(file, importer, { ...options, skipSelf: true }),
+        async (name) =>
+          (await discoverExtensions(ultimateRoot, projectRoot, userHome)).find(
+            (entry) => entry.name === name && !entry.error,
+          )?.target,
+      )
+      if (named) return named
       if (
         !importer ||
         options.ssr ||

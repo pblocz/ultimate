@@ -1,9 +1,9 @@
 import { defineExtension, section } from '@earendil-works/pi-durable'
-import type { ExtensionAction } from '../../server/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { secretMetadata, validateName, validateValue } from '../../lib/secrets.ts'
+import type { ExtensionAction } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { secretMetadata, validateName, validateValue } from '@ultimate/lib/secrets.ts'
 import { writeSecret } from './store.ts'
-import { implementAction } from '../../lib/actions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import { SecretsApi } from './api.ts'
 import { DeleteAction, ListAction, SetAction } from './refs.ts'
 

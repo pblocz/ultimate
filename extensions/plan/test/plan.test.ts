@@ -7,11 +7,11 @@ import {
 import { defineExtension, section } from '@earendil-works/pi-durable'
 import type { ConversationId, JsonObject } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import planExtension, { Plan, TaskIndex } from '../server.ts'
-import { context, prepareHarness } from '../../../server/harness.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import { temp, removeTemp } from '../../../test/helpers.ts'
+import { context, prepareHarness } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import { temp, removeTemp } from '@ultimate/test/helpers.ts'
 
 it('shares the root ledger read-only with descendants, saves verdicts, and replays nested calls separately', async () => {
   const directory = await temp('ultimate-plan-')

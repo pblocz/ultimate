@@ -1,9 +1,9 @@
 import { expect, it, vi } from 'vitest'
 import { inboxItems, selection } from '../../items.tsx'
-import type { Message } from '../../../messages/refs.ts'
+import type { Message } from '@ultimate/ext/messages/refs.ts'
 
 // questions' ui.tsx also exports its answer card, whose imports need the running app.
-vi.mock('../../../questions/card.tsx', () => ({ MessageQuestions: () => null }))
+vi.mock('@ultimate/ext/questions/card.tsx', () => ({ MessageQuestions: () => null }))
 
 const ask = (id: number, at: number, fields: Partial<Message> = {}): Message => ({
   id,

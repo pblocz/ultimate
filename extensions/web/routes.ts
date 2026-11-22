@@ -3,19 +3,19 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, DocumentWatch, EntryId, JsonObject } from '@earendil-works/pi-durable'
-import type { ServerEvents } from '../../shared/protocol.ts'
-import { UI_REVISION } from '../../shared/protocol.ts'
+import type { ServerEvents } from '@ultimate/shared/protocol.ts'
+import { UI_REVISION } from '@ultimate/shared/protocol.ts'
 // oxlint-disable-next-line no-restricted-imports -- `/api/models` answers the core's model list
-import { listModels } from '../../server/models.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import type { WebChannelRuntime } from '../../server/web-channel.ts'
+import { listModels } from '@ultimate/server/models.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import type { WebChannelRuntime } from '@ultimate/server/web-channel.ts'
 // oxlint-disable-next-line no-restricted-imports -- `/api/ui` writes the core UI state document
-import { UiState } from '../../server/ui-state.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
 import type { JsonValue } from '@earendil-works/chord/json'
 // oxlint-disable-next-line no-restricted-imports -- every request passes the core's admission check
-import { admit, deviceOf } from '../../server/request-security.ts'
-import { isChannelError } from '../../shared/channel-host.ts'
-import type { CreateConversationRequest, SubmitRequest } from '../../shared/channel-host.ts'
+import { admit, deviceOf } from '@ultimate/server/request-security.ts'
+import { isChannelError } from '@ultimate/shared/channel-host.ts'
+import type { CreateConversationRequest, SubmitRequest } from '@ultimate/shared/channel-host.ts'
 
 class HttpError extends Error {
   status: number

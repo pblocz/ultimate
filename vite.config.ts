@@ -2,9 +2,10 @@ import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite-plus'
+import { moduleNames } from './server/vite-names.ts'
 export default defineConfig({
   root: 'web',
-  plugins: [react(), tailwindcss()],
+  plugins: [moduleNames(fileURLToPath(new URL('.', import.meta.url))), react(), tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('web/src', import.meta.url)) } },
   lint: {
     plugins: ['typescript', 'unicorn', 'import', 'promise', 'vitest', 'react'],
@@ -54,7 +55,10 @@ export default defineConfig({
             'error',
             {
               patterns: [
-                { group: ['**/extensions/**'], message: 'Core knows no feature; see AGENTS.md.' },
+                {
+                  group: ['**/extensions/**', '@ultimate/ext/**'],
+                  message: 'Core knows no feature; see AGENTS.md.',
+                },
               ],
             },
           ],
@@ -67,7 +71,10 @@ export default defineConfig({
             'error',
             {
               patterns: [
-                { group: ['**/extensions/**'], message: 'Core knows no feature; see AGENTS.md.' },
+                {
+                  group: ['**/extensions/**', '@ultimate/ext/**'],
+                  message: 'Core knows no feature; see AGENTS.md.',
+                },
                 {
                   group: ['**/server/**', '**/web/**', '**/bin/**'],
                   message: 'shared/ stays standalone.',
@@ -85,7 +92,7 @@ export default defineConfig({
             {
               patterns: [
                 {
-                  group: ['**/extensions/**', '**/web/**', '**/bin/**'],
+                  group: ['**/extensions/**', '@ultimate/ext/**', '**/web/**', '**/bin/**'],
                   message:
                     'lib/ holds pure helpers that extensions share; it imports none of them.',
                 },
@@ -114,6 +121,10 @@ export default defineConfig({
                   allowTypeImports: true,
                   message: 'Use host capabilities for core runtime behaviour.',
                 },
+                {
+                  group: ['@ultimate/test/**', '@ultimate/scripts/**'],
+                  message: 'Only tests import test/ and scripts/.',
+                },
               ],
             },
           ],
@@ -125,6 +136,11 @@ export default defineConfig({
         files: ['extensions/**/*.ts', 'extensions/**/*.tsx'],
         excludeFiles: ['extensions/*/test/**'],
         rules: { 'ultimate/api-only-imports': 'error', 'ultimate/core-tier-deps': 'error' },
+      },
+      {
+        // Including tests: a relative path that leaves an extension folder breaks when the folder moves.
+        files: ['extensions/**', '.ultimate/extensions/**'],
+        rules: { 'ultimate/no-relative-escape': 'error' },
       },
       {
         files: ['extensions/*/api.ts', 'extensions/*/refs.ts', 'extensions/*/ui.tsx'],
@@ -184,7 +200,10 @@ export default defineConfig({
                   allowTypeImports: true,
                   message: 'Use host capabilities for core runtime behaviour.',
                 },
-                { group: ['**/extensions/**'], message: 'Core knows no feature; see AGENTS.md.' },
+                {
+                  group: ['**/extensions/**', '@ultimate/ext/**'],
+                  message: 'Core knows no feature; see AGENTS.md.',
+                },
               ],
             },
           ],

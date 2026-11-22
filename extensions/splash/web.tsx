@@ -2,7 +2,7 @@ import { TriangleAlertIcon, XIcon } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, defineWebExtension, errorMessage, resumed, useReady, useStore } from '@/sdk'
 import { store } from '@/sdk/client'
-import { StatusAction } from '../onboarding/ui.tsx'
+import { StatusAction } from '@ultimate/ext/onboarding/ui.tsx'
 import { Electric } from './electric.tsx'
 
 /** The core's readiness deadline: not ready by then, the app opens anyway and the notice names what is missing. */

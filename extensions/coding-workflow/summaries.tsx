@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { formatAgo, formatTime, useAction } from '@/sdk'
-import { SummariesAction } from '../conversations/ui.tsx'
+import { SummariesAction } from '@ultimate/ext/conversations/ui.tsx'
 
 /**
  * A branch row with its summary history on hover: the latest first, older ones below in a list that scrolls inside,

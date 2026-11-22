@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { cn, defineWebExtension, useDoc, useTranscript } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import { MemoryChip } from '../lineage/ui.tsx'
+import { MemoryChip } from '@ultimate/ext/lineage/ui.tsx'
 import { RecallDoc } from './refs.ts'
 import { RECALL_ENTRY } from './types.ts'
 import type { Recalled } from './types.ts'

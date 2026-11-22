@@ -5,10 +5,10 @@ import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/provid
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { configure } from '@earendil-works/pi-durable'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { Committed } from '../../../coding-tools/refs.ts'
-import { context } from '../../../../server/harness.ts'
-import { emit } from '../../../../server/events.ts'
-import { fauxServer, post, sourceCopy, temp } from '../../../../test/helpers.ts'
+import { Committed } from '@ultimate/ext/coding-tools/refs.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { emit } from '@ultimate/server/events.ts'
+import { fauxServer, post, sourceCopy, temp } from '@ultimate/test/helpers.ts'
 
 let ultimateRoot: string
 beforeAll(async () => {

@@ -2,8 +2,8 @@
  * Lineage in the browser: the project's roots, each root's tally size, the actions behind a root's sidebar row and
  * landing cards, and the branch and root events. Browser-safe.
  */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import type { RootEvent } from './types.ts'
 
 /** `{ roots }` on conversation 1: the project's roots, each the top of one conversation tree. */

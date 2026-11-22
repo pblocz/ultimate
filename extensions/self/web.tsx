@@ -20,8 +20,8 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { ToolCallView } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
-import { SubmissionLanded } from '../workspaces/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
+import { SubmissionLanded } from '@ultimate/ext/workspaces/ui.tsx'
 
 const short = (id: string | undefined) => id?.slice(0, 7)
 

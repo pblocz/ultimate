@@ -1,4 +1,4 @@
-import { defaultOff } from '../../shared/extension-api.ts'
+import { defaultOff } from '@ultimate/shared/extension-api.ts'
 
 /**
  * The optional extensions the first run offers; each row's words are the first sentence of its README. `needs` is an

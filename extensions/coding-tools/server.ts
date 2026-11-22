@@ -25,10 +25,10 @@ import {
   createWriteTool,
 } from '@earendil-works/pi-durable/tools'
 import { createNodePhotonImages } from '@earendil-works/pi-durable/images/node'
-import { git } from '../../lib/git.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { watchSteer } from '../../lib/steer.ts'
+import { git } from '@ultimate/lib/git.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { watchSteer } from '@ultimate/lib/steer.ts'
 import { CancelAction, CancelledDoc, Committed } from './refs.ts'
 
 /** Agent shells must not inherit the in-process Vite server's `NODE_ENV=development`. */

@@ -18,9 +18,9 @@ import {
   useTranscript,
 } from '@/sdk'
 import type { AssistantMessage, EntryRecord, Usage } from '@/sdk'
-import { useWorkspaces } from '../workspaces/ui.tsx'
-import { ContextDoc } from '../conversations/ui.tsx'
-import { lastAssistant, promptTokens as prompt } from '../../lib/context-usage.ts'
+import { useWorkspaces } from '@ultimate/ext/workspaces/ui.tsx'
+import { ContextDoc } from '@ultimate/ext/conversations/ui.tsx'
+import { lastAssistant, promptTokens as prompt } from '@ultimate/lib/context-usage.ts'
 import { usageTotals } from './context.ts'
 import { RatesAction } from './refs.ts'
 import type { RateSample } from './refs.ts'

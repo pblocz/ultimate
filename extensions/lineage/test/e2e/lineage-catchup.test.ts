@@ -9,7 +9,7 @@ import type { ConversationId } from '@earendil-works/pi-durable'
 import { afterEach, beforeAll, expect, it } from 'vitest'
 import { abstract, leaveNote, Tally } from '../../server.ts'
 import { Seen, tallyText } from '../../catchup.ts'
-import { context } from '../../../../server/harness.ts'
+import { context } from '@ultimate/server/harness.ts'
 import {
   branchProbe,
   fauxServer,
@@ -18,7 +18,7 @@ import {
   sourceCopy,
   temp,
   until,
-} from '../../../../test/helpers.ts'
+} from '@ultimate/test/helpers.ts'
 
 let ultimateRoot: string
 beforeAll(async () => {

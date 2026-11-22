@@ -7,7 +7,7 @@ import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
 import { defineTask, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { afterAll, beforeAll, expect } from 'vitest'
-import { context } from '../../../server/harness.ts'
+import { context } from '@ultimate/server/harness.ts'
 import {
   branchProbe,
   fauxServer,
@@ -15,7 +15,7 @@ import {
   seedTally,
   sourceCopy,
   temp,
-} from '../../../test/helpers.ts'
+} from '@ultimate/test/helpers.ts'
 
 // Shared by the lineage test files: importing this registers their source fixture and server cleanup.
 let ultimateRoot: string

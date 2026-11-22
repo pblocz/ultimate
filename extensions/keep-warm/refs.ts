@@ -1,5 +1,5 @@
 /** Keep warm in the browser: whether @ultimate's prompt cache is kept warm, and the last ping. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 /**
  * One keep-warm request: when, on which provider and model, what it read from and wrote to the cache, or why it failed. Recorded as

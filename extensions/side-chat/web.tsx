@@ -33,8 +33,8 @@ import {
   useViewport,
 } from '@/sdk'
 import type { ComposerTarget } from '@/sdk'
-import { useDefaultConversation } from '../subagents/ui.tsx'
-import { UnderUltimate, Unlisted } from '../sidebar/ui.tsx'
+import { useDefaultConversation } from '@ultimate/ext/subagents/ui.tsx'
+import { UnderUltimate, Unlisted } from '@ultimate/ext/sidebar/ui.tsx'
 import { createEndings, endings, frontSide, openSides, togglesSideMode } from './logic.ts'
 import { DiscardAction, InjectAction, OpenAction, SideChatDoc, SideChatsDoc } from './refs.ts'
 import type { SideChatIndex, SideChatSummary } from './refs.ts'

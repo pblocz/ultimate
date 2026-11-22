@@ -3,8 +3,8 @@
  * start, answer and cancel them or log out, and the event of a completed login or logout. Browser-safe.
  */
 import type { AuthEvent, AuthPrompt, AuthType, ModelThinkingLevel } from '@earendil-works/pi-ai'
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 /** One login flow as the browser sees it. Answers and credentials never enter it. */
 export type LoginFlow = {

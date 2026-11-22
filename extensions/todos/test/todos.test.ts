@@ -2,7 +2,7 @@ import type { ConversationId, GenerationHooks, Tx } from '@earendil-works/pi-dur
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { expect, it } from 'vitest'
 import todosExtension, { add, DONE_LIMIT, mark, noteFor, Todos } from '../server.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import type { TodosService } from '../api.ts'
 
 const ULTIMATE = 5 as ConversationId

@@ -6,7 +6,7 @@ import { expect, it, vi } from 'vitest'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { type BashExecution } from '@earendil-works/pi-durable/tools'
 import { prepareBash } from '../../server.ts'
-import { removeTemp, temp } from '../../../../test/helpers.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const run = promisify(execFile)
 

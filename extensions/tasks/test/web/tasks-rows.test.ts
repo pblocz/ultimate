@@ -14,10 +14,10 @@ vi.mock('@/sdk', () => ({
 vi.mock('@/components/ai/tool', () => ({
   ToolStatusIcon: ({ state }: { state: string }) => createElement('i', { 'data-state': state }),
 }))
-vi.mock('../../../workspaces/ui.tsx', () => ({}))
-vi.mock('../../../conversations/ui.tsx', () => ({}))
-vi.mock('../../../plan/ui.tsx', () => ({}))
-vi.mock('../../../messages/ui.tsx', () => ({}))
+vi.mock('@ultimate/ext/workspaces/ui.tsx', () => ({}))
+vi.mock('@ultimate/ext/conversations/ui.tsx', () => ({}))
+vi.mock('@ultimate/ext/plan/ui.tsx', () => ({}))
+vi.mock('@ultimate/ext/messages/ui.tsx', () => ({}))
 vi.mock('@/components/ui/collapsible', () => ({}))
 const { TaskRow } = await import('../../web.tsx')
 

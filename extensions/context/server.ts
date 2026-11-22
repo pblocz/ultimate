@@ -1,7 +1,7 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { defineExtension } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryId } from '@earendil-works/pi-durable'
-import { implementAction } from '../../lib/actions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import { comparePrompts, promptOf } from './breakdown.ts'
 import { CurrentPromptAction } from './refs.ts'
 

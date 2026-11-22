@@ -1,8 +1,8 @@
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { TaskId, ConversationId } from '@earendil-works/pi-durable'
-import type { Destination, DestinationAddress } from '../subagents/refs.ts'
+import type { Destination, DestinationAddress } from '@ultimate/ext/subagents/refs.ts'
 
-export type { Destination } from '../subagents/refs.ts'
+export type { Destination } from '@ultimate/ext/subagents/refs.ts'
 
 export type TriggerEvent = { name: string; description: string; fields: Record<string, string> }
 /** The labels automations gives the conversations it creates: a prompt run's, and a script's watcher. */

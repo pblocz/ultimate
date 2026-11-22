@@ -5,10 +5,10 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { downloadSnapshot, uploadSnapshot } from '../snapshot.ts'
 import type { SnapshotManifest } from '../snapshot.ts'
-import { vacuum } from '../../../lib/database-files.ts'
-import { git } from '../../../lib/git.ts'
+import { vacuum } from '@ultimate/lib/database-files.ts'
+import { git } from '@ultimate/lib/git.ts'
 import { cloudStub, hashKey as project } from './cloud-stub.ts'
-import { temp } from '../../../test/helpers.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 const key = 'github.com/o/project'
 const stub = cloudStub()

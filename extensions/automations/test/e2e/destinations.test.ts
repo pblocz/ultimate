@@ -5,8 +5,8 @@ import { fauxAssistantMessage } from '@earendil-works/pi-ai/providers/faux'
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import type { JsonValue } from '@earendil-works/chord/json'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import { fauxServer, post, removeTemp, temp, until } from '../../../../test/helpers.ts'
-import { ordinarySource } from '../../../../test/ordinary-web-fixture.ts'
+import { fauxServer, post, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
+import { ordinarySource } from '@ultimate/test/ordinary-web-fixture.ts'
 import type { Automation } from '../../types.ts'
 
 const cleanup: (() => Promise<void>)[] = []

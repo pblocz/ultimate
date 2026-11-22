@@ -1,5 +1,5 @@
 /** Secrets: user-global secrets behind metadata-only actions; read values with lib/secrets.ts. Core tier. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { Written } from './refs.ts'
 
 export type SecretsService = {

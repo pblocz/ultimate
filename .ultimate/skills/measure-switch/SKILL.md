@@ -38,7 +38,7 @@ It must say `"paused":true`. If not, stop the instance at once.
 ## 3. Measure
 
 ```bash
-node .ultimate/skills/measure-switch/switch.ts $URL 1 <id,id,...> --rounds 2 [--profile ~/switch-perf/a.cpuprofile]
+node --import ./lib/node-names.ts .ultimate/skills/measure-switch/switch.ts $URL 1 <id,id,...> --rounds 2 [--profile ~/switch-perf/a.cpuprofile]
 node .ultimate/skills/measure-switch/profile-summary.ts ~/switch-perf/a.cpuprofile
 ```
 

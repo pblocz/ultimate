@@ -48,20 +48,20 @@ import {
   UserView,
 } from '@/sdk'
 import type { EntryRenderer, UltimateActions } from '@/sdk'
-import { ConversationPhase } from '../conversations/ui.tsx'
-import { Body, Bubble } from '../messages/ui.tsx'
-import { SideChatsDoc, useSideChatFront } from '../side-chat/ui.tsx'
-import { UnderUltimate, Unlisted } from '../sidebar/ui.tsx'
+import { ConversationPhase } from '@ultimate/ext/conversations/ui.tsx'
+import { Body, Bubble } from '@ultimate/ext/messages/ui.tsx'
+import { SideChatsDoc, useSideChatFront } from '@ultimate/ext/side-chat/ui.tsx'
+import { UnderUltimate, Unlisted } from '@ultimate/ext/sidebar/ui.tsx'
 import {
   openAgentSource,
   openDefaultConversation,
   StandingDoc,
   useDefaultConversation,
-} from '../subagents/ui.tsx'
+} from '@ultimate/ext/subagents/ui.tsx'
 import * as live from './live.tsx'
 import type { VoiceMode } from './live.tsx'
-import { openQuestion } from '../../lib/message-state.ts'
-import { MessagesDoc } from '../messages/ui.tsx'
+import { openQuestion } from '@ultimate/lib/message-state.ts'
+import { MessagesDoc } from '@ultimate/ext/messages/ui.tsx'
 import { AskedAction, LogAction, StatusAction } from './refs.ts'
 import type {
   VoiceAnswer,

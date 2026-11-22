@@ -1,6 +1,6 @@
 /** Activity in the browser: a page of the durable event log, older than the live feed holds. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
-import type { EventRecord } from '../../shared/events.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
+import type { EventRecord } from '@ultimate/shared/events.ts'
 
 /**
  * `{ kinds, before?, since?, limit? }` → `{ events, next? }`: at most `limit` (default 50, at most 200) events of the

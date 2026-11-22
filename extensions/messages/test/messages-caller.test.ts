@@ -2,8 +2,8 @@ import { expect, it } from 'vitest'
 import type { JsonValue } from '@earendil-works/chord/json'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 import { actions } from '../server.ts'
-import type { ActionContext } from '../../../server/actions.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 /** An assistant response calling `calls`, or a user input when there are none. */
 const entry = (id: number, calls: string[] = []) =>

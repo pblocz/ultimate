@@ -3,7 +3,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { api, cn, defineWebExtension, errorMessage, events, useDocOf, useUltimate } from '@/sdk'
-import { isOpen, MessagesDoc } from '../messages/ui.tsx'
+import { isOpen, MessagesDoc } from '@ultimate/ext/messages/ui.tsx'
 import { KeyAction, PresentAction, SubscribeAction, TestAction, UnsubscribeAction } from './refs.ts'
 import type { Subscription } from './refs.ts'
 

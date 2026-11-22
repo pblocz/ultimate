@@ -2,10 +2,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
-import { git } from '../../../lib/git.ts'
-import { Workspaces } from '../../workspaces/workspaces.ts'
-import { context } from '../../../server/harness.ts'
-import { fauxServer, post, removeTemp, temp } from '../../../test/helpers.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { Workspaces } from '@ultimate/ext/workspaces/workspaces.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, post, removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 it('shows a landed branch as its landing range once its ref is gone, and moves on without one', async () => {
   const home = await temp('ultimate-review-landed-')

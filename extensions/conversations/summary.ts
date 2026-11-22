@@ -28,11 +28,11 @@ import type {
   Models,
   Usage,
 } from '@earendil-works/pi-ai'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { SummaryExchanges, Trees } from './api.ts'
 import type { SummaryExchange } from './api.ts'
 import { summaryModel } from './summary-model.ts'
-import { isInput } from '../../lib/entries.ts'
+import { isInput } from '@ultimate/lib/entries.ts'
 import type { SummaryModel, SummaryModelHost } from './summary-model.ts'
 import type {
   FeatureChange,

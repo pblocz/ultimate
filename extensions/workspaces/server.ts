@@ -1,8 +1,8 @@
 import type { JsonValue } from '@earendil-works/chord/json'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { obj, opt, str } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import {
   configure,
   defineExtension,
@@ -14,13 +14,13 @@ import {
   ToolTask,
 } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import { implementAction } from '../../lib/actions.ts'
-import { hostDefault } from '../../lib/agents.ts'
-import type { ActionInput } from '../../lib/actions.ts'
-import { empty, git, isolatable, noCommit, noRepository } from '../../lib/git.ts'
-import type { ActionContext } from '../../server/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { ConversationsApi, Release, WorktreeSupport } from '../conversations/api.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { hostDefault } from '@ultimate/lib/agents.ts'
+import type { ActionInput } from '@ultimate/lib/actions.ts'
+import { empty, git, isolatable, noCommit, noRepository } from '@ultimate/lib/git.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { ConversationsApi, Release, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
 import { Branches, WorkspacesApi } from './api.ts'
 import {
   DiskAction,
@@ -31,7 +31,7 @@ import {
   ProgressAction,
   StatsAction,
 } from './refs.ts'
-import { githubRepo } from '../../lib/project-identity.ts'
+import { githubRepo } from '@ultimate/lib/project-identity.ts'
 import { sweepChecks } from './lander.ts'
 import { Workspaces, workspaces } from './workspaces.ts'
 import { subagentWorktrees } from './subagents.ts'

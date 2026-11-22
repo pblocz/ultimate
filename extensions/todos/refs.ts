@@ -1,5 +1,5 @@
 /** To-dos in the browser: the project's short list of open loops, each owned by the user or @ultimate. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 /** One to-do. `done` is when it was ticked, epoch ms; absent while it is open. */
 export type Todo = {

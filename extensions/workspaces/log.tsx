@@ -34,7 +34,7 @@ import type {
   SubmitResult,
   WorkspaceIndex,
 } from './types.ts'
-import type { ConversationSubject } from '../conversations/types.ts'
+import type { ConversationSubject } from '@ultimate/ext/conversations/types.ts'
 
 const short = (sha: string) => sha.slice(0, 7)
 const time = (at: number) => formatTime(at, true)

@@ -166,7 +166,7 @@ facet. The facet shape is:
 
 ```ts
 import { defineExtension } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 export default function chat(host: ExtensionHost) {
   const port = host.channelHost()

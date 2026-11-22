@@ -8,9 +8,9 @@ import {
 } from '@earendil-works/pi-ai/providers/faux'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { changes } from '../../server.ts'
-import { context } from '../../../../server/harness.ts'
+import { context } from '@ultimate/server/harness.ts'
 import { LiveDoc } from '@earendil-works/pi-durable'
-import { fauxServer, post, removeTemp, temp, until } from '../../../../test/helpers.ts'
+import { fauxServer, post, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 let directory: string
 let server: Awaited<ReturnType<typeof fauxServer>>

@@ -1,12 +1,12 @@
 /** The Ultimate clone against origin: what it lacks, what that touches, and fetching it at most hourly. */
 import { stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
-import type { Git } from '../../lib/fast-forward.ts'
-import { fetchOrigin, standing } from '../../lib/fast-forward.ts'
-import { readJson, writeJson } from '../../lib/json-file.ts'
-import { corePath, packagePath } from '../../lib/layers.ts'
+import type { Git } from '@ultimate/lib/fast-forward.ts'
+import { fetchOrigin, standing } from '@ultimate/lib/fast-forward.ts'
+import { readJson, writeJson } from '@ultimate/lib/json-file.ts'
+import { corePath, packagePath } from '@ultimate/lib/layers.ts'
 // oxlint-disable-next-line no-restricted-imports -- the core's process-safe lock, shared with secrets and tailscale
-import { acquireLock } from '../../server/lock.ts'
+import { acquireLock } from '@ultimate/server/lock.ts'
 import type { Layers, UpdateState } from './refs.ts'
 
 /** Origin is fetched when the last fetch of the clone, by any Ultimate on it, is older than this. */

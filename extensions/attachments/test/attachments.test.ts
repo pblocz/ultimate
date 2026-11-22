@@ -3,9 +3,9 @@ import { dirname, join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { KEPT_MS } from '../limits.ts'
 import { actions, sweep } from '../server.ts'
-import type { ActionContext } from '../../../server/actions.ts'
-import { splitAttachments, withAttachments } from '../../../web/src/app/attachments.ts'
-import { removeTemp, temp } from '../../../test/helpers.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import { splitAttachments, withAttachments } from '@/app/attachments.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const cleanup: string[] = []
 afterEach(async () => {

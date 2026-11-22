@@ -2,7 +2,7 @@
  * The plan in the browser: a coordinator's epics and tasks, and the root's index of which child conversation works
  * on which task. Browser-safe.
  */
-import { docRef } from '../../shared/extension-api.ts'
+import { docRef } from '@ultimate/shared/extension-api.ts'
 
 /** One task of an epic; `child` is the conversation working on it. */
 export type Task = {

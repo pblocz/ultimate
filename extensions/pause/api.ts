@@ -1,5 +1,5 @@
 /** Pause: whether the user paused this Ultimate, for timers that start work outside the task scheduler. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 
 export type PauseService = {
   /** Whether the host is paused; a timer that starts work (a fetch, a ping, a backup) skips its tick while it is. */

@@ -1,5 +1,5 @@
 /** The status line in the browser: token rates and spend across every conversation of this host. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** Tokens by kind. */
 export type Tokens = { input: number; output: number; cacheRead: number; cacheWrite: number }

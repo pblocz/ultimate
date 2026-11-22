@@ -1,8 +1,8 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import type { ConversationId, Cursor } from '@earendil-works/pi-durable'
-import { isInput } from '../../lib/entries.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import { isInput } from '@ultimate/lib/entries.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 /** Publish sidebar naming and activity in metadata; core reads the projection without interpreting history. */
 export function activityBehavior(

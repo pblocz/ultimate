@@ -4,12 +4,12 @@ import { afterAll, afterEach, expect, it, vi } from 'vitest'
 import type { JsonValue } from '@earendil-works/chord/json'
 import { actions, lanes } from '../server.ts'
 import type { SystemRow } from '../refs.ts'
-import type { ActionContext } from '../../../server/actions.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { callTrace } from '../../../server/trace.ts'
-import type { EventRecord } from '../../../shared/events.ts'
-import type { ConversationSummary } from '../../../shared/protocol.ts'
-import { fauxServer, linkDependencies, temp } from '../../../test/helpers.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { callTrace } from '@ultimate/server/trace.ts'
+import type { EventRecord } from '@ultimate/shared/events.ts'
+import type { ConversationSummary } from '@ultimate/shared/protocol.ts'
+import { fauxServer, linkDependencies, temp } from '@ultimate/test/helpers.ts'
 
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []
 afterAll(async () => {

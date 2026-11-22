@@ -12,8 +12,8 @@ import {
   useSystem,
   useUltimate,
 } from '@/sdk'
-import { Changed as HealthChanged } from '../health/ui.tsx'
-import { LoginChanged } from '../models/ui.tsx'
+import { Changed as HealthChanged } from '@ultimate/ext/health/ui.tsx'
+import { LoginChanged } from '@ultimate/ext/models/ui.tsx'
 import { CheckAction } from './refs.ts'
 import type { SetupIssue } from './refs.ts'
 

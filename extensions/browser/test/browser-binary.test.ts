@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { playwrightChromiums } from '../server.ts'
-import { removeTemps, temp } from '../../../test/helpers.ts'
+import { removeTemps, temp } from '@ultimate/test/helpers.ts'
 
 afterEach(removeTemps)
 

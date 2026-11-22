@@ -3,12 +3,12 @@ import { join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import tailscale, { actions } from '../server.ts'
 import type { Status } from '../api.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { admit, createAccess } from '../../../server/request-security.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { admit, createAccess } from '@ultimate/server/request-security.ts'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
-import { createServer } from '../../../server/main.ts'
-import { projectHome } from '../../../server/project.ts'
-import { copyApis, linkDependencies, post, temp, until } from '../../../test/helpers.ts'
+import { createServer } from '@ultimate/server/main.ts'
+import { projectHome } from '@ultimate/server/project.ts'
+import { copyApis, linkDependencies, post, temp, until } from '@ultimate/test/helpers.ts'
 
 // The host's own macOS app is the default CLI's fallback: hide it, so "not installed" holds on a Mac with Tailscale too.
 vi.mock('node:fs/promises', async (importOriginal) => {

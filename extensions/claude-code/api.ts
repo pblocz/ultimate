@@ -1,5 +1,5 @@
 /** Claude Code: an optional per-conversation environment for its CLI requests. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 
 export type ClaudeCodeEnvService = {
   /**

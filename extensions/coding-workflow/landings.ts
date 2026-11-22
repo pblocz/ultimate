@@ -1,4 +1,4 @@
-import type { RootEvent } from '../lineage/types.ts'
+import type { RootEvent } from '@ultimate/ext/lineage/types.ts'
 
 /** A landing note of root `root`. */
 export type Landing = Extract<RootEvent, { type: 'landed' }> & { root: number }

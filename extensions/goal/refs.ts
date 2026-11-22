@@ -1,5 +1,5 @@
 /** Hands-off goals in the browser: the goal the user put @ultimate on, and every decision it took for them. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 /** One decision @ultimate took instead of asking the user. */
 export type Decision = {

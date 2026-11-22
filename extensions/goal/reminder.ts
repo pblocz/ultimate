@@ -7,9 +7,9 @@
 import { defineTask, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationDocToken, Tx } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { AutomationsApi } from '../automations/api.ts'
-import type { Automation } from '../automations/refs.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { AutomationsApi } from '@ultimate/ext/automations/api.ts'
+import type { Automation } from '@ultimate/ext/automations/refs.ts'
 import type { Goal } from './refs.ts'
 
 export const SCHEDULE = 'every 30m'

@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import type { JsonValue } from '@earendil-works/chord/json'
 import { arr, bool, int, lit, map, num, obj, opt, str, union } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import {
   defineDoc,
   defineExtension,
@@ -17,19 +17,19 @@ import {
   section,
 } from '@earendil-works/pi-durable'
 import type { TaskId, Tx, ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import type { ActionContext } from '../../server/actions.ts'
-import { EVENT_FEED } from '../../shared/events.ts'
-import type { EventRecord } from '../../shared/events.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { actingAs } from '../../lib/acting-as.ts'
-import { discoverAgents } from '../../lib/agents.ts'
-import { validateName } from '../../lib/secrets.ts'
-import { groupAlive } from '../../lib/process-group.ts'
-import { writeJson } from '../../lib/json-file.ts'
-import { SubagentsApi } from '../subagents/api.ts'
-import { MessagesApi } from '../messages/api.ts'
-import { ConversationsApi } from '../conversations/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import { EVENT_FEED } from '@ultimate/shared/events.ts'
+import type { EventRecord } from '@ultimate/shared/events.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { actingAs } from '@ultimate/lib/acting-as.ts'
+import { discoverAgents } from '@ultimate/lib/agents.ts'
+import { validateName } from '@ultimate/lib/secrets.ts'
+import { groupAlive } from '@ultimate/lib/process-group.ts'
+import { writeJson } from '@ultimate/lib/json-file.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import { MessagesApi } from '@ultimate/ext/messages/api.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
 import { AutomationsApi, AutomationsWorkflow } from './api.ts'
 import {
   CreateAction,
@@ -74,7 +74,7 @@ import type {
 } from './types.ts'
 import { isId, isSlug, STANDING, WatcherLabel } from './types.ts'
 export type { Automation, Run } from './types.ts'
-export { handshake as launchHandshake } from '../../lib/process-group.ts'
+export { handshake as launchHandshake } from '@ultimate/lib/process-group.ts'
 type Ledger = { next: number; automations: Record<string, Automation> }
 export const Automations = defineDoc<Ledger>({
   kind: 'ultimate.automations',

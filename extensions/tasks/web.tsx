@@ -17,14 +17,14 @@ import {
   useUiState,
 } from '@/sdk'
 import type { TaskGraph, TaskGraphNode } from '@/sdk'
-import type { WorkspaceConversation as ConversationSummary } from '../workspaces/ui.tsx'
+import type { WorkspaceConversation as ConversationSummary } from '@ultimate/ext/workspaces/ui.tsx'
 import {
   useWorkspaceConversations as useConversations,
   useWorkspaceIndex,
-} from '../workspaces/ui.tsx'
-import { FeatureTag, hiddenConversationIds, useOverview } from '../conversations/ui.tsx'
-import { Address, MessagesDoc } from '../messages/ui.tsx'
-import { TaskChip, useTaskOf } from '../plan/ui.tsx'
+} from '@ultimate/ext/workspaces/ui.tsx'
+import { FeatureTag, hiddenConversationIds, useOverview } from '@ultimate/ext/conversations/ui.tsx'
+import { Address, MessagesDoc } from '@ultimate/ext/messages/ui.tsx'
+import { TaskChip, useTaskOf } from '@ultimate/ext/plan/ui.tsx'
 import { groups, meaning } from './kinds.ts'
 import type { Group, Meaning } from './kinds.ts'
 import { DescribeAction, StartedAction } from './refs.ts'

@@ -16,7 +16,7 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { CommandContribution } from '@/sdk'
-import { ClearConversationAction } from '../subagents/ui.tsx'
+import { ClearConversationAction } from '@ultimate/ext/subagents/ui.tsx'
 import { PanelActions } from './panel-actions.tsx'
 
 /** The conversation in a centred column, with the sidebar and the right panel beside it. */

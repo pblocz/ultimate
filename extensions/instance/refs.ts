@@ -1,5 +1,5 @@
 /** Instances in the browser: the preview servers started from this host, for the title bar and preview links. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** A preview server that served its UI. */
 export type Preview = {

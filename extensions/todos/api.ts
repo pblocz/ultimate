@@ -1,5 +1,5 @@
 /** To-dos for other extensions: add to the project's list from server code, at most once per key. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { Todo } from './refs.ts'
 
 export type TodosService = {

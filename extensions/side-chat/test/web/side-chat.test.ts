@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { createEndings, endings, frontSide, openSides, togglesSideMode } from '../../logic.ts'
-import { topLevelRows } from '../../../coding-workflow/listed.ts'
+import { topLevelRows } from '@ultimate/ext/coding-workflow/listed.ts'
 
 const tab = {
   key: 'Tab',

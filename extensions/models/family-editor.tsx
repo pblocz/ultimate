@@ -24,7 +24,7 @@ import {
   familyColor,
   familyTitle,
   isFamilyName,
-} from '../../lib/families.ts'
+} from '@ultimate/lib/families.ts'
 import { refreshFamilies } from './families.tsx'
 import { ModelRow } from './picker.tsx'
 import { SaveFamiliesAction } from './refs.ts'

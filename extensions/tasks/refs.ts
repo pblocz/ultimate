@@ -1,5 +1,5 @@
 /** Tasks in the browser: when the durable tasks of the task tree first ran, and running parked ones again. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** `{ ids }` → `{ [taskId]: startedAt }`: when each task first ran, in milliseconds; unstarted or gone ones are left out. */
 export const StartedAction = actionRef<{ ids: number[] }, Record<string, number>>(

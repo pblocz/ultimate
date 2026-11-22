@@ -1,5 +1,5 @@
 /** Live voice actions and the standing Voice conversation. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 export type VoiceStatus = { available: true } | { available: false; reason: string }
 export type VoiceSession = {

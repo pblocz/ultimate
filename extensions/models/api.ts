@@ -4,8 +4,8 @@
  */
 import { defineDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import { defineApi } from '../../shared/extension-api.ts'
-import { familyDocument } from '../../shared/conversation-configuration.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
+import { familyDocument } from '@ultimate/shared/conversation-configuration.ts'
 export { LoginChanged } from './refs.ts'
 
 /**

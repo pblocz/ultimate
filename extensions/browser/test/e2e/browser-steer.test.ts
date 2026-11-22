@@ -3,8 +3,8 @@ import { LiveDoc } from '@earendil-works/pi-durable'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { expect, it } from 'vitest'
-import { context } from '../../../../server/harness.ts'
-import { fauxServer, removeTemp, temp, until } from '../../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 // A branch's `until` held its run for 10 minutes; a steer could not reach it before the wait timed out (#531986).
 it('ends a browser until when a steer arrives, and lets the run go on', async () => {

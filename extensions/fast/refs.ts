@@ -1,5 +1,5 @@
 /** Fast mode in the browser: which OpenAI models run in fast mode, and the action that toggles one. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** The fast models (`openai-codex/<id>` or `openai/<id>`), and whether the project's settings decide them. */
 export type FastStatus = { models: string[]; project: boolean }

@@ -3,8 +3,8 @@ import { awaitWithContext } from '@earendil-works/chord/context'
 import { obj } from '@earendil-works/pi-schema'
 import type { ToolExecutionResult } from '@earendil-works/pi-durable'
 import { defineExtension, defineTool } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { WorkspacesApi } from '../workspaces/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { WorkspacesApi } from '@ultimate/ext/workspaces/api.ts'
 
 export default function self(host: ExtensionHost) {
   // Core, always on; the handle resolves the current provider at each call.

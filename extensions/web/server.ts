@@ -2,9 +2,9 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { defineExtension } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 // oxlint-disable-next-line no-restricted-imports -- the web channel admits its requests with the core's access rules
-import { admit } from '../../server/request-security.ts'
+import { admit } from '@ultimate/server/request-security.ts'
 import { createWeb } from './bundle.ts'
 import { createRoutes } from './routes.ts'
 

@@ -1,5 +1,5 @@
 /** Side chats: temporary copies of @ultimate, their lifecycle actions and passive summaries. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 export type SideChat = {
   of: number

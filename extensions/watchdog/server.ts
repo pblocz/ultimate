@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import type { JsonValue } from '@earendil-works/chord/json'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { isRetryableAssistantError } from '@earendil-works/pi-ai/utils/retry'
@@ -20,11 +20,16 @@ import type {
   TaskRecord,
   Tx,
 } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { rateLimited } from '../../lib/rate-limit.ts'
-import { Messages } from '../messages/api.ts'
-import type { Message } from '../messages/api.ts'
-import { Standing, Subagents, SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { rateLimited } from '@ultimate/lib/rate-limit.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import type { Message } from '@ultimate/ext/messages/api.ts'
+import {
+  Standing,
+  Subagents,
+  SubagentsApi,
+  SubagentsWorkflow,
+} from '@ultimate/ext/subagents/api.ts'
 import { idleNote } from './idle.ts'
 import { WatchdogApi } from './api.ts'
 import type { ReportedFailure } from './api.ts'

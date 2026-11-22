@@ -2,11 +2,11 @@ import { access, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { ToolExecutionApi } from '@earendil-works/pi-durable'
 import { expect, it, vi } from 'vitest'
-import { context } from '../../../../server/harness.ts'
+import { context } from '@ultimate/server/harness.ts'
 import browserExtension from '../../server.ts'
-import type { ExtensionHost } from '../../../../server/extensions.ts'
-import { groupAlive } from '../../../../lib/process-group.ts'
-import { removeTemp, temp, until } from '../../../../test/helpers.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { groupAlive } from '@ultimate/lib/process-group.ts'
+import { removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 // A managed Mac's Chrome dropped its CDP pipe seconds after each first page and kept running; every call launched
 // another one, each failed context close raised a notice, and the dropped browsers piled up until the host exited.

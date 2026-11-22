@@ -34,7 +34,7 @@ vi.mock('@/sdk', async () => ({
   useTranscript: () => [shot],
 }))
 vi.mock('@/components/ai/message', () => ({ MessageResponse: () => null }))
-vi.mock('../../../workspaces/ui.tsx', () => ({
+vi.mock('@ultimate/ext/workspaces/ui.tsx', () => ({
   useWorkspaceIndex: () => ({ landerConversations: {} }),
 }))
 

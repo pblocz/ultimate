@@ -1,6 +1,6 @@
 import { defineTask } from '@earendil-works/pi-durable'
 import type { ConversationId, JsonObject, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 /**
  * One entry for @ultimate: an `input` that wakes it, or a `write` the model reads at its next step. `requestId` makes

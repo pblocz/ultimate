@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
 import { expect, it, vi } from 'vitest'
-import { context } from '../../../../server/harness.ts'
-import { fauxServer, temp, removeTemp } from '../../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, temp, removeTemp } from '@ultimate/test/helpers.ts'
 
 it("runs bash commands without the host's NODE_ENV", async () => {
   vi.stubEnv('NODE_ENV', 'development')

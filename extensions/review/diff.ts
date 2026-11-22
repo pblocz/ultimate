@@ -1,8 +1,8 @@
 /** Local Git diffs for review: a spec's two sides, its patch split per file with counts and status, capped in size. */
 import { lstat, readlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { exec } from '../../lib/exec.ts'
-import { git } from '../../lib/git.ts'
+import { exec } from '@ultimate/lib/exec.ts'
+import { git } from '@ultimate/lib/git.ts'
 import type { ReviewDiff, ReviewFile, ReviewKind } from './refs.ts'
 
 /** Patches over this many bytes per file are listed without their hunks. */

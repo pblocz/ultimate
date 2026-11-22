@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn, errorMessage, shortenPath, useAction, useDialog, useSystem } from '@/sdk'
 import { store } from '@/sdk/client'
-import { DEFAULT_FAMILY, familyColor, familyTitle } from '../../lib/families.ts'
+import { DEFAULT_FAMILY, familyColor, familyTitle } from '@ultimate/lib/families.ts'
 import {
   AddFamily,
   FamilyDot,
@@ -25,8 +25,8 @@ import {
   moveFeature,
   runsOn,
   useFamilies,
-} from '../models/ui.tsx'
-import type { FamiliesView, FamilyView } from '../models/ui.tsx'
+} from '@ultimate/ext/models/ui.tsx'
+import type { FamiliesView, FamilyView } from '@ultimate/ext/models/ui.tsx'
 import { definitionDialog, moveDefinition, parseError, useOpenDefinition } from './definitions.tsx'
 import { Heading, Tag } from './parts.tsx'
 import { DefinitionsAction } from './refs.ts'

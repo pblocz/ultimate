@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { OverviewRow } from '../../../conversations/types.ts'
+import type { OverviewRow } from '@ultimate/ext/conversations/types.ts'
 import { cuesOf, listener } from '../../cues.ts'
 import type { Watched } from '../../cues.ts'
 import { linesOf } from '../../narration.ts'

@@ -28,13 +28,13 @@ import {
   ResumeAction,
   useConcludedSince,
   useOverview,
-} from '../conversations/ui.tsx'
-import type { WorkspaceConversation as ConversationSummary } from '../workspaces/ui.tsx'
+} from '@ultimate/ext/conversations/ui.tsx'
+import type { WorkspaceConversation as ConversationSummary } from '@ultimate/ext/workspaces/ui.tsx'
 import {
   PendingAction,
   useWorkspaceConversations as useConversations,
   useWorkspaceIndex,
-} from '../workspaces/ui.tsx'
+} from '@ultimate/ext/workspaces/ui.tsx'
 import { Row, ChildRow, EpicLine, StandingRow, SubagentLine } from './rows.tsx'
 import {
   MessagesDoc,
@@ -42,16 +42,16 @@ import {
   emptyMessages,
   stateTone,
   stateWord,
-} from '../messages/ui.tsx'
+} from '@ultimate/ext/messages/ui.tsx'
 import { InFlight, inFlight, MemoryRow, stillOpen, useMemorySummary } from './root.tsx'
 import type { Flight } from './root.tsx'
 import { Landed, useLandings } from './landed.tsx'
-import { MEMORY_SURFACE, useOpenMemory, useRoots } from '../lineage/ui.tsx'
-import { StandingDoc, talkToUltimate } from '../subagents/ui.tsx'
-import type { KeptWork } from '../conversations/types.ts'
+import { MEMORY_SURFACE, useOpenMemory, useRoots } from '@ultimate/ext/lineage/ui.tsx'
+import { StandingDoc, talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
+import type { KeptWork } from '@ultimate/ext/conversations/types.ts'
 import { LanderState } from './lander.tsx'
 import { StandingPhase, WaitingOnUser } from './ultimate.tsx'
-import { UnderUltimate, Unlisted, useShell, useSidebarState } from '../sidebar/ui.tsx'
+import { UnderUltimate, Unlisted, useShell, useSidebarState } from '@ultimate/ext/sidebar/ui.tsx'
 import { topLevelRows } from './listed.ts'
 
 /**

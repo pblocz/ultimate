@@ -26,7 +26,7 @@ import {
   useTranscript,
 } from '@/sdk'
 import type { CommandContribution, EntryRecord, EntryRenderer, Provision } from '@/sdk'
-import { MemoryDoc, useRoots } from '../lineage/ui.tsx'
+import { MemoryDoc, useRoots } from '@ultimate/ext/lineage/ui.tsx'
 import {
   DismissAction,
   firstRunDialog,
@@ -39,10 +39,10 @@ import {
   StartsDoc,
   StatusAction,
   WalkthroughAction,
-} from '../onboarding/ui.tsx'
-import { StandingDoc } from '../subagents/ui.tsx'
-import { IsolationAction } from '../workspaces/ui.tsx'
-import type { Isolation } from '../workspaces/refs.ts'
+} from '@ultimate/ext/onboarding/ui.tsx'
+import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
+import { IsolationAction } from '@ultimate/ext/workspaces/ui.tsx'
+import type { Isolation } from '@ultimate/ext/workspaces/refs.ts'
 
 function useIsolation() {
   const workspaces = useExtensions().some((extension) => extension.name === 'workspaces')

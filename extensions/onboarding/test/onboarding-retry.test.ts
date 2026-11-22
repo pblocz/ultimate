@@ -1,8 +1,8 @@
 import { fauxAssistantMessage } from '@earendil-works/pi-ai/providers/faux'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
-import { context } from '../../../server/harness.ts'
-import { fauxServer, post, removeTemp, temp } from '../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, post, removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 // #552022: a start before any model failed its run, and every later start was deduplicated into that failure.
 it('starts onboarding once a model appears after a start that failed without one', async () => {

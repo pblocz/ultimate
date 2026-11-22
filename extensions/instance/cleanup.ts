@@ -4,8 +4,8 @@ import { readdir, rm, stat } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 // Cleanup must use the same owner validation and PID semantics as the storage lock.
 // oxlint-disable-next-line no-restricted-imports
-import { alive, readOwner } from '../../server/lock.ts'
-import { git } from '../../lib/git.ts'
+import { alive, readOwner } from '@ultimate/server/lock.ts'
+import { git } from '@ultimate/lib/git.ts'
 
 /** Hold both lock transactions throughout cleanup; PID sidecars also protect startup and shutdown gaps. */
 export async function cleanPreview(home: string) {

@@ -4,9 +4,9 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { acquireLock } from '../../../server/lock.ts'
+import { acquireLock } from '@ultimate/server/lock.ts'
 import { cleanPreview, sweepPreviews } from '../cleanup.ts'
-import { git } from '../../../lib/git.ts'
+import { git } from '@ultimate/lib/git.ts'
 
 const roots: string[] = []
 afterEach(async () => {

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import * as update from '../server.ts'
-import { needsRestart } from '../../../lib/layers.ts'
+import { needsRestart } from '@ultimate/lib/layers.ts'
 
 const { coreChangedSince } = update
 

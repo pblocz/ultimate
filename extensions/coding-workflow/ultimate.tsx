@@ -17,9 +17,9 @@ import {
   stateTone,
   stateWord,
   waitingOnUser,
-} from '../messages/ui.tsx'
-import { AgentMark, ConversationPhase, useOverview } from '../conversations/ui.tsx'
-import { StandingDoc, talkToUltimate } from '../subagents/ui.tsx'
+} from '@ultimate/ext/messages/ui.tsx'
+import { AgentMark, ConversationPhase, useOverview } from '@ultimate/ext/conversations/ui.tsx'
+import { StandingDoc, talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
 
 /** Renders with how many questions wait on the user's answer or dismissal. */
 export function WaitingOnUser({ children }: { children: (waiting: number) => ReactNode }) {

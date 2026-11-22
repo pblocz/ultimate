@@ -26,7 +26,7 @@ import {
 import { RawResponse, Raw, ReadableRequest, ReadableResponse } from './body.tsx'
 import { DiffView } from './diff-view.tsx'
 import { useOpenWire, WireLink } from './link.tsx'
-import { SystemTab } from '../system/ui.tsx'
+import { SystemTab } from '@ultimate/ext/system/ui.tsx'
 import type { Picked } from './link.tsx'
 import { CallAction, ListAction } from './refs.ts'
 import type { WireSummary } from './refs.ts'

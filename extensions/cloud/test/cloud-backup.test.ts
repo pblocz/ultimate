@@ -9,14 +9,19 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { backUp, backupPath, classify, Conflict, readBackup } from '../backup.ts'
 import { BackupEvent } from '../refs.ts'
 import { uploadSnapshot } from '../snapshot.ts'
-import { git } from '../../../lib/git.ts'
-import { chapterFiles, FIRST_CHAPTER, readChapters, requestChapter } from '../../../lib/chapters.ts'
-import { context, prepareHarness } from '../../../server/harness.ts'
+import { git } from '@ultimate/lib/git.ts'
+import {
+  chapterFiles,
+  FIRST_CHAPTER,
+  readChapters,
+  requestChapter,
+} from '@ultimate/lib/chapters.ts'
+import { context, prepareHarness } from '@ultimate/server/harness.ts'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
-import { acquireLock } from '../../../server/lock.ts'
-import { findProject, main, restore } from '../../../scripts/restore.ts'
+import { acquireLock } from '@ultimate/server/lock.ts'
+import { findProject, main, restore } from '@ultimate/scripts/restore.ts'
 import { cloudStub } from './cloud-stub.ts'
-import { eventHost, fauxServer, post, temp } from '../../../test/helpers.ts'
+import { eventHost, fauxServer, post, temp } from '@ultimate/test/helpers.ts'
 
 const key = 'github.com/o/app'
 const stub = cloudStub()

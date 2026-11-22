@@ -8,12 +8,12 @@ import {
   ToolTask,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { ConversationsApi } from '../conversations/api.ts'
-import { SubagentsApi } from '../subagents/api.ts'
-import type { ResponseReceipt } from '../conversations/summary.ts'
-import type { SummaryModel } from '../conversations/summary-model.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import type { ResponseReceipt } from '@ultimate/ext/conversations/summary.ts'
+import type { SummaryModel } from '@ultimate/ext/conversations/summary-model.ts'
 import { DiscardAction, InjectAction, OpenAction, SideChatDoc, SideChatsDoc } from './refs.ts'
 import type { SideChat, SideChatIndex, SideChatSummary } from './refs.ts'
 

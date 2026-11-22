@@ -15,7 +15,7 @@
     "test:e2e": "MIMALLOC_ALLOW_THP=0 MIMALLOC_PURGE_DELAY=0 vitest run --config test/e2e/vitest.config.ts",
     "setup:machine": "node scripts/setup-machine.ts",
     "reset": "node scripts/reset.ts",
-    "restore": "node scripts/restore.ts",
+    "restore": "node --import ./lib/node-names.ts scripts/restore.ts",
     "fmt": "vp fmt",
     "lint": "vp lint"
   },

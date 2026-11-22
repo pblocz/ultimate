@@ -9,12 +9,12 @@ import {
 } from '@earendil-works/pi-durable'
 import type { EntryRecord, GenerationHooks, HookApi } from '@earendil-works/pi-durable'
 import { afterEach, expect, it, vi } from 'vitest'
-import { onCommit } from '../../../lib/commits.ts'
-import { context } from '../../../server/harness.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
+import { context } from '@ultimate/server/harness.ts'
 import phase, { Phases } from '../server.ts'
 import { phaseState } from '../state.ts'
-import type { ClassifyService } from '../../classify/api.ts'
-import { until } from '../../../test/helpers.ts'
+import type { ClassifyService } from '@ultimate/ext/classify/api.ts'
+import { until } from '@ultimate/test/helpers.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {

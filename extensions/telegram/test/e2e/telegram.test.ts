@@ -25,8 +25,8 @@ import {
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { afterEach, expect, it, vi } from 'vitest'
-import { fauxServer, held, temp, until } from '../../../../test/helpers.ts'
-import { writeSecret } from '../../../secrets/store.ts'
+import { fauxServer, held, temp, until } from '@ultimate/test/helpers.ts'
+import { writeSecret } from '@ultimate/ext/secrets/store.ts'
 import { ledger } from '../../state.ts'
 
 const cleanup: (() => Promise<void>)[] = []

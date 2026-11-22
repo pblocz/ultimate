@@ -2,7 +2,7 @@
  * Secrets in the browser: which secrets extensions declare and which are set, and the actions that set and delete them.
  * Values never come back. Browser-safe.
  */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** A declared or stored secret, without its value. */
 export type Secret = {

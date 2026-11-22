@@ -6,11 +6,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ConversationId, ToolExecutionApi } from '@earendil-works/pi-durable'
 import { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
 import type { createBashTool } from '@earendil-works/pi-durable/tools'
-import type { EventToken } from '../../../../shared/events.ts'
+import type { EventToken } from '@ultimate/shared/events.ts'
 import codingTools from '../../server.ts'
 import { Committed } from '../../refs.ts'
-import { context } from '../../../../server/harness.ts'
-import { removeTemp, temp } from '../../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const run = promisify(execFile)
 type Event = typeof Committed extends EventToken<infer D> ? D : never

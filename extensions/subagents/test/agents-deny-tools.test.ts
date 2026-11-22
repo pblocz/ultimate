@@ -1,13 +1,13 @@
 // Load the faux provider's token-pacing mock before server modules.
-import { fauxServer, sourceCopy, temp } from '../../../test/helpers.ts'
+import { fauxServer, sourceCopy, temp } from '@ultimate/test/helpers.ts'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { ModelRuntime } from '@earendil-works/pi-coding-agent'
 import { expect, it } from 'vitest'
-import { discoverAgents, parseDefinition, parseOverlay } from '../../../lib/agents.ts'
-import { context } from '../../../server/harness.ts'
+import { discoverAgents, parseDefinition, parseOverlay } from '@ultimate/lib/agents.ts'
+import { context } from '@ultimate/server/harness.ts'
 import { Subagents } from '../api.ts'
 
 const definition = (fields: string) =>

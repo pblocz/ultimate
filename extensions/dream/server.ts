@@ -11,19 +11,19 @@ import { DatabaseSync } from 'node:sqlite'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { defineDoc, defineExtension, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryId, Tx } from '@earendil-works/pi-durable'
-import { implementAction } from '../../lib/actions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import {
   chapterFiles,
   chapterName,
   PENDING_CHAPTER,
   readChapters,
   requestChapter,
-} from '../../lib/chapters.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { CloudApi } from '../cloud/api.ts'
-import { Standing, Started as StandingStarted } from '../subagents/api.ts'
-import { Fired } from '../automations/api.ts'
-import { Branched } from '../lineage/api.ts'
+} from '@ultimate/lib/chapters.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { CloudApi } from '@ultimate/ext/cloud/api.ts'
+import { Standing, Started as StandingStarted } from '@ultimate/ext/subagents/api.ts'
+import { Fired } from '@ultimate/ext/automations/api.ts'
+import { Branched } from '@ultimate/ext/lineage/api.ts'
 import {
   AsleepAction,
   ChaptersAction,

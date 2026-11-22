@@ -2,8 +2,8 @@
  * Codemode in the browser: the one-line summaries of what each codemode call did, and the event that records one.
  * Browser-safe.
  */
-import { docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 /** What a codemode call did, in one past-tense line; `effect` when it changed something rather than only reading. */
 export type CallSummary = { line: string; effect?: boolean }

@@ -3,7 +3,7 @@
  * cheap structured verdict instead of a chat completion.
  */
 import type { JsonValue } from '@earendil-works/chord/json'
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 
 /** One question: its instructions and the criteria for each choice, outcome or score. */
 export type ClassifyQuestion =

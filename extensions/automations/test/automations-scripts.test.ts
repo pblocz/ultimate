@@ -9,9 +9,9 @@ import type { JsonValue } from '@earendil-works/chord/json'
 import { doneText, fireText, trimLog } from '../types.ts'
 import type { Automation } from '../types.ts'
 import { Automations } from '../server.ts'
-import { context } from '../../../server/harness.ts'
-import { UiState } from '../../../server/ui-state.ts'
-import { fauxServer, held, removeTemp, temp, until } from '../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
+import { fauxServer, held, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 const homes: string[] = []
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []

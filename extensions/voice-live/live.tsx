@@ -5,8 +5,8 @@
  */
 import { api, errorMessage, events } from '@/sdk'
 import type { ActionRef } from '@/sdk'
-import { playNotes, voiceQuestions } from '../sounds/ui.tsx'
-import type { Note } from '../sounds/ui.tsx'
+import { playNotes, voiceQuestions } from '@ultimate/ext/sounds/ui.tsx'
+import type { Note } from '@ultimate/ext/sounds/ui.tsx'
 import { StatusAction } from './refs.ts'
 import type { VoiceStatus } from './refs.ts'
 import { IDLE_MS } from './relay.ts'

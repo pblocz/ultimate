@@ -43,7 +43,9 @@ project is Ultimate itself, that is `.ultimate/extensions/` in the clone, not `e
 
 Extensions outside the clone import exactly what built-ins import (`@/sdk`, `@/components/…`, `react`,
 `lucide-react`, any package installed in the clone): Ultimate resolves those from its clone, and Tailwind picks up their
-classes. In the clone, `pnpm check` type-checks and lints `extensions/` and `.ultimate/extensions/`. Elsewhere,
+classes. Server and browser code in every root reach the core and other extensions by name, such as
+`@ultimate/shared/extension-api.ts` and `@ultimate/ext/conversations/api.ts`; a name of an extension that is no
+built-in resolves to the folder discovery found ([import by name](contracts.md#import-by-name)). In the clone, `pnpm check` type-checks and lints `extensions/` and `.ultimate/extensions/`. Elsewhere,
 `node <clone>/scripts/check-extension.ts [folder…]` type-checks them against the clone (default: the current project's
 `.ultimate/extensions/*`; pass a user extension's folder to check it) and writes nothing into the clone or the project.
 Never copy an extension into the clone to check it: the running host would load it. Agents live in the same three places

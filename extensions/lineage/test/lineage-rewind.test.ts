@@ -6,12 +6,12 @@ import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { LiveDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { CompactionResult, EntryRecord, TaskId } from '@earendil-works/pi-durable'
 import { afterAll, beforeAll, expect, it } from 'vitest'
-import { MessageSent } from '../../messages/api.ts'
+import { MessageSent } from '@ultimate/ext/messages/api.ts'
 import { Rewound } from '../refs.ts'
-import { Standing, Started } from '../../subagents/api.ts'
-import { context } from '../../../server/harness.ts'
-import { emit } from '../../../server/events.ts'
-import { eventHost, fauxServer, post, sourceCopy, temp, until } from '../../../test/helpers.ts'
+import { Standing, Started } from '@ultimate/ext/subagents/api.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { emit } from '@ultimate/server/events.ts'
+import { eventHost, fauxServer, post, sourceCopy, temp, until } from '@ultimate/test/helpers.ts'
 
 let ultimateRoot: string
 beforeAll(async () => {

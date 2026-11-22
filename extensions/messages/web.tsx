@@ -33,7 +33,7 @@ import { callerOf } from './caller.ts'
 import { OpenMessages } from './open.tsx'
 import { QuestionPointer } from './pointer.tsx'
 import { OffscreenQuestions } from './waiting.tsx'
-import { StandingDoc } from '../subagents/ui.tsx'
+import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
 import { MessagesDoc, CallerAction } from './refs.ts'
 import type { MessagesData } from './refs.ts'
 

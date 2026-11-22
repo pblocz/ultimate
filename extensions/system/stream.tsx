@@ -1,7 +1,7 @@
 import { SearchIcon, XIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { api, cn, errorMessage, formatDuration, useUltimate } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import { asking, empty, failed, followed, loaded, older, pagesOlder, wantOlder } from './feed.ts'
 import type { Feed } from './feed.ts'
 import { StreamAction } from './refs.ts'

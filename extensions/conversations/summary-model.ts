@@ -1,12 +1,17 @@
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
 import type { JsonObject } from '@earendil-works/pi-durable'
-import { readSettings, userSettingsPath } from '../../lib/settings.ts'
-import { previewModel } from '../../lib/agents.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import { readSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
+import { previewModel } from '@ultimate/lib/agents.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { parseSummaryModel } from './summary-model-ref.ts'
-import { readFamilies } from '../../lib/families-settings.ts'
-import { BUILTIN_FAMILIES, DEFAULT_FAMILY, FEATURES, mergeFamilies } from '../../lib/families.ts'
+import { readFamilies } from '@ultimate/lib/families-settings.ts'
+import {
+  BUILTIN_FAMILIES,
+  DEFAULT_FAMILY,
+  FEATURES,
+  mergeFamilies,
+} from '@ultimate/lib/families.ts'
 
 /** Titles, summaries and reply summaries use the summaries family's model unless settings pin another. */
 const tiny = BUILTIN_FAMILIES[FEATURES.summaries.family]

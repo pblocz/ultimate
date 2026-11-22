@@ -1,6 +1,6 @@
 // An in-memory stand-in for the backup Worker's `/sync` contract (`extensions/cloud/README.md`), as a `fetch`.
 import { createHash } from 'node:crypto'
-import type { Register } from '../../../lib/cloud.ts'
+import type { Register } from '@ultimate/lib/cloud.ts'
 
 export const hashKey = (key: string) => createHash('sha256').update(key).digest('hex')
 

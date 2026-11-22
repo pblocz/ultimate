@@ -4,7 +4,7 @@
  * ends a goal early; @ultimate hears it on every run through a per-input note.
  */
 import { arr, int, lit, obj, opt, str, union } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import {
   defineDoc,
   defineExtension,
@@ -15,12 +15,12 @@ import {
 } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryId, Tx } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { actingAs } from '../../lib/acting-as.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { imagesOf, latestImagesEntry } from '../../lib/entries.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { AutomationsApi } from '../automations/api.ts'
-import { Standing, SubagentsApi } from '../subagents/api.ts'
+import { actingAs } from '@ultimate/lib/acting-as.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { imagesOf, latestImagesEntry } from '@ultimate/lib/entries.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { AutomationsApi } from '@ultimate/ext/automations/api.ts'
+import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { deliver, deliverTask } from './delivery.ts'
 import { reminderTask } from './reminder.ts'
 import { EndAction, GoalDoc, ImagesAction, StartAction } from './refs.ts'

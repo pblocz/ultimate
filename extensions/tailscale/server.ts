@@ -1,20 +1,20 @@
 import { randomUUID } from 'node:crypto'
 // oxlint-disable-next-line no-restricted-imports -- tailscale ownership uses the shared process lock and liveness check
-import { acquireLock, alive } from '../../server/lock.ts'
+import { acquireLock, alive } from '@ultimate/server/lock.ts'
 // oxlint-disable-next-line no-restricted-imports -- the project's own server is the one on its default, lock-held home
-import { projectHome } from '../../server/project.ts'
+import { projectHome } from '@ultimate/server/project.ts'
 import { access, mkdir } from 'node:fs/promises'
 import { constants, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineExtension } from '@earendil-works/pi-durable'
-import { exec } from '../../lib/exec.ts'
-import { readJson, writeJson, writeTarget } from '../../lib/json-file.ts'
-import { userSettingsPath } from '../../lib/settings.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import type { ExtensionAction } from '../../server/actions.ts'
+import { exec } from '@ultimate/lib/exec.ts'
+import { readJson, writeJson, writeTarget } from '@ultimate/lib/json-file.ts'
+import { userSettingsPath } from '@ultimate/lib/settings.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import type { ExtensionAction } from '@ultimate/server/actions.ts'
 import { TailscaleApi } from './api.ts'
 import type { Status } from './api.ts'
-import { implementAction } from '../../lib/actions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import { RetryAction, StatusAction } from './refs.ts'
 interface Serve {
   TCP?: Record<string, unknown>

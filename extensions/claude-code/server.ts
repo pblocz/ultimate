@@ -11,9 +11,9 @@ import {
   useSpawn,
 } from '@earendil-works/pi-claude-code/src/claude-cli.ts'
 import { defineExtension, GenerationTask, hook, ProviderDoc } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { spawn } from '../../lib/spawn.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { spawn } from '@ultimate/lib/spawn.ts'
 import { ClaudeCodeEnv, ClaudeCodeExchanges } from './api.ts'
 import type { ClaudeCodeEnvService } from './api.ts'
 import { StatusAction } from './refs.ts'

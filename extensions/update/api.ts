@@ -1,5 +1,5 @@
 /** Update: whether the clone Ultimate runs from is behind origin, for other extensions to report. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { UpdateState } from './refs.ts'
 
 export type { UpdateState }

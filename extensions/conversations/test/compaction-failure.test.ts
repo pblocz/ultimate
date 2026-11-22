@@ -4,7 +4,7 @@ import { fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai/provid
 import { createRegistry, Harness, MemoryStorage } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
 import { compactionEvents } from '../compactions.ts'
-import { until } from '../../../test/helpers.ts'
+import { until } from '@ultimate/test/helpers.ts'
 
 // A background compaction that failed was reported nowhere: the agent ran on until its blocking one failed the run.
 it('a failed compaction its conversation owns raises a notice', async () => {

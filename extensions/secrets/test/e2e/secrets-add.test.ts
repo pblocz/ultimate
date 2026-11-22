@@ -3,9 +3,9 @@ import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { chromium } from 'playwright-core'
 import { afterEach, expect, it } from 'vitest'
-import { browserBinary } from '../../../browser/server.ts'
-import { readSecret } from '../../../../lib/secrets.ts'
-import { fauxServer, removeTemp, temp } from '../../../../test/helpers.ts'
+import { browserBinary } from '@ultimate/ext/browser/server.ts'
+import { readSecret } from '@ultimate/lib/secrets.ts'
+import { fauxServer, removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {

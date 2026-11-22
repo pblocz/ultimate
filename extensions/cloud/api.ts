@@ -1,5 +1,5 @@
 /** Cloud backups of the active chapter; optional because cloud ships disabled. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { LastBackup } from './types.ts'
 
 export { BackupEvent } from './refs.ts'

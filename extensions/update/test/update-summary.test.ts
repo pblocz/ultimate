@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { summaryFor, summaryLines } from '../clone.ts'
-import { temp } from '../../../test/helpers.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 const log = async () => 'feat(review): comment on diff lines\n\nbody'
 

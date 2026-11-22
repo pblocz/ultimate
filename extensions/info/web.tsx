@@ -17,7 +17,7 @@ import {
 } from '@/sdk'
 import type { SystemInfo, Usage } from '@/sdk'
 import { Row, Rows } from '@/components/ui/rows'
-import { useWorkspacesMeta, Workspaces as WorkspaceRows } from '../workspaces/ui.tsx'
+import { useWorkspacesMeta, Workspaces as WorkspaceRows } from '@ultimate/ext/workspaces/ui.tsx'
 import { Copy, ErrorText, Meter, Section } from './ui.tsx'
 import { SkillPicker, skillDialog } from './skill-picker.tsx'
 

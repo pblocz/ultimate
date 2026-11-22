@@ -1,6 +1,6 @@
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { MessagesApi } from '../messages/api.ts'
-import type { MessagesWorkflowService } from '../messages/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { MessagesApi } from '@ultimate/ext/messages/api.ts'
+import type { MessagesWorkflowService } from '@ultimate/ext/messages/api.ts'
 import { notice } from './notice.ts'
 
 /** The picks from a numbered answer, or its first line. */

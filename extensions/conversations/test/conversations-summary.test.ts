@@ -6,10 +6,10 @@ import {
   sourceCopy,
   temp,
   until,
-} from '../../../test/helpers.ts'
+} from '@ultimate/test/helpers.ts'
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import { awaitWithContext } from '@earendil-works/chord/context'
-import { Subagents } from '../../subagents/api.ts'
+import { Subagents } from '@ultimate/ext/subagents/api.ts'
 import { join } from 'node:path'
 import { obj } from '@earendil-works/pi-schema'
 import type { Models, JsonObject } from '@earendil-works/pi-ai'
@@ -26,8 +26,8 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import { afterEach, beforeAll, expect, it, vi } from 'vitest'
-import { context } from '../../../server/harness.ts'
-import { Metadata } from '../../../server/metadata.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
 import { Overview } from '../overview.ts'
 import type { TreesService } from '../api.ts'
 import {

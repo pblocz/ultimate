@@ -1,5 +1,5 @@
 /** Pause in the browser: whether this Ultimate is paused, what still runs, and Pause and Play. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 /**
  * The rate limit that paused Ultimate: the provider and model that answered with it, the error as Pi recorded it,

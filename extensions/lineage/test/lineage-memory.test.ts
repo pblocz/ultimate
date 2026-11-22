@@ -22,11 +22,11 @@ import { Seen } from '../catchup.ts'
 import { abstract, Tally } from '../server.ts'
 import { Roots } from '../api.ts'
 import { estimateTextTokens } from '@earendil-works/pi-ai/utils/estimate'
-import { Standing } from '../../subagents/api.ts'
-import { SubmissionLanded } from '../../workspaces/api.ts'
-import type { LandedData } from '../../workspaces/api.ts'
-import { emit, EventFeed, EventLog } from '../../../server/events.ts'
-import { context } from '../../../server/harness.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { SubmissionLanded } from '@ultimate/ext/workspaces/api.ts'
+import type { LandedData } from '@ultimate/ext/workspaces/api.ts'
+import { emit, EventFeed, EventLog } from '@ultimate/server/events.ts'
+import { context } from '@ultimate/server/harness.ts'
 import {
   branchProbe,
   fauxServer,
@@ -35,7 +35,7 @@ import {
   sourceCopy,
   temp,
   until,
-} from '../../../test/helpers.ts'
+} from '@ultimate/test/helpers.ts'
 import { anchor } from './lineage-fixture.ts'
 
 let ultimateRoot: string

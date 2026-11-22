@@ -11,11 +11,11 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, TaskId, Tx } from '@earendil-works/pi-durable'
-import { exec } from '../../lib/exec.ts'
-import { git, isolatable } from '../../lib/git.ts'
-import { needsRestart as restartNeeded } from '../../lib/layers.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { ConversationsApi } from '../conversations/api.ts'
+import { exec } from '@ultimate/lib/exec.ts'
+import { git, isolatable } from '@ultimate/lib/git.ts'
+import { needsRestart as restartNeeded } from '@ultimate/lib/layers.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
 import { Branches } from './api.ts'
 import { WorkspacesDoc } from './refs.ts'
 import { setup } from './setup.ts'
@@ -36,7 +36,7 @@ import type {
   WorkspaceInfo,
   WorkspaceStats,
 } from './types.ts'
-import type { KeptWork } from '../conversations/types.ts'
+import type { KeptWork } from '@ultimate/ext/conversations/types.ts'
 
 export const Workspaces = defineDoc<WorkspaceIndex>({
   kind: WorkspacesDoc.kind,

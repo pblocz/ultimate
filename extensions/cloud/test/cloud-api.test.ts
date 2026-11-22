@@ -1,18 +1,18 @@
 import { expect, it, vi } from 'vitest'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { cloudConfig } from '../../../lib/cloud.ts'
-import { projectIdentity } from '../../../lib/project-identity.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { cloudConfig } from '@ultimate/lib/cloud.ts'
+import { projectIdentity } from '@ultimate/lib/project-identity.ts'
 import { backUp } from '../backup.ts'
 import { CloudApi } from '../api.ts'
 import cloud, { backup } from '../server.ts'
-import { apis } from '../../../test/helpers.ts'
+import { apis } from '@ultimate/test/helpers.ts'
 
-vi.mock('../../../lib/cloud.ts', async (original) => ({
-  ...(await original<typeof import('../../../lib/cloud.ts')>()),
+vi.mock('@ultimate/lib/cloud.ts', async (original) => ({
+  ...(await original<typeof import('@ultimate/lib/cloud.ts')>()),
   cloudConfig: vi.fn<typeof cloudConfig>(),
 }))
-vi.mock('../../../lib/project-identity.ts', async (original) => ({
-  ...(await original<typeof import('../../../lib/project-identity.ts')>()),
+vi.mock('@ultimate/lib/project-identity.ts', async (original) => ({
+  ...(await original<typeof import('@ultimate/lib/project-identity.ts')>()),
   projectIdentity: vi.fn<typeof projectIdentity>(),
 }))
 vi.mock('../backup.ts', async (original) => ({

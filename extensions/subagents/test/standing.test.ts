@@ -1,6 +1,6 @@
 import { fauxProvider } from '@earendil-works/pi-ai/providers/faux'
 // Harness tests use the faux provider without token pacing.
-import { apis, eventHost, fauxServer, idleNeed, temp, removeTemp } from '../../../test/helpers.ts'
+import { apis, eventHost, fauxServer, idleNeed, temp, removeTemp } from '@ultimate/test/helpers.ts'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -14,15 +14,15 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import { CodingTools } from '@earendil-works/pi-durable/tools'
-import { prepareHarness } from '../../../server/harness.ts'
-import { emit } from '../../../server/events.ts'
-import type { OpenHost } from '../../../server/harness.ts'
+import { prepareHarness } from '@ultimate/server/harness.ts'
+import { emit } from '@ultimate/server/events.ts'
+import type { OpenHost } from '@ultimate/server/harness.ts'
 import subagents from '../server.ts'
 import { Profile, Standing, Started, SubagentsWorkflow } from '../api.ts'
 import type { SubagentsService } from '../api.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import { Marks } from '../../conversations/api.ts'
-import { parseDefinition, saveDefinition } from '../../../lib/agents.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import { Marks } from '@ultimate/ext/conversations/api.ts'
+import { parseDefinition, saveDefinition } from '@ultimate/lib/agents.ts'
 
 it('keeps an edit a turn applied while a standing call was waiting to commit', async () => {
   const { service, host, file, hold } = await fixture()

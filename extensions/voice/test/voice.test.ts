@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { actions, MAX_AUDIO_BYTES } from '../server.ts'
-import { writeSecret } from '../../secrets/store.ts'
-import type { ActionContext } from '../../../server/actions.ts'
-import { removeTemp, temp } from '../../../test/helpers.ts'
+import { writeSecret } from '@ultimate/ext/secrets/store.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const cleanup: string[] = []
 afterEach(async () => {

@@ -5,15 +5,15 @@ import { beforeEach, expect, it, vi } from 'vitest'
 
 // The real hooks and client connect to a server; LiveLines needs only a clock, and whether it asks for one is the point.
 const clock = vi.hoisted(() => ({ ticking: [] as boolean[] }))
-vi.mock('../../../../web/src/sdk/hooks.ts', () => ({
+vi.mock('@/sdk/hooks.ts', () => ({
   useNow: (_interval: number, active = true) => {
     clock.ticking.push(active)
     return 1_000_000
   },
 }))
-vi.mock('../../../../web/src/sdk/client.ts', () => ({ api: {} }))
-vi.mock('../../../../web/src/sdk/resume.ts', () => ({ covered: () => false }))
-const { LiveLines } = await import('../../../../web/src/app/transcript.tsx')
+vi.mock('@/sdk/client.ts', () => ({ api: {} }))
+vi.mock('@/sdk/resume.ts', () => ({ covered: () => false }))
+const { LiveLines } = await import('@/app/transcript.tsx')
 
 beforeEach(() => {
   clock.ticking = []

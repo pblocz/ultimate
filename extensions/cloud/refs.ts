@@ -1,6 +1,6 @@
 /** Cloud in the browser: this home's backups and joining the fleet. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import type { CloudState, LastBackup } from './types.ts'
 
 /** No arguments → whether backups run here, the last backup, a running upload and a refused one. */

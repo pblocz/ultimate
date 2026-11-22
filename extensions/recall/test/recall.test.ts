@@ -12,13 +12,13 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import { afterEach, expect, it, vi } from 'vitest'
-import { context } from '../../../server/harness.ts'
+import { context } from '@ultimate/server/harness.ts'
 import recall, { Recall } from '../server.ts'
-import { ClassifyApi } from '../../classify/api.ts'
-import type { ClassifyService } from '../../classify/api.ts'
-import { ContextUsageDoc } from '../../conversations/api.ts'
-import type { LineageService } from '../../lineage/api.ts'
-import { Standing } from '../../subagents/api.ts'
+import { ClassifyApi } from '@ultimate/ext/classify/api.ts'
+import type { ClassifyService } from '@ultimate/ext/classify/api.ts'
+import { ContextUsageDoc } from '@ultimate/ext/conversations/api.ts'
+import type { LineageService } from '@ultimate/ext/lineage/api.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {

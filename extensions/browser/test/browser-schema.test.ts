@@ -4,8 +4,8 @@ import { opencodeGoProvider } from '@earendil-works/pi-ai/providers/opencode-go'
 import { openrouterProvider } from '@earendil-works/pi-ai/providers/openrouter'
 import { expect, it, vi } from 'vitest'
 import browserExtension from '../server.ts'
-import subagents from '../../subagents/server.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import subagents from '@ultimate/ext/subagents/server.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 it('preserves browser fill and typed tool enum schemas in provider payloads', async () => {
   const host = {

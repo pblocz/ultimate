@@ -7,8 +7,8 @@
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import { AgentDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, EntryDraft, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { configuredModel, familyDefault, hasLogin } from '../../lib/agents.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { configuredModel, familyDefault, hasLogin } from '@ultimate/lib/agents.ts'
 import { Family, Pin } from './api.ts'
 import type { Fallback } from './refs.ts'
 

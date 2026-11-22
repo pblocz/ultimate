@@ -2,7 +2,7 @@
  * System in the browser: one stream of everything Ultimate records (durable events and the call trace), paged and
  * filtered, and the call tree of one trace with its events. Browser-safe.
  */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** One recorded thing: a durable event or a traced call, in one shape. */
 export type SystemRow = {

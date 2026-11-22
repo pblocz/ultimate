@@ -2,8 +2,8 @@
  * Onboarding in the browser: the first run, the setup cards @ultimate shows while it gets familiar with a project,
  * and the actions behind the Extensions panel. Browser-safe.
  */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import type { ExtensionInfo } from '../../shared/protocol.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import type { ExtensionInfo } from '@ultimate/shared/protocol.ts'
 
 /** The project's own `.ultimate` setup: whether it has any, the user's decision on it (null: undecided), its README. */
 export type ProjectSetup = { config: boolean; decision: boolean | null; readme?: string }

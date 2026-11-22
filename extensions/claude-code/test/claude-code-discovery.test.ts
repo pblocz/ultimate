@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream'
 import { expect, it } from 'vitest'
 import { discoverClaudeModels, useSpawn } from '@earendil-works/pi-claude-code/src/claude-cli.ts'
 import { modelFromDiscovery } from '@earendil-works/pi-claude-code/src/model-catalog.ts'
-import { until } from '../../../test/helpers.ts'
+import { until } from '@ultimate/test/helpers.ts'
 
 // Pi upstream: @earendil-works/pi-claude-code@0.1.0 src/claude-cli.ts — childExit() settles for a child that already
 // exited (f697510). Discovery reads stdout to its end before awaiting the exit; when 'exit' came first (about 1 in 100

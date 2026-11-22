@@ -1,10 +1,10 @@
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { defineExtension, GenerationTask, hook } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { readHealth, record, reset } from './store.ts'
 import { HealthApi } from './api.ts'
-import { LoginChanged } from '../models/api.ts'
+import { LoginChanged } from '@ultimate/ext/models/api.ts'
 import type { Flip, HealthEntry } from './store.ts'
 import { Changed } from './refs.ts'
 

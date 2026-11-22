@@ -3,7 +3,7 @@
  * keeps it with its `todo` tool and hears about it when it changed; the user adds and ticks in the To-dos panel.
  */
 import { int, obj, opt, str } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import {
   defineDoc,
   defineExtension,
@@ -14,10 +14,10 @@ import {
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { actingAs } from '../../lib/acting-as.ts'
-import { implementAction } from '../../lib/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { SubagentsApi } from '../subagents/api.ts'
+import { actingAs } from '@ultimate/lib/acting-as.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { TodosApi } from './api.ts'
 import { AddAction, DoneAction, ReopenAction, TodosDoc } from './refs.ts'
 import type { Todo } from './refs.ts'

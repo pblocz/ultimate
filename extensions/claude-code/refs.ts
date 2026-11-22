@@ -1,5 +1,5 @@
 /** Claude Code in the browser: whether the local CLI is installed, logged in and on a subscription. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** The CLI's status metadata; never its output or the account's identity. */
 export type ClaudeStatus = {

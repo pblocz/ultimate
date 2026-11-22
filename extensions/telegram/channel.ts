@@ -1,7 +1,7 @@
 import type { TelegramMessage } from '@chat-adapter/telegram'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { ChannelError } from '../../shared/channel-host.ts'
-import type { HistoryItem } from '../../shared/channel-host.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { ChannelError } from '@ultimate/shared/channel-host.ts'
+import type { HistoryItem } from '@ultimate/shared/channel-host.ts'
 import { turnActivity } from './activity.ts'
 import { botState, ledger } from './state.ts'
 

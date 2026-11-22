@@ -1,8 +1,8 @@
 // One cloud backup: upload the snapshot, then commit it to the Worker's register with the parent it builds on.
 import { basename, join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { httpBase } from '../../lib/cloud.ts'
-import { readJson, writeJson } from '../../lib/json-file.ts'
+import { httpBase } from '@ultimate/lib/cloud.ts'
+import { readJson, writeJson } from '@ultimate/lib/json-file.ts'
 import { uploadSnapshot } from './snapshot.ts'
 import type { LastBackup } from './types.ts'
 

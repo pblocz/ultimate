@@ -1,5 +1,5 @@
 /** Wire in the browser: the raw requests a conversation's model calls sent and what came back. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 export type WireUsage = { input: number; output: number; cacheRead: number; cacheWrite: number }
 

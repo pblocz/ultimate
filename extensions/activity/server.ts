@@ -1,5 +1,5 @@
-import { implementAction } from '../../lib/actions.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import { PageAction } from './refs.ts'
 
 export default { name: 'activity' }

@@ -5,12 +5,12 @@ import { join } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { InboxDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { discoverAgents, hostDefault } from '../../lib/agents.ts'
-import { closeOutput, readPidFile, spawnGroup, stopGroup } from '../../lib/process-group.ts'
-import type { Group } from '../../lib/process-group.ts'
-import { readSecret, validateName } from '../../lib/secrets.ts'
-import { SubagentsApi, SubagentsWorkflow } from '../subagents/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { discoverAgents, hostDefault } from '@ultimate/lib/agents.ts'
+import { closeOutput, readPidFile, spawnGroup, stopGroup } from '@ultimate/lib/process-group.ts'
+import type { Group } from '@ultimate/lib/process-group.ts'
+import { readSecret, validateName } from '@ultimate/lib/secrets.ts'
+import { SubagentsApi, SubagentsWorkflow } from '@ultimate/ext/subagents/api.ts'
 import { Done, Escalated, Exited, Started } from './refs.ts'
 import type { Automations as Ledger } from './server.ts'
 import {
@@ -36,7 +36,7 @@ import {
 import type { Prepared, ScriptProcess as Run } from './support.ts'
 import type { Delivery, notifications } from './delivery.ts'
 
-export { handshake as launchHandshake } from '../../lib/process-group.ts'
+export { handshake as launchHandshake } from '@ultimate/lib/process-group.ts'
 /** An hour of running before an exit means the script worked: its failure count starts again. */
 const HEALTHY_MS = 3600_000
 const exists = (path: string) =>

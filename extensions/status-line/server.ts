@@ -1,12 +1,12 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { defineExtension, LiveDoc, UsageDoc } from '@earendil-works/pi-durable'
 import type { Cursor, LiveState, UsageState } from '@earendil-works/pi-durable'
-import type { ActionContext } from '../../server/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { createRateSampler, keys, zero, type Rates, type RateSample } from './rates.ts'
 import { usageTotals } from './context.ts'
-import { implementAction } from '../../lib/actions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import { RatesAction } from './refs.ts'
 
 type Totals = ReturnType<typeof usageTotals>

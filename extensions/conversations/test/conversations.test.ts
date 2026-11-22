@@ -5,7 +5,7 @@ import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/provid
 import { LiveDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { Conversation, ConversationId } from '@earendil-works/pi-durable'
 import { afterAll, expect, it } from 'vitest'
-import { onCommit } from '../../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import {
   attach,
   fauxServer,
@@ -14,17 +14,17 @@ import {
   prepareFauxServer,
   temp,
   until,
-} from '../../../test/helpers.ts'
-import type { ConversationSummary } from '../../../shared/protocol.ts'
-import { context } from '../../../server/harness.ts'
-import { Metadata } from '../../../server/metadata.ts'
+} from '@ultimate/test/helpers.ts'
+import type { ConversationSummary } from '@ultimate/shared/protocol.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
 import { actions as conversationActions, concludedIn, setStanding } from '../server.ts'
-import { UiState } from '../../../server/ui-state.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { actionExec } from '../../../server/actions.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { actionExec } from '@ultimate/server/actions.ts'
 import { currentAnswer, exchangeUser } from '../summary.ts'
 import { Overview } from '../overview.ts'
-import { Branch } from '../../lineage/api.ts'
+import { Branch } from '@ultimate/ext/lineage/api.ts'
 
 type Server = Awaited<ReturnType<typeof fauxServer>>
 const servers: Server[] = []

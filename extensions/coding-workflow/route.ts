@@ -11,13 +11,13 @@ import type {
   TaskId,
   Tx,
 } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { ConversationsApi } from '../conversations/api.ts'
-import { Subagents } from '../subagents/api.ts'
-import { WorkspacesApi } from '../workspaces/api.ts'
-import { Messages, MessagesApi, Started } from '../messages/api.ts'
-import { isOpen } from '../../lib/message-state.ts'
-import type { Message, Serves } from '../messages/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
+import { Subagents } from '@ultimate/ext/subagents/api.ts'
+import { WorkspacesApi } from '@ultimate/ext/workspaces/api.ts'
+import { Messages, MessagesApi, Started } from '@ultimate/ext/messages/api.ts'
+import { isOpen } from '@ultimate/lib/message-state.ts'
+import type { Message, Serves } from '@ultimate/ext/messages/api.ts'
 
 const terminal = { status: 'terminal', outcome: { status: 'completed', result: null } } as const
 

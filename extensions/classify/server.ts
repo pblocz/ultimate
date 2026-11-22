@@ -1,6 +1,6 @@
 import { defineExtension } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { readSecret } from '../../lib/secrets.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { readSecret } from '@ultimate/lib/secrets.ts'
 import { ClassifyApi } from './api.ts'
 import type { ClassifyAnswer, ClassifyService } from './api.ts'
 

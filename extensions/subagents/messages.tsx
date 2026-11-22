@@ -13,7 +13,7 @@ import {
   useConversationSummary,
   useUltimate,
 } from '@/sdk'
-import { ConversationRef, ConversationTask } from '../conversations/ui.tsx'
+import { ConversationRef, ConversationTask } from '@ultimate/ext/conversations/ui.tsx'
 import type { AgentOrigin } from './message-types.ts'
 import { openAgentSource } from './ui.tsx'
 

@@ -1,5 +1,5 @@
 /** Dream in the browser: the prepared next chapter, the sleep into it and the chapters. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
 
 /**
  * What @ultimate prepared for the next chapter once its dream's work was done: the chapter's name, three lines it

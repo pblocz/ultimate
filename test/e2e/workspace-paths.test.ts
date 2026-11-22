@@ -158,7 +158,14 @@ it.each(['reset', 'restore'])(
     const args = script === 'reset' ? [f.workspace] : ['--dir', f.workspace]
     const result = await run(
       process.execPath,
-      [join(f.ultimateRoot, 'scripts', `${script}.ts`), ...args, '--dry-run'],
+      // As `pnpm restore`: the cloud code it imports reaches the core by name.
+      [
+        '--import',
+        join(f.ultimateRoot, 'lib/node-names.ts'),
+        join(f.ultimateRoot, 'scripts', `${script}.ts`),
+        ...args,
+        '--dry-run',
+      ],
       {
         cwd: f.launch,
         env: cleanEnv({ HOME: f.osHome, ULTIMATE_USER_HOME: f.userHome }),

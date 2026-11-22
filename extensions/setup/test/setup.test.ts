@@ -2,11 +2,11 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ConversationId, JsonObject, Tx } from '@earendil-works/pi-durable'
 import { afterEach, expect, it } from 'vitest'
-import { fallbackModel, summaryModelStatus } from '../../conversations/summary-model.ts'
+import { fallbackModel, summaryModelStatus } from '@ultimate/ext/conversations/summary-model.ts'
 import { check, noteFor } from '../server.ts'
 import type { SetupIssue } from '../refs.ts'
-import { git } from '../../../lib/git.ts'
-import { removeTemps, temp } from '../../../test/helpers.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { removeTemps, temp } from '@ultimate/test/helpers.ts'
 
 afterEach(removeTemps)
 

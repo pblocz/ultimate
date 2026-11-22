@@ -2,11 +2,11 @@ import { mkdir, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterAll, expect, it } from 'vitest'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import { git } from '../../../../lib/git.ts'
-import { context } from '../../../../server/harness.ts'
-import { Standing } from '../../../subagents/api.ts'
-import { Workspaces } from '../../../workspaces/workspaces.ts'
-import { fauxServer, post, sourceCopy, temp } from '../../../../test/helpers.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { Workspaces } from '@ultimate/ext/workspaces/workspaces.ts'
+import { fauxServer, post, sourceCopy, temp } from '@ultimate/test/helpers.ts'
 
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []
 afterAll(async () => {

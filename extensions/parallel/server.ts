@@ -1,7 +1,7 @@
 import { arr, int, obj, opt, str, unknown } from '@earendil-works/pi-schema'
 import { defineExtension, defineTool } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { readSecret } from '../../lib/secrets.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { readSecret } from '@ultimate/lib/secrets.ts'
 import { parallelRequest, ParallelApiError } from './client.ts'
 import type {
   SearchResponse,

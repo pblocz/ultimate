@@ -21,7 +21,7 @@ import {
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
 import { store } from '@/sdk/client'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import { lasted } from './lasted.ts'
 import { parkedConversations } from './parked.ts'
 import { AutoPlayAction, PauseAction, PauseDoc, PlayAction, StateAction } from './refs.ts'

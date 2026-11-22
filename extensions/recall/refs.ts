@@ -1,5 +1,5 @@
 /** Recall in the browser: which input is being checked. Browser-safe. */
-import { docRef } from '../../shared/extension-api.ts'
+import { docRef } from '@ultimate/shared/extension-api.ts'
 
 export type RecallState = {
   pending?: number

@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'r
 import { events, formatAgo, useStore } from '@/sdk'
 import { reads, store } from '@/sdk/client'
 import type { ReadState } from '@/sdk/reads'
-import { RecentAction, TallyDoc } from '../lineage/ui.tsx'
+import { RecentAction, TallyDoc } from '@ultimate/ext/lineage/ui.tsx'
 import { groupLandings, groupRange } from './landings.ts'
 import type { Landing, LandingGroup } from './landings.ts'
-import { CommitCount } from '../workspaces/ui.tsx'
-import { FeatureTag } from '../conversations/ui.tsx'
+import { CommitCount } from '@ultimate/ext/workspaces/ui.tsx'
+import { FeatureTag } from '@ultimate/ext/conversations/ui.tsx'
 import { More, Section } from './section.tsx'
-import { useShell, useSidebarState } from '../sidebar/ui.tsx'
+import { useShell, useSidebarState } from '@ultimate/ext/sidebar/ui.tsx'
 
 /**
  * The latest landings of every root (up to 20 each), newest first. Read again whenever a root's token count changes,

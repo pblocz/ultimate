@@ -1,7 +1,7 @@
 import { AlertCircleIcon } from 'lucide-react'
 import { defineWebExtension, useUltimate } from '@/sdk'
 import { MessageResponse } from '@/components/ai/message'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 import type { Failure } from './refs.ts'
 

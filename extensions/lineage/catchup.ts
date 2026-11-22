@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve } from 'node:path'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import type { Context } from '@earendil-works/chord/context'
 import { AgentDoc, defineDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { estimateTextTokens } from '@earendil-works/pi-ai/utils/estimate'
@@ -10,10 +10,10 @@ import type {
   EntryRecord,
   Tx,
 } from '@earendil-works/pi-durable'
-import { git } from '../../lib/git.ts'
-import { shortTitle } from '../../lib/title.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { WorkspacesApi } from '../workspaces/api.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { shortTitle } from '@ultimate/lib/title.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { WorkspacesApi } from '@ultimate/ext/workspaces/api.ts'
 import type { OpenAbstract } from './server.ts'
 
 /**

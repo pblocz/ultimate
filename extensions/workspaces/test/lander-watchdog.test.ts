@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { withAbortSignal } from '@earendil-works/chord/context'
 import { afterEach, expect, it, vi } from 'vitest'
-import { context } from '../../../server/harness.ts'
-import { runGroup } from '../../../lib/process-group.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { runGroup } from '@ultimate/lib/process-group.ts'
 import { landerSettings, limitsFor, runLanderCheck as run } from '../lander.ts'
 
-vi.mock('../../../lib/process-group.ts', () => ({ runGroup: vi.fn<typeof runGroup>() }))
+vi.mock('@ultimate/lib/process-group.ts', () => ({ runGroup: vi.fn<typeof runGroup>() }))
 const runLanderCheck = (
   path: string,
   command: string,

@@ -3,12 +3,12 @@ import type { JsonValue } from '@earendil-works/chord/json'
 import { readFile } from 'node:fs/promises'
 import { expect, it } from 'vitest'
 import { localReads } from '../server.ts'
-import { chapterFiles, FIRST_CHAPTER, requestChapter } from '../../../lib/chapters.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { context, prepareHarness } from '../../../server/harness.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import { UiState } from '../../../server/ui-state.ts'
-import { temp } from '../../../test/helpers.ts'
+import { chapterFiles, FIRST_CHAPTER, requestChapter } from '@ultimate/lib/chapters.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { context, prepareHarness } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 it('reads closed chapter records exactly like live fork-aware history, with titles and read validation', async () => {
   const home = await temp('ultimate-codemode-chapters-')

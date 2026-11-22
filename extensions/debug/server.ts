@@ -1,10 +1,10 @@
 import { arr, int, obj, opt, str, union } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import { defineExtension, defineTool } from '@earendil-works/pi-durable'
-import { apiSource, apiSummaries } from '../../lib/api-files.ts'
-import { defineEvent } from '../../shared/events.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import type { CallRow, CallTree } from '../../server/trace.ts'
+import { apiSource, apiSummaries } from '@ultimate/lib/api-files.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import type { CallRow, CallTree } from '@ultimate/server/trace.ts'
 
 /** The most text one call returns; rows past it are cut with a note. */
 const BUDGET = 16_000

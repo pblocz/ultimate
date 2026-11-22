@@ -2,8 +2,8 @@
 import type { Context } from '@earendil-works/chord/context'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { Standing, Subagents, SubagentsApi } from '../subagents/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { Standing, Subagents, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { MessagesWorkflow } from './api.ts'
 import type { Remote } from './refs.ts'
 /** The conversation that started `id` as a subagent, which is the only one it may message. */

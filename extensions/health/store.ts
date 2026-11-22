@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { writeJson } from '../../lib/json-file.ts'
+import { writeJson } from '@ultimate/lib/json-file.ts'
 import type { ProviderHealth } from './refs.ts'
 
 /** One provider's record in `health.json`; times are epoch milliseconds. */

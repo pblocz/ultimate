@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest'
-import { Messages } from '../../messages/api.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
 import { Starts } from '../api.ts'
-import { Standing } from '../../subagents/api.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import { context } from '../../../server/harness.ts'
-import { fauxServer, post, sourceCopy, temp } from '../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, post, sourceCopy, temp } from '@ultimate/test/helpers.ts'
 
 it('opens setup help in the standing conversation without a message', async () => {
   const home = await temp()

@@ -12,7 +12,7 @@ import {
   useEvent,
   useNow,
 } from '@/sdk'
-import { ExtensionDetails } from '../onboarding/ui.tsx'
+import { ExtensionDetails } from '@ultimate/ext/onboarding/ui.tsx'
 import { ReconnectAction, StatusAction } from './refs.ts'
 import type { McpServerStatus } from './refs.ts'
 

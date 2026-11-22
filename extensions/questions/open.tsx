@@ -1,5 +1,5 @@
-import { openQuestion } from '../../lib/message-state.ts'
-import type { Question } from '../messages/refs.ts'
+import { openQuestion } from '@ultimate/lib/message-state.ts'
+import type { Question } from '@ultimate/ext/messages/refs.ts'
 
 /** The fields of a message the answer card reads. */
 export type Message = {

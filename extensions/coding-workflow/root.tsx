@@ -1,24 +1,29 @@
 import type { ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import { cn, formatAgo, formatTokens, Provided, useAction, useDocOf, useEvents } from '@/sdk'
-import { MEMORY_SURFACE, MemoryDoc, TallyDoc, useOpenMemory } from '../lineage/ui.tsx'
-import { Committed } from '../coding-tools/ui.tsx'
-import { MessagesDoc, conversationState, emptyMessages } from '../messages/ui.tsx'
-import { StandingDoc } from '../subagents/ui.tsx'
-import { CommitCount, ProgressAction, Review, useWorkspaceIndex } from '../workspaces/ui.tsx'
-import type { WorkspaceConversation as ConversationSummary } from '../workspaces/ui.tsx'
+import { MEMORY_SURFACE, MemoryDoc, TallyDoc, useOpenMemory } from '@ultimate/ext/lineage/ui.tsx'
+import { Committed } from '@ultimate/ext/coding-tools/ui.tsx'
+import { MessagesDoc, conversationState, emptyMessages } from '@ultimate/ext/messages/ui.tsx'
+import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
+import {
+  CommitCount,
+  ProgressAction,
+  Review,
+  useWorkspaceIndex,
+} from '@ultimate/ext/workspaces/ui.tsx'
+import type { WorkspaceConversation as ConversationSummary } from '@ultimate/ext/workspaces/ui.tsx'
 import {
   AgentMark,
   ConversationPhase,
   FeatureTag,
   useConcludedSince,
   useOverview,
-} from '../conversations/ui.tsx'
+} from '@ultimate/ext/conversations/ui.tsx'
 import type { Landing } from './landings.ts'
 import { RowMenu, saveTitle } from './rows.tsx'
 import { Section } from './section.tsx'
 import { SummaryHistory } from './summaries.tsx'
-import { useShell } from '../sidebar/ui.tsx'
+import { useShell } from '@ultimate/ext/sidebar/ui.tsx'
 import { workOf } from './work.ts'
 import type { Work } from './work.ts'
 

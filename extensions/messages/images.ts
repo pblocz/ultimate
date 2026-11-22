@@ -1,6 +1,6 @@
 import type { ConversationId, EntryId, EntryRecord, Tx } from '@earendil-works/pi-durable'
-import { imagesOf, latestImagesEntry } from '../../lib/entries.ts'
-import { imageMimeTypes, maxImageBytes, maxImages } from '../../shared/protocol.ts'
+import { imagesOf, latestImagesEntry } from '@ultimate/lib/entries.ts'
+import { imageMimeTypes, maxImageBytes, maxImages } from '@ultimate/shared/protocol.ts'
 
 import type { ImagesRef } from './refs.ts'
 export const SCAN_PAGE = 200

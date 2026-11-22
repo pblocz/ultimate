@@ -278,3 +278,66 @@ const later = () => import('../questions/web.tsx')`
   expect(lint('core-tier-deps', 'extensions/phase/web.tsx', source)).toEqual([])
   expect(lint('core-tier-deps', 'test/example.test.ts', source)).toEqual([])
 })
+
+it('checks a named import as the file it names', () => {
+  const server = `import { MessagesApi } from '@ultimate/ext/messages/api.ts'
+import type { MessagesService } from '@ultimate/ext/messages/server.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { Messages } from '@ultimate/ext/messages/server.ts'
+import { own } from '@ultimate/ext/echo/server.ts'
+const later = () => import('@ultimate/ext/questions/server.ts')`
+  expect(lint('api-only-imports', 'extensions/echo/server.ts', server)).toEqual([
+    'echo imports messages/server.ts at runtime; reach messages through its api.ts (a service, document or event token), import types with `import type`, or move a pure helper to lib/.',
+    'echo imports questions/server.ts at runtime; reach questions through its api.ts (a service, document or event token), import types with `import type`, or move a pure helper to lib/.',
+  ])
+  const core = `import { LineageApi } from '@ultimate/ext/lineage/api.ts'
+import type { TaskLink } from '@ultimate/ext/plan/refs.ts'`
+  expect(lint('core-tier-deps', 'extensions/conversations/rows.tsx', core)).toEqual([
+    coreMessage('plan'),
+  ])
+  const contract = `/** Echo: says things back. */
+import { defineApi } from '@ultimate/shared/extension-api.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { git } from '@ultimate/lib/git.ts'
+/** The echo service. */
+export const EchoApi = defineApi<{ echo(): void }>()('echo')
+`
+  expect(lint('api-file-shape', 'extensions/echo/api.ts', contract)).toEqual([
+    "api.ts imports at runtime only shared/, packages, its refs.ts and other extensions' api.ts; use `import type` for the rest.",
+  ])
+})
+
+const escape = (source: string, owner: string, name: string) =>
+  `${source} leaves the ${owner} extension folder; import it by name: ${name} (lib/module-names.ts).`
+
+it('rejects a relative import that leaves its extension folder and names the import to use', () => {
+  const server = `import { MessagesApi } from '../messages/api.ts'
+import type { ExtensionHost } from '../../server/extensions.ts'
+import { helper } from './helper.ts'
+import { git } from '@ultimate/lib/git.ts'
+export { roots } from '../lineage/roots.ts'
+const later = () => import('../../lib/ago.ts')`
+  expect(lint('no-relative-escape', 'extensions/echo/server.ts', server)).toEqual([
+    escape('../messages/api.ts', 'echo', '@ultimate/ext/messages/api.ts'),
+    escape('../../server/extensions.ts', 'echo', '@ultimate/server/extensions.ts'),
+    escape('../lineage/roots.ts', 'echo', '@ultimate/ext/lineage/roots.ts'),
+    escape('../../lib/ago.ts', 'echo', '@ultimate/lib/ago.ts'),
+  ])
+  const test = `import { temp } from '../../../test/helpers.ts'
+import { client } from '../../../web/src/sdk/client.ts'
+import echo from '../server.ts'
+import { stub } from './stub.ts'`
+  expect(lint('no-relative-escape', 'extensions/echo/test/echo.test.ts', test)).toEqual([
+    escape('../../../test/helpers.ts', 'echo', '@ultimate/test/helpers.ts'),
+    escape('../../../web/src/sdk/client.ts', 'echo', '@/sdk/client.ts'),
+  ])
+  expect(
+    lint(
+      'no-relative-escape',
+      '.ultimate/extensions/echo/web.tsx',
+      "import { x } from '../other/ui.tsx'",
+    ),
+  ).toEqual([escape('../other/ui.tsx', 'echo', '@ultimate/ext/other/ui.tsx')])
+  // Core files are not extension folders.
+  expect(lint('no-relative-escape', 'server/main.ts', server)).toEqual([])
+})

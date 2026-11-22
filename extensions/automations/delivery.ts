@@ -1,9 +1,9 @@
 /** The existing durable notification task, independent of script preparation and processes. */
 import { defineTask, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { MessagesApi } from '../messages/api.ts'
-import { SubagentsApi } from '../subagents/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { MessagesApi } from '@ultimate/ext/messages/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { AutomationsWorkflow } from './api.ts'
 import type { Automation, Subscriber } from './types.ts'
 

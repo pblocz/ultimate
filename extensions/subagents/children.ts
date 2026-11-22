@@ -9,11 +9,11 @@ import type {
   Tx,
 } from '@earendil-works/pi-durable'
 import type { ModelRuntime } from '@earendil-works/pi-coding-agent'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { definitionAgent, definitionFamily } from '../../lib/agents.ts'
-import { Family } from '../models/api.ts'
-import type { AgentDefinition } from '../../lib/agents.ts'
-import { ConversationsApi } from '../conversations/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { definitionAgent, definitionFamily } from '@ultimate/lib/agents.ts'
+import { Family } from '@ultimate/ext/models/api.ts'
+import type { AgentDefinition } from '@ultimate/lib/agents.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
 import { Started } from './refs.ts'
 import { Profile } from './api.ts'
 

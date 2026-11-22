@@ -25,8 +25,8 @@ import {
   useUiState,
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import { OpenAction, SideChatsDoc, useSideChatFront } from '../side-chat/ui.tsx'
-import { StandingDoc } from '../subagents/ui.tsx'
+import { OpenAction, SideChatsDoc, useSideChatFront } from '@ultimate/ext/side-chat/ui.tsx'
+import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
 import { BusyBlocker, chapterLabel, Refusal, switchChapter, useBusyElsewhere } from './chapters.tsx'
 import type { Seed } from './types.ts'
 

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { defineWebExtension, insertIntoComposer, useUiState, useUltimate } from '@/sdk'
-import { openDefaultConversation } from '../subagents/ui.tsx'
+import { openDefaultConversation } from '@ultimate/ext/subagents/ui.tsx'
 
 /** What another app shared, as the service worker stashed it (web/public/sw.js). */
 type Share = { title: string; text: string; url: string; files: { name: string; type: string }[] }

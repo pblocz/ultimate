@@ -1,7 +1,7 @@
 /** Passive context for @ultimate about a branch's questions to the user. */
 import { defineTask } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 export const notice = (host: Pick<ExtensionHost, 'harness'>) =>
   defineTask<

@@ -1,5 +1,5 @@
 /** MCP in the browser: each configured server's connection state, and the action that connects one again. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** One server from `mcpServers` in user or project settings, as the `mcp` tool sees it now. */
 export type McpServerStatus = {

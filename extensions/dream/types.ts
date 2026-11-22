@@ -1,8 +1,8 @@
-import type { ConversationSummary } from '../../shared/protocol.ts'
-import type { MemoryItem } from '../lineage/refs.ts'
-import type { Todo } from '../todos/refs.ts'
+import type { ConversationSummary } from '@ultimate/shared/protocol.ts'
+import type { MemoryItem } from '@ultimate/ext/lineage/refs.ts'
+import type { Todo } from '@ultimate/ext/todos/refs.ts'
 import type { ModelThinkingLevel } from '@earendil-works/pi-ai'
-import type { CreateArgs, Schedule } from '../automations/refs.ts'
+import type { CreateArgs, Schedule } from '@ultimate/ext/automations/refs.ts'
 
 /** Everything Fall asleep carries to a fresh chapter; numeric trigger targets and `#id` subscribers need recreating. */
 export type Seed = {

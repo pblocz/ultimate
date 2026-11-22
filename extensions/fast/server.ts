@@ -10,11 +10,11 @@ import {
   ProviderDoc,
 } from '@earendil-works/pi-durable'
 import type { JsonObject } from '@earendil-works/pi-durable'
-import { discoverAgents, previewModel } from '../../lib/agents.ts'
-import { Profile } from '../subagents/api.ts'
-import { readSettings, updateSettings, userSettingsPath } from '../../lib/settings.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { implementAction } from '../../lib/actions.ts'
+import { discoverAgents, previewModel } from '@ultimate/lib/agents.ts'
+import { Profile } from '@ultimate/ext/subagents/api.ts'
+import { readSettings, updateSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import { SetAction, StatusAction } from './refs.ts'
 
 type Overlay = Parameters<ExtensionHost['modelRuntime']['registerProvider']>[1]

@@ -25,8 +25,14 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { MessageResponse } from '@/components/ai/message'
-import { refreshFamilies, runsOn, SetDefaultAction, useFamilies, usePicks } from '../models/ui.tsx'
-import { DEFAULT_FAMILY, RECOMMENDED_MODELS } from '../../lib/families.ts'
+import {
+  refreshFamilies,
+  runsOn,
+  SetDefaultAction,
+  useFamilies,
+  usePicks,
+} from '@ultimate/ext/models/ui.tsx'
+import { DEFAULT_FAMILY, RECOMMENDED_MODELS } from '@ultimate/lib/families.ts'
 import { FirstRunDoneAction } from './refs.ts'
 import type { OnboardingStatus as Status } from './refs.ts'
 

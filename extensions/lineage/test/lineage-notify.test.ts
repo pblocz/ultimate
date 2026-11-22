@@ -5,8 +5,8 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it } from 'vitest'
 import { leaveNote, Notified } from '../server.ts'
-import { context } from '../../../server/harness.ts'
-import { until } from '../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { until } from '@ultimate/test/helpers.ts'
 import {
   ask,
   branchFrom,

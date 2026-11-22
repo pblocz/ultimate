@@ -5,9 +5,9 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { SubagentsApi } from '../subagents/api.ts'
-import { discoverAgents, hostDefault } from '../../lib/agents.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import { discoverAgents, hostDefault } from '@ultimate/lib/agents.ts'
 import { nextAt } from './schedule.ts'
 import type { Automation, Run } from './types.ts'
 import { RUN_TASK } from './types.ts'

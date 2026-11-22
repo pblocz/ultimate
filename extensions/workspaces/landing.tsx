@@ -11,9 +11,9 @@ import type { ReactNode } from 'react'
 import { MentionText } from '@/components/ai/message'
 import { Button } from '@/components/ui/button'
 import { api, definePoint, Fold, Provided, useConversationSummary, useUltimate } from '@/sdk'
-import { FeatureTag, useStandingName } from '../conversations/ui.tsx'
+import { FeatureTag, useStandingName } from '@ultimate/ext/conversations/ui.tsx'
 import { GithubAction } from './refs.ts'
-import type { ConversationSubject } from '../conversations/types.ts'
+import type { ConversationSubject } from '@ultimate/ext/conversations/types.ts'
 
 /** "open #id", with a dot while that conversation works. */
 export function Open({

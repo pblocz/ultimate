@@ -7,8 +7,8 @@
  */
 import { clampThinkingLevel } from '@earendil-works/pi-ai'
 import type { JsonObject } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { discoverAgents } from '../../lib/agents.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { discoverAgents } from '@ultimate/lib/agents.ts'
 import {
   agentUser,
   BUILTIN_FAMILIES,
@@ -20,10 +20,10 @@ import {
   RECOMMENDED_THINKING,
   refName,
   refOf,
-} from '../../lib/families.ts'
-import type { Families, Feature, FamilySpec } from '../../lib/families.ts'
-import { mergeLayers, readFamilyLayers, writeFamilies } from '../../lib/families-settings.ts'
-import { readSettings, updateSettings, userSettingsPath } from '../../lib/settings.ts'
+} from '@ultimate/lib/families.ts'
+import type { Families, Feature, FamilySpec } from '@ultimate/lib/families.ts'
+import { mergeLayers, readFamilyLayers, writeFamilies } from '@ultimate/lib/families-settings.ts'
+import { readSettings, updateSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
 import type { FamiliesView, FamilyUser, SaveFamilies } from './refs.ts'
 
 /** Where a feature's pin lives in settings, and its value there. */

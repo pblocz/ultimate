@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { arr, int, obj, opt, str } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import {
   defineDoc,
   defineExtension,
@@ -11,8 +11,8 @@ import {
   section,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, EntryId, JsonObject, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { Branch } from '../lineage/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { Branch } from '@ultimate/ext/lineage/api.ts'
 import { PlanDoc, TaskIndexDoc } from './refs.ts'
 
 export type Task = {

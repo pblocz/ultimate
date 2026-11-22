@@ -25,12 +25,18 @@ import {
   useUltimate,
   useViewport,
 } from '@/sdk'
-import { FeatureTag, useOverview, useStandingName } from '../conversations/ui.tsx'
-import { Body, emptyMessages, MessageImages, MessagesDoc, stateTone } from '../messages/ui.tsx'
-import type { Message } from '../messages/refs.ts'
-import { MessageQuestions } from '../questions/ui.tsx'
-import { UnderUltimate } from '../sidebar/ui.tsx'
-import { openDefaultConversation, useDefaultConversation } from '../subagents/ui.tsx'
+import { FeatureTag, useOverview, useStandingName } from '@ultimate/ext/conversations/ui.tsx'
+import {
+  Body,
+  emptyMessages,
+  MessageImages,
+  MessagesDoc,
+  stateTone,
+} from '@ultimate/ext/messages/ui.tsx'
+import type { Message } from '@ultimate/ext/messages/refs.ts'
+import { MessageQuestions } from '@ultimate/ext/questions/ui.tsx'
+import { UnderUltimate } from '@ultimate/ext/sidebar/ui.tsx'
+import { openDefaultConversation, useDefaultConversation } from '@ultimate/ext/subagents/ui.tsx'
 import { answeredToday, inboxItems, lead, previewUrl, selection } from './items.tsx'
 
 const SURFACE = 'inbox'

@@ -1,6 +1,6 @@
 import type { JsonObject } from '@earendil-works/pi-durable'
-import { readSettings, userSettingsPath } from '../../lib/settings.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import { readSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { SubagentsWorkflow } from './api.ts'
 import type { DestinationAddress } from './refs.ts'
 

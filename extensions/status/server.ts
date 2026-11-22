@@ -1,12 +1,12 @@
 /** Status: one compact read-only summary of this Ultimate, each field from the extension that owns it. */
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { defineExtension } from '@earendil-works/pi-durable'
-import { implementAction } from '../../lib/actions.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { HealthApi } from '../health/api.ts'
-import { MessagesApi } from '../messages/api.ts'
-import { UpdateApi } from '../update/api.ts'
-import { WatchdogApi } from '../watchdog/api.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { HealthApi } from '@ultimate/ext/health/api.ts'
+import { MessagesApi } from '@ultimate/ext/messages/api.ts'
+import { UpdateApi } from '@ultimate/ext/update/api.ts'
+import { WatchdogApi } from '@ultimate/ext/watchdog/api.ts'
 import { StatusAction } from './refs.ts'
 import type { Status } from './refs.ts'
 

@@ -3,9 +3,9 @@ import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { fauxProvider } from '@earendil-works/pi-ai/providers/faux'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
-import { discoverAgents } from '../../../lib/agents.ts'
-import { prepareHarness } from '../../../server/harness.ts'
-import { removeTemp, temp } from '../../../test/helpers.ts'
+import { discoverAgents } from '@ultimate/lib/agents.ts'
+import { prepareHarness } from '@ultimate/server/harness.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const directories: string[] = []
 afterEach(async () => {

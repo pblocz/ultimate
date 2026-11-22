@@ -36,8 +36,8 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { ConversationSummary, ToolCallView } from '@/sdk'
-import { ConversationEpic, ConversationTask } from '../conversations/ui.tsx'
-import { InfoAction, stateLabel, useWorkspaces } from '../workspaces/ui.tsx'
+import { ConversationEpic, ConversationTask } from '@ultimate/ext/conversations/ui.tsx'
+import { InfoAction, stateLabel, useWorkspaces } from '@ultimate/ext/workspaces/ui.tsx'
 import { criteriaOf, sectionsOf, verbatim } from './body.tsx'
 import { criteriaOfBody, finished, number, pillOf, progressLabel } from './progress.tsx'
 import { PlanDoc } from './refs.ts'

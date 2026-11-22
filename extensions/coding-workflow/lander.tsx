@@ -1,7 +1,7 @@
 import { cn, formatAgo } from '@/sdk'
-import { stateTone, stateWord } from '../messages/ui.tsx'
-import type { ConversationState } from '../messages/ui.tsx'
-import type { useWorkspaceIndex } from '../workspaces/ui.tsx'
+import { stateTone, stateWord } from '@ultimate/ext/messages/ui.tsx'
+import type { ConversationState } from '@ultimate/ext/messages/ui.tsx'
+import type { useWorkspaceIndex } from '@ultimate/ext/workspaces/ui.tsx'
 
 /**
  * The lander's line: a pulsing "landing" while it lands, else its conversation state; then how many submissions wait

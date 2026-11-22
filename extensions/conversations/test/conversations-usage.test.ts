@@ -12,11 +12,11 @@ import {
   UsageDoc,
 } from '@earendil-works/pi-durable'
 import { afterEach, expect, it } from 'vitest'
-import { onCommit } from '../../../lib/commits.ts'
-import { context } from '../../../server/harness.ts'
-import { Metadata } from '../../../server/metadata.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
 import { IntentSummarized, Summaries, summaryBehavior, TitleChanged } from '../summary.ts'
-import { until } from '../../../test/helpers.ts'
+import { until } from '@ultimate/test/helpers.ts'
 
 const reported = {
   input: 300,

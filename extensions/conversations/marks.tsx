@@ -1,7 +1,7 @@
 import { BotIcon, BrainIcon, GitMergeIcon, icons, ScrollTextIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn, useDocOf } from '@/sdk'
-import type { MarkTint } from '../../lib/marks.ts'
+import type { MarkTint } from '@ultimate/lib/marks.ts'
 import { MarksDoc } from './refs.ts'
 import type { AgentMarkStyle } from './refs.ts'
 

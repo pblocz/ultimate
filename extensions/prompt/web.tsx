@@ -1,7 +1,7 @@
 import { RotateCwIcon } from 'lucide-react'
 import { defineWebExtension, useUltimate } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import type { BuildNote, Landing } from './refs.ts'
 
 const short = (id: string) => id.slice(0, 7)

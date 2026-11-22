@@ -1,6 +1,6 @@
 /** Automations: durable triggers, actions, runs and script lifecycle events. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import type {
   Automation,
   AutomationListItem,

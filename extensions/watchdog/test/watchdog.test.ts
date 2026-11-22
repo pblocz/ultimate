@@ -1,4 +1,4 @@
-import { until } from '../../../test/helpers.ts'
+import { until } from '@ultimate/test/helpers.ts'
 import { BACKGROUND_CONTEXT as context, awaitWithContext } from '@earendil-works/chord/context'
 import { createModels } from '@earendil-works/pi-ai/models'
 import { obj } from '@earendil-works/pi-schema'
@@ -30,15 +30,20 @@ import { afterEach, expect, it } from 'vitest'
 import watchdog, { diagnose, RETRY_DELAYS_MS } from '../server.ts'
 import { idleNote } from '../idle.ts'
 import type { WatchdogService } from '../api.ts'
-import { Messages } from '../../messages/api.ts'
-import { Branch } from '../../lineage/api.ts'
-import { Standing, Subagents, SubagentsApi, SubagentsWorkflow } from '../../subagents/api.ts'
-import subagents from '../../subagents/server.ts'
-import { Workspaces } from '../../workspaces/workspaces.ts'
-import { concludedIn } from '../../conversations/server.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import { UiState } from '../../../server/ui-state.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { Branch } from '@ultimate/ext/lineage/api.ts'
+import {
+  Standing,
+  Subagents,
+  SubagentsApi,
+  SubagentsWorkflow,
+} from '@ultimate/ext/subagents/api.ts'
+import subagents from '@ultimate/ext/subagents/server.ts'
+import { Workspaces } from '@ultimate/ext/workspaces/workspaces.ts'
+import { concludedIn } from '@ultimate/ext/conversations/server.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {

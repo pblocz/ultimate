@@ -19,9 +19,9 @@ import {
   useUltimate,
 } from '@/sdk'
 import { SYSTEM_TAB_KEY, SystemTab } from './ui.tsx'
-import { MessagesDoc, conversationState, emptyMessages } from '../messages/ui.tsx'
-import { useConcludedSince, useOverview } from '../conversations/ui.tsx'
-import { useDefaultConversation } from '../subagents/ui.tsx'
+import { MessagesDoc, conversationState, emptyMessages } from '@ultimate/ext/messages/ui.tsx'
+import { useConcludedSince, useOverview } from '@ultimate/ext/conversations/ui.tsx'
+import { useDefaultConversation } from '@ultimate/ext/subagents/ui.tsx'
 import { LaneTree } from './hierarchy.tsx'
 import { Axis, laneState } from './lanes.tsx'
 import { windows } from './layout.ts'

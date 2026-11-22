@@ -10,17 +10,17 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import { obj } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { writeJson } from '../../lib/json-file.ts'
-import { readSettings, updateSettings, userSettingsPath } from '../../lib/settings.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { writeJson } from '@ultimate/lib/json-file.ts'
+import { readSettings, updateSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
 import type { JsonObject } from '@earendil-works/pi-durable'
-import type { ExtensionAction } from '../../server/actions.ts'
+import type { ExtensionAction } from '@ultimate/server/actions.ts'
 import { OnboardingWorkflow, Starts } from './api.ts'
-import { implementAction } from '../../lib/actions.ts'
-import { contractOutline } from '../../lib/api-files.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import { contractOutline } from '@ultimate/lib/api-files.ts'
 import {
   AdoptProjectSetupAction,
   ChooseAction,

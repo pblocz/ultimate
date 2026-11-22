@@ -4,8 +4,8 @@
  */
 import type { Context } from '@earendil-works/chord/context'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import { defineApi } from '../../shared/extension-api.ts'
-import type { git } from '../../lib/git.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
+import type { git } from '@ultimate/lib/git.ts'
 import type { Workspaces, workspaces } from './workspaces.ts'
 
 type Implementation = ReturnType<typeof workspaces>

@@ -7,10 +7,10 @@ import type { ConversationId } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
 import { limits } from '../comments.ts'
 import type { ReviewComment } from '../comments.ts'
-import { git } from '../../../lib/git.ts'
-import { context } from '../../../server/harness.ts'
-import { Standing } from '../../subagents/api.ts'
-import { fauxServer, post, removeTemp, temp } from '../../../test/helpers.ts'
+import { git } from '@ultimate/lib/git.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { fauxServer, post, removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const comment = (overrides: Partial<ReviewComment> = {}): ReviewComment => ({
   file: 'src/app.ts',

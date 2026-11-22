@@ -47,9 +47,9 @@ import {
 } from '@/sdk'
 import type { EntryRecord, ToolCallView } from '@/sdk'
 import { store } from '@/sdk/client'
-import { ConversationRef, Unsummarized } from '../conversations/ui.tsx'
-import { talkToUltimate } from '../subagents/ui.tsx'
-import { Open, useGithubRepo } from '../workspaces/ui.tsx'
+import { ConversationRef, Unsummarized } from '@ultimate/ext/conversations/ui.tsx'
+import { talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
+import { Open, useGithubRepo } from '@ultimate/ext/workspaces/ui.tsx'
 import { ForgetAction, MemoryDoc, OpenEditorAction, TallyDoc } from './refs.ts'
 import type { MemoryItem } from './refs.ts'
 import {

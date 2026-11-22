@@ -1,8 +1,8 @@
 /** What pushes: questions to the user, landings and @ultimate's failed runs, the sounds' cues (extensions/sounds/cues.ts). */
-import type { OverviewRow } from '../conversations/types.ts'
-import type { Message, Question } from '../messages/api.ts'
-import type { LandedData } from '../workspaces/api.ts'
-import type { Answer } from '../questions/refs.ts'
+import type { OverviewRow } from '@ultimate/ext/conversations/types.ts'
+import type { Message, Question } from '@ultimate/ext/messages/api.ts'
+import type { LandedData } from '@ultimate/ext/workspaces/api.ts'
+import type { Answer } from '@ultimate/ext/questions/refs.ts'
 
 /** A push's JSON, as the service worker (web/public/sw.js) shows it. */
 export type Push = {

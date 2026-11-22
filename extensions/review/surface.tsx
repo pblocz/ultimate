@@ -32,9 +32,9 @@ import {
   useUltimate,
   useViewport,
 } from '@/sdk'
-import { Address } from '../messages/ui.tsx'
-import { compareUrl } from '../../lib/compare.ts'
-import { useGithubRepo } from '../workspaces/ui.tsx'
+import { Address } from '@ultimate/ext/messages/ui.tsx'
+import { compareUrl } from '@ultimate/lib/compare.ts'
+import { useGithubRepo } from '@ultimate/ext/workspaces/ui.tsx'
 import { Composer, DraftCard } from './comment.tsx'
 import { draftsKey } from './comments.ts'
 import { useDrafts } from './drafts.ts'

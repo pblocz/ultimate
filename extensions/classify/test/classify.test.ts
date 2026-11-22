@@ -5,9 +5,9 @@ import { afterEach, expect, it, vi } from 'vitest'
 import classify, { cooldownMs } from '../server.ts'
 import { ClassifyApi } from '../api.ts'
 import type { ClassifyService } from '../api.ts'
-import { writeSecret } from '../../secrets/store.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
-import { removeTemp, temp } from '../../../test/helpers.ts'
+import { writeSecret } from '@ultimate/ext/secrets/store.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const cleanup: string[] = []
 afterEach(async () => {

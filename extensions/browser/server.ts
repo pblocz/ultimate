@@ -15,14 +15,14 @@ import {
   union,
   unknown,
 } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import { formatDimensionNote, resizeImage } from '@earendil-works/pi-coding-agent'
 import { defineExtension, defineTool, section } from '@earendil-works/pi-durable'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
-import { groupTarget, identify } from '../../lib/process-group.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { fetchAssets, sourceFrames } from '../../lib/source-frames.ts'
-import { watchSteer } from '../../lib/steer.ts'
+import { groupTarget, identify } from '@ultimate/lib/process-group.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { fetchAssets, sourceFrames } from '@ultimate/lib/source-frames.ts'
+import { watchSteer } from '@ultimate/lib/steer.ts'
 
 /** Chromium executables Playwright may have installed under `home` for `platform`, newest first. */
 export async function playwrightChromiums(

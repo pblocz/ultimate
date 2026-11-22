@@ -12,7 +12,7 @@ documented, because agents discover APIs by reading these files:
 
 ```ts
 /** Echo: says text back. Other extensions use it to test a round trip. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 
 export type EchoService = {
   /** Return `text` unchanged; use it to check that echo is reachable. */
@@ -56,6 +56,31 @@ An extension's `api.ts` is its whole server-side surface for others, so lint (`l
 - `api-only-imports`: a server-side `.ts` file imports another extension's runtime code only from its `api.ts`, a
   browser `.tsx` file only from its `ui.tsx`, and its `api.ts` or `refs.ts` only as types; types come with
   `import type`, pure helpers from `lib/`.
+- `no-relative-escape`: a relative import stays inside its extension folder, tests included. Everything outside it
+  is imported by name (below).
+
+## Import by name
+
+An extension imports the core and other extensions by fixed names, never by a relative path that leaves its folder.
+A name does not depend on where the folder is, so one source works in `extensions/`, `~/.ultimate/extensions/` and
+`<project>/.ultimate/extensions/`:
+
+| Name                          | Resolves to                          |
+| ----------------------------- | ------------------------------------ |
+| `@ultimate/ext/<name>/<file>` | `extensions/<name>/<file>`           |
+| `@ultimate/lib/<file>`        | `lib/<file>`                         |
+| `@ultimate/shared/<file>`     | `shared/<file>`                      |
+| `@ultimate/server/<file>`     | `server/<file>`, types outside tests |
+| `@ultimate/test/<file>`       | `test/<file>`, in tests only         |
+| `@ultimate/scripts/<file>`    | `scripts/<file>`, in tests only      |
+| `@/<file>`                    | `web/src/<file>` (the browser SDK)   |
+
+Keep the file and its extension in the name: `@ultimate/ext/conversations/api.ts`. An extension name resolves to the
+built-in folder first; when no built-in has that name, to the folder discovery found in the user or project root.
+`lib/module-names.ts` holds the table: Vite (`server/vite-names.ts`, `extensionModules`), lint, `pnpm deps` and
+`scripts/check-extension.ts` read it, and both `tsconfig` files repeat it as `paths`. A script that Node runs without
+Vite and that imports extension code loads `lib/node-names.ts` first (`node --import ./lib/node-names.ts`). Imports
+inside one extension folder stay relative. Core files never import an extension, by path or by name.
 
 ## The browser side: `refs.ts` and `ui.tsx`
 
@@ -69,8 +94,8 @@ extensions' `refs.ts` or `types.ts`, and `tsconfig.web.json` type-checks it with
 
 ```ts
 /** Echo in the browser: the echo log, the action that echoes and its event. Browser-safe. */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 /** The echo log on conversation 1. */
 export const LogDoc = docRef<{ texts: string[] }>('echo.log')

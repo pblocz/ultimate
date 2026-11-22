@@ -4,7 +4,7 @@
  */
 import type { Context } from '@earendil-works/chord/context'
 import { defineDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import { RootsDoc } from './refs.ts'
 import type { MemoryItem } from './refs.ts'
 import type { BranchInput, leaveNote, rootOf, startBranch } from './server.ts'

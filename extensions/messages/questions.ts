@@ -4,11 +4,11 @@
  * question it cannot answer.
  */
 import { arr, bool, int, obj, opt, str } from '@earendil-works/pi-schema'
-import { strEnum } from '../../lib/schema.ts'
+import { strEnum } from '@ultimate/lib/schema.ts'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import { formatAgo } from '../../lib/ago.ts'
-import { openQuestion } from '../../lib/message-state.ts'
+import { formatAgo } from '@ultimate/lib/ago.ts'
+import { openQuestion } from '@ultimate/lib/message-state.ts'
 import { Messages } from './api.ts'
 import type { Message } from './api.ts'
 import type { Question } from './refs.ts'

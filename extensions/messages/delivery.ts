@@ -14,11 +14,11 @@ import {
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { Standing, SubagentsApi } from '../subagents/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { Messages, MessagesWorkflow } from './api.ts'
 import type { Message } from './api.ts'
-import { imagesOf } from '../../lib/entries.ts'
+import { imagesOf } from '@ultimate/lib/entries.ts'
 import { append, terminal } from './log.ts'
 import { remoteLabel } from './addresses.ts'
 

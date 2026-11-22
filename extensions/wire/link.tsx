@@ -10,8 +10,8 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import { cacheBusts } from '../../lib/context-usage.ts'
-import { SYSTEM_TAB_KEY } from '../system/ui.tsx'
+import { cacheBusts } from '@ultimate/lib/context-usage.ts'
+import { SYSTEM_TAB_KEY } from '@ultimate/ext/system/ui.tsx'
 import { ListAction } from './refs.ts'
 import type { WireSummary } from './refs.ts'
 

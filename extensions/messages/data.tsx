@@ -1,5 +1,5 @@
 import type { EntryRecord } from '@earendil-works/pi-durable'
-import { isOpen, isOwed, openQuestion } from '../../lib/message-state.ts'
+import { isOpen, isOwed, openQuestion } from '@ultimate/lib/message-state.ts'
 import type { MessagesData, Message, Remote } from './refs.ts'
 
 export { isOpen, isOwed, openQuestion }

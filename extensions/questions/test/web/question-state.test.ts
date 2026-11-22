@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { answered, choiceForKey, choices, picks, position } from '../../state.tsx'
-import type { Question } from '../../../messages/refs.ts'
+import type { Question } from '@ultimate/ext/messages/refs.ts'
 
 const lettered: Question = {
   text: 'Branch starts',

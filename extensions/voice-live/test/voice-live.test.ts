@@ -5,14 +5,22 @@ import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/provid
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import type { ConversationId, JsonObject } from '@earendil-works/pi-durable'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import { context } from '../../../server/harness.ts'
-import { Messages } from '../../messages/api.ts'
-import { Standing } from '../../subagents/api.ts'
-import { Summaries, setAutomaticSummaries } from '../../conversations/summary.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { Summaries, setAutomaticSummaries } from '@ultimate/ext/conversations/summary.ts'
 import { liveInstructions } from '../server.ts'
 import type { VoiceAnswer, VoiceLine } from '../refs.ts'
-import { writeSecret } from '../../secrets/store.ts'
-import { facetsOf, fauxServer, held, post, sourceCopy, temp, until } from '../../../test/helpers.ts'
+import { writeSecret } from '@ultimate/ext/secrets/store.ts'
+import {
+  facetsOf,
+  fauxServer,
+  held,
+  post,
+  sourceCopy,
+  temp,
+  until,
+} from '@ultimate/test/helpers.ts'
 
 let ultimateRoot: string
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []

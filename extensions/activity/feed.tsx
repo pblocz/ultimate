@@ -9,13 +9,18 @@ import {
 import type { ReactNode } from 'react'
 import { cn, events, formatAgo, useUltimate } from '@/sdk'
 import type { EventData, EventRecord } from '@/sdk'
-import { compareUrl } from '../../lib/compare.ts'
-import { defineEvent, NoticeEvent } from '../../shared/events.ts'
-import type { BackupEvent as BackupToken } from '../cloud/refs.ts'
-import type { Escalated as EscalatedToken } from '../automations/refs.ts'
-import { ConversationRef, FeatureTag } from '../conversations/ui.tsx'
-import { Branched, Rooted } from '../lineage/ui.tsx'
-import { CheckRan, CommitCount, SubmissionLanded, useGithubRepo } from '../workspaces/ui.tsx'
+import { compareUrl } from '@ultimate/lib/compare.ts'
+import { defineEvent, NoticeEvent } from '@ultimate/shared/events.ts'
+import type { BackupEvent as BackupToken } from '@ultimate/ext/cloud/refs.ts'
+import type { Escalated as EscalatedToken } from '@ultimate/ext/automations/refs.ts'
+import { ConversationRef, FeatureTag } from '@ultimate/ext/conversations/ui.tsx'
+import { Branched, Rooted } from '@ultimate/ext/lineage/ui.tsx'
+import {
+  CheckRan,
+  CommitCount,
+  SubmissionLanded,
+  useGithubRepo,
+} from '@ultimate/ext/workspaces/ui.tsx'
 
 // Optional extensions' events, by name: their browser contracts are not imported, so Activity loads without them.
 const Backup = defineEvent<EventData<typeof BackupToken>>('cloud.backup')

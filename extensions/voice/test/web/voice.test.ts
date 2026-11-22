@@ -2,7 +2,7 @@ import { createElement } from 'react'
 import type { ComponentType } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it, vi } from 'vitest'
-import { spliced } from '../../../../web/src/app/queued.ts'
+import { spliced } from '@/app/queued.ts'
 
 const status = vi.hoisted(() => ({ data: undefined as unknown }))
 vi.mock('@/sdk', () => ({

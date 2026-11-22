@@ -11,7 +11,7 @@ import {
   useConversationSummary,
   useSystem,
 } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import { stateLabel, useLanderQueue, useWorkspaces } from './data.tsx'
 import type { WorkspaceConversation } from './data.tsx'
 import { DiskAction, InfoAction, StatsAction } from './refs.ts'

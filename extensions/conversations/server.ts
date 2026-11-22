@@ -11,10 +11,10 @@ import {
   section,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import type { ConversationSubject } from './types.ts'
 // oxlint-disable-next-line no-restricted-imports -- conversations publishes the core UI state document
-import { UiState } from '../../server/ui-state.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
 import {
   accountResponse,
   askSummaryModel,
@@ -26,9 +26,9 @@ import {
 } from './summary.ts'
 import { summaryModel, summaryModelSetting, summaryModelStatus } from './summary-model.ts'
 import { parseSummaryModel } from './summary-model-ref.ts'
-import { implementAction } from '../../lib/actions.ts'
-import type { ActionInput } from '../../lib/actions.ts'
-import { updateSettings, userSettingsPath } from '../../lib/settings.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
+import type { ActionInput } from '@ultimate/lib/actions.ts'
+import { updateSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
 import { Overview, overviewBehavior } from './overview.ts'
 import { activityBehavior } from './activity.ts'
 import { compactionEvents } from './compactions.ts'

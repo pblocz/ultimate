@@ -3,7 +3,7 @@ import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import { expect, it } from 'vitest'
 import { reminderTask } from '../reminder.ts'
 import goalExtension, { act, actions, end, Goals, openGoal, start, TRIES } from '../server.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 const ULTIMATE = 5 as ConversationId
 const screenshot = { type: 'image', data: 'aGk=', mimeType: 'image/png' }

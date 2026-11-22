@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { apiSummary } from '../lib/api-files.ts'
+import { modulePath } from '../lib/module-names.ts'
 import { coreTier } from '../shared/extension-api.ts'
 
 interface ImportNode {
@@ -56,9 +57,22 @@ const extensionOf = (filename: string) => {
   const [directory, extension] = path.relative(process.cwd(), filename).split(path.sep)
   return directory === 'extensions' ? extension : undefined
 }
-/** The repository-relative path segments an import `source` of `filename` resolves to. */
-const resolved = (filename: string, source: string) =>
-  path.relative(process.cwd(), path.resolve(path.dirname(filename), source)).split(path.sep)
+/**
+ * The repository-relative path segments an import `source` of `filename` resolves to: a relative path, or an
+ * `@ultimate/…` name (`lib/module-names.ts`). Undefined for a package.
+ */
+const resolved = (filename: string, source: string) => {
+  if (source.startsWith('.'))
+    return path
+      .relative(process.cwd(), path.resolve(path.dirname(filename), source))
+      .split(path.sep)
+  try {
+    return modulePath(source)?.split('?')[0].split('/')
+  } catch {
+    // Vite and tsc reject an invalid name with its reason; lint has no file to check it against.
+    return undefined
+  }
+}
 /**
  * An extension's contract files: `api.ts` for server code, `refs.ts` for the documents and actions the browser reads
  * and calls, `ui.tsx` for what other extensions' browser code imports.
@@ -376,14 +390,57 @@ export default {
           : 'its api.ts (a service, document or event token)'
         const check = (node: ImportNode) => {
           const source = node.source?.value
-          if (typeof source !== 'string' || !source.startsWith('.')) return
+          if (typeof source !== 'string') return
           if (node.importKind === 'type' || node.exportKind === 'type') return
-          const [directory, extension, ...file] = resolved(context.filename, source)
+          const [directory, extension, ...file] = resolved(context.filename, source) ?? []
           if (directory === 'extensions' && extension !== own && file.join('/') !== allowed)
             context.report({
               node,
               message: `${own} imports ${extension}/${file.join('/')} at runtime; reach ${extension} through ${how}, import types with \`import type\`, or move a pure helper to lib/.`,
             })
+        }
+        return {
+          ImportDeclaration: check,
+          ImportExpression: check,
+          ExportNamedDeclaration: check,
+          ExportAllDeclaration: check,
+        }
+      },
+    },
+    'no-relative-escape': {
+      meta: { schema: [] },
+      create(context: Context) {
+        // An extension folder moves between roots and bundles: a relative path may stay inside it, never leave it.
+        const parts = path.relative(process.cwd(), context.filename).split(path.sep)
+        const depth =
+          parts[0] === 'extensions'
+            ? 2
+            : parts[0] === '.ultimate' && parts[1] === 'extensions'
+              ? 3
+              : 0
+        if (!depth || parts.length <= depth) return {}
+        const own = path.join(process.cwd(), ...parts.slice(0, depth)) + path.sep
+        const check = (node: ImportNode) => {
+          const source = node.source?.value
+          if (typeof source !== 'string' || !source.startsWith('.')) return
+          const target = path.resolve(path.dirname(context.filename), source)
+          if (target.startsWith(own)) return
+          const relative = path.relative(process.cwd(), target).split(path.sep)
+          // A sibling in the project root has the same name as a built-in sibling.
+          const [folder, ...rest] =
+            relative[0] === '.ultimate' && relative[1] === 'extensions'
+              ? relative.slice(1)
+              : relative
+          const name =
+            folder === 'extensions'
+              ? `@ultimate/ext/${rest.join('/')}`
+              : folder === 'web' && rest[0] === 'src'
+                ? `@/${rest.slice(1).join('/')}`
+                : `@ultimate/${folder}/${rest.join('/')}`
+          context.report({
+            node,
+            message: `${source} leaves the ${parts[depth - 1]} extension folder; import it by name: ${name} (lib/module-names.ts).`,
+          })
         }
         return {
           ImportDeclaration: check,
@@ -402,9 +459,14 @@ export default {
         // reaches the core through a point the core declares (a web point, an extension point or an event).
         const check = (node: ImportNode) => {
           const source = node.source?.value
-          if (typeof source !== 'string' || !source.startsWith('.')) return
-          const [directory, extension] = resolved(context.filename, source)
-          if (directory === 'extensions' && extension !== own && !coreExtension(extension))
+          if (typeof source !== 'string') return
+          const [directory, extension] = resolved(context.filename, source) ?? []
+          if (
+            directory === 'extensions' &&
+            extension &&
+            extension !== own &&
+            !coreExtension(extension)
+          )
             context.report({
               node,
               message: `${own} is core tier and imports optional ${extension}; declare a point in ${own} that ${extension} provides, or react to an event.`,
@@ -429,7 +491,7 @@ export default {
           const source = String(node.source?.value)
           if (source.startsWith('node:'))
             return report(node, `${file} is a contract: it imports no node:* module.`)
-          const target = source.startsWith('.') ? resolved(context.filename, source) : undefined
+          const target = resolved(context.filename, source)
           if (file === 'refs.ts') {
             // The browser imports refs.ts (tsconfig.web.json), so it may not reach server code even for types.
             if (node.importKind !== 'type')

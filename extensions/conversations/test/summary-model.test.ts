@@ -13,10 +13,10 @@ import {
   UsageDoc,
 } from '@earendil-works/pi-durable'
 import { afterEach, expect, it } from 'vitest'
-import { onCommit } from '../../../lib/commits.ts'
-import type { ActionContext } from '../../../server/actions.ts'
-import { context } from '../../../server/harness.ts'
-import { Metadata } from '../../../server/metadata.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
 import { actions } from '../server.ts'
 import { parseSummaryModel } from '../summary-model-ref.ts'
 import {
@@ -30,7 +30,7 @@ import {
   TitleChanged,
 } from '../summary.ts'
 import type { SummaryHost } from '../summary.ts'
-import { temp, until } from '../../../test/helpers.ts'
+import { temp, until } from '@ultimate/test/helpers.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {

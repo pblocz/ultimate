@@ -14,7 +14,15 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
-    "paths": { "@/*": ["./web/src/*"] }
+    "paths": {
+      "@/*": ["./web/src/*"],
+      "@ultimate/ext/*": ["./extensions/*"],
+      "@ultimate/lib/*": ["./lib/*"],
+      "@ultimate/shared/*": ["./shared/*"],
+      "@ultimate/server/*": ["./server/*"],
+      "@ultimate/test/*": ["./test/*"],
+      "@ultimate/scripts/*": ["./scripts/*"]
+    }
   },
   "include": [
     "web/src",

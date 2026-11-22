@@ -1,10 +1,10 @@
 import { mkdir, symlink, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterAll, expect, it } from 'vitest'
-import { context } from '../../../server/harness.ts'
+import { context } from '@ultimate/server/harness.ts'
 import { age } from '../server.ts'
-import { apiSummary } from '../../../lib/api-files.ts'
-import { fauxServer, linkDependencies, removeTemp, temp, until } from '../../../test/helpers.ts'
+import { apiSummary } from '@ultimate/lib/api-files.ts'
+import { fauxServer, linkDependencies, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []
 const homes: string[] = []

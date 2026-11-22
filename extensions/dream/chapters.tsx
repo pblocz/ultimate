@@ -20,7 +20,7 @@ import {
   useSystem,
   useUltimate,
 } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import { AsleepAction, ChaptersAction, DreamDoc, SwitchAction } from './refs.ts'
 import { busyElsewhere } from './types.ts'
 

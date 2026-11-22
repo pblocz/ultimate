@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { status } from '../server.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 const services: Record<string, unknown> = {
   update: {

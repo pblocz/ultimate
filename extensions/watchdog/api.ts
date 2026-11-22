@@ -1,5 +1,5 @@
 /** Watchdog: the failed runs it reported, newest first, for other extensions to summarize. */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { Failure } from './refs.ts'
 
 /** A reported failure and when its run failed (epoch ms). */

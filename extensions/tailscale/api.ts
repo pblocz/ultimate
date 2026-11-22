@@ -1,7 +1,7 @@
 /**
  * Tailscale: publishes this server on the user's tailnet over HTTPS. Other extensions read where it is reachable.
  */
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { Status } from './refs.ts'
 
 export type { Status }

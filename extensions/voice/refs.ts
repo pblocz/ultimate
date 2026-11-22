@@ -1,5 +1,5 @@
 /** Voice input in the browser: whether an OpenAI API key can transcribe, and the transcription action. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 /** Whether voice input works: `available` with an OpenAI API key, else `reason` says what to do. */
 export type VoiceStatus = { available: true } | { available: false; reason: string }

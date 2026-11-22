@@ -1,7 +1,7 @@
 /** The shared Messages log: appending to it, and the terminal outcome its tasks commit. */
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { Tx } from '@earendil-works/pi-durable'
-import { isOpen } from '../../lib/message-state.ts'
+import { isOpen } from '@ultimate/lib/message-state.ts'
 import { Messages } from './api.ts'
 import type { Message, MessagesWorkflowService } from './api.ts'
 

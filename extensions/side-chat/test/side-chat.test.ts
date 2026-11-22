@@ -14,14 +14,14 @@ import {
   ROOT_CONVERSATION_ID,
   ToolTask,
 } from '@earendil-works/pi-durable'
-import { context } from '../../../server/harness.ts'
-import { Messages } from '../../messages/api.ts'
-import { branchOf, rootOf } from '../../lineage/server.ts'
-import { Branch } from '../../lineage/api.ts'
-import { Automations } from '../../automations/server.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { branchOf, rootOf } from '@ultimate/ext/lineage/server.ts'
+import { Branch } from '@ultimate/ext/lineage/api.ts'
+import { Automations } from '@ultimate/ext/automations/server.ts'
 import { Index, Side, tracksEffect } from '../server.ts'
 import type { endTask } from '../server.ts'
-import { fauxServer, post, sourceCopy, temp, until } from '../../../test/helpers.ts'
+import { fauxServer, post, sourceCopy, temp, until } from '@ultimate/test/helpers.ts'
 
 let ultimateRoot: string
 const servers: Awaited<ReturnType<typeof fauxServer>>[] = []

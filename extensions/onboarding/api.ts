@@ -3,7 +3,7 @@
  * The coding workflow provides its walkthrough and primary-agent setup through the optional `onboarding.workflow` point.
  */
 import { defineDoc } from '@earendil-works/pi-durable'
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import { StartsDoc } from './refs.ts'
 
 export const tier = 'core'

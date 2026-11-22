@@ -1,5 +1,5 @@
 /** Status: one compact read-only summary of this Ultimate, for dashboards that poll it. Browser-safe. */
-import { actionRef } from '../../shared/extension-api.ts'
+import { actionRef } from '@ultimate/shared/extension-api.ts'
 
 export type Status = {
   /** When this answer was made, epoch ms. */

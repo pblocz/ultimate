@@ -34,7 +34,7 @@ import {
   useUltimate,
 } from '@/sdk'
 import { clock, full, until, words } from './parts.tsx'
-import { DefaultDestinationAction, DefinitionsAction } from '../subagents/ui.tsx'
+import { DefaultDestinationAction, DefinitionsAction } from '@ultimate/ext/subagents/ui.tsx'
 import { CreateAction, DescribeAction, EventsAction, UpdateAction } from './refs.ts'
 import type { Automation } from './refs.ts'
 

@@ -1,6 +1,6 @@
 /** What the Inbox lists and how its selection moves: pure, over the Messages log. */
-import { waiting } from '../questions/ui.tsx'
-import type { Message } from '../messages/refs.ts'
+import { waiting } from '@ultimate/ext/questions/ui.tsx'
+import type { Message } from '@ultimate/ext/messages/refs.ts'
 
 /** Every message that waits on the user, oldest first: the Inbox's items. */
 export const inboxItems = (messages: readonly Message[]) => waiting(messages).toReversed()

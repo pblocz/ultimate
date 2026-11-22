@@ -1,5 +1,5 @@
 /** Ordinary conversations: created as chats, not branches, subagents, side chats or internal records. Browser-safe. */
-import type { ConversationSummary } from '../../shared/protocol.ts'
+import type { ConversationSummary } from '@ultimate/shared/protocol.ts'
 
 /** A conversation the user created as a chat; the shared create operation marks it with the `chat` label. */
 export const isChat = (conversation: ConversationSummary) =>

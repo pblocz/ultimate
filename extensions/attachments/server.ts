@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { basename, join } from 'node:path'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { implementAction } from '../../lib/actions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { implementAction } from '@ultimate/lib/actions.ts'
 import { KEPT_MS, MAX_FILE_BYTES } from './limits.ts'
 import { UploadAction } from './refs.ts'
 

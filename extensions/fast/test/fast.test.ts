@@ -7,12 +7,12 @@ import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import { AgentDoc } from '@earendil-works/pi-durable'
 import type { GenerationHooks, HookApi, JsonObject } from '@earendil-works/pi-durable'
 import { expect, it } from 'vitest'
-import type { ActionContext } from '../../../server/actions.ts'
+import type { ActionContext } from '@ultimate/server/actions.ts'
 import fastExtension, { actions, fastModels, fastStream } from '../server.ts'
-import { Metadata } from '../../../server/metadata.ts'
-import { Profile } from '../../subagents/api.ts'
-import { context as hookContext } from '../../../server/harness.ts'
-import { temp } from '../../../test/helpers.ts'
+import { Metadata } from '@ultimate/server/metadata.ts'
+import { Profile } from '@ultimate/ext/subagents/api.ts'
+import { context as hookContext } from '@ultimate/server/harness.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 /** An OpenAI Responses stand-in that records the payload each request would send. */
 function recordingApi() {

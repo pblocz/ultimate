@@ -7,8 +7,8 @@ import { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
 import type { ToolExecutionApi } from '@earendil-works/pi-durable'
 import { afterEach, expect, it, vi } from 'vitest'
 import codingTools from '../server.ts'
-import { context } from '../../../server/harness.ts'
-import type { ExtensionHost } from '../../../server/extensions.ts'
+import { context } from '@ultimate/server/harness.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 afterEach(() => vi.unstubAllEnvs())
 

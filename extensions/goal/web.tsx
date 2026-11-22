@@ -1,6 +1,6 @@
 import { FlagIcon } from 'lucide-react'
 import { defineWebExtension, useDocOf, useUltimate } from '@/sdk'
-import { StandingDoc } from '../subagents/ui.tsx'
+import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
 import { GoalCall } from './call.tsx'
 import { ReportCard, StartedCard } from './cards.tsx'
 import { GoalDialog, goalDialog } from './dialog.tsx'

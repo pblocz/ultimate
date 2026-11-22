@@ -6,9 +6,9 @@ import { cn, column, defineWebExtension, provide, useConversation, useTranscript
 import { useWorkspaceIndex } from './data.tsx'
 import { CommitCount, LandingCard, useGithubRepo } from './landing.tsx'
 import { LanderLogEntry, LanderReport, WorkspaceCall } from './log.tsx'
-import { compareUrl } from '../../lib/compare.ts'
-import { AgentName } from '../messages/ui.tsx'
-import { ChildBadge, ChildResult } from '../subagents/ui.tsx'
+import { compareUrl } from '@ultimate/lib/compare.ts'
+import { AgentName } from '@ultimate/ext/messages/ui.tsx'
+import { ChildBadge, ChildResult } from '@ultimate/ext/subagents/ui.tsx'
 import { IsolateBadge, Landed } from './child.tsx'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 

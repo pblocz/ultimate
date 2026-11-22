@@ -6,7 +6,7 @@ import type { ActivityEvent } from '../../feed.tsx'
 
 vi.mock('@/sdk', async () => ({
   cn: (...names: unknown[]) => names.filter(Boolean).join(' '),
-  formatAgo: (await import('../../../../lib/ago.ts')).formatAgo,
+  formatAgo: (await import('@ultimate/lib/ago.ts')).formatAgo,
   definePoint: (name: string) => ({ name }),
   events: { emit: () => {} },
   useUltimate: () => ({ showSurface: () => {}, switchConversation: () => {} }),
@@ -16,7 +16,7 @@ vi.mock('@/sdk', async () => ({
     [{ id: 12, title: 'Build the Activity feed' }].find((item: { id: number }) => item.id === id),
   useWorkspaceIndex: () => ({ queue: [], results: {} }),
 }))
-vi.mock('../../../workspaces/landing.tsx', () => ({
+vi.mock('@ultimate/ext/workspaces/landing.tsx', () => ({
   useGithubRepo: () => 'github.com/hazat/ultimate',
   CommitCount: ({ count, href }: { count: number; href?: string }) =>
     createElement('a', { href }, `${count} commits`),

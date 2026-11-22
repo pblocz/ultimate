@@ -1,5 +1,5 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { AgentDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, EntryId } from '@earendil-works/pi-durable'
 import {
@@ -7,8 +7,8 @@ import {
   estimateAfterHead,
   lastAssistant,
   promptTokens,
-} from '../../lib/context-usage.ts'
-import type { ExtensionHost } from '../../server/extensions.ts'
+} from '@ultimate/lib/context-usage.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { ContextUsageDoc } from './api.ts'
 
 /** Keep one server-side context measure, including recovery of an interrupted projection on open. */

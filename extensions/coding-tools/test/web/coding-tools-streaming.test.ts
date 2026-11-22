@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it, vi } from 'vitest'
-import type { ToolCallView } from '../../../../web/src/sdk/types.ts'
+import type { ToolCallView } from '@/sdk/types.ts'
 
 vi.mock('@/sdk', async () => ({
   api: { action: () => new Promise(() => {}) },

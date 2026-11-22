@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react'
 import { definePoint } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
-import type { CacheBust } from '../../lib/context-usage.ts'
+import type { CacheBust } from '@ultimate/lib/context-usage.ts'
 
 /**
  * The line above a response that rebuilt the prompt cache, rendered through `<Rendered>`: a provider gets the

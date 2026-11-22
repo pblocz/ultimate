@@ -1,6 +1,6 @@
 import { defineTask } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 
 /** A goal card for @ultimate: `goal.started` as an input that wakes it, `goal.report` as a write. */
 type Card = { to: number; goal: number; kind: 'goal.started' | 'goal.report'; content: string }

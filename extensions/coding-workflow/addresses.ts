@@ -1,8 +1,8 @@
 import type { Context } from '@earendil-works/chord/context'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { Started } from '../messages/api.ts'
-import type { Message, Remote } from '../messages/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { Started } from '@ultimate/ext/messages/api.ts'
+import type { Message, Remote } from '@ultimate/ext/messages/api.ts'
 
 /** The branch starter that receives its final answers. */
 export async function starterOf(host: ExtensionHost, id: number | 'user', ctx: Context) {

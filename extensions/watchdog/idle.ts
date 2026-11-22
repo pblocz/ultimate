@@ -1,11 +1,11 @@
 import { defineDoc, LiveDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, Tx } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
-import { ConversationsApi } from '../conversations/api.ts'
-import { Branch } from '../lineage/api.ts'
-import { Messages } from '../messages/api.ts'
-import { isOpen } from '../../lib/message-state.ts'
-import { WorkspacesApi } from '../workspaces/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
+import { Branch } from '@ultimate/ext/lineage/api.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { isOpen } from '@ultimate/lib/message-state.ts'
+import { WorkspacesApi } from '@ultimate/ext/workspaces/api.ts'
 
 const Seen = defineDoc<{ key?: string }>({
   kind: 'watchdog.seen',

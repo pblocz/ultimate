@@ -5,9 +5,9 @@ import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { chromium } from 'playwright-core'
 import { afterEach, expect, it } from 'vitest'
 import { browserBinary } from '../../server.ts'
-import { context } from '../../../../server/harness.ts'
-import { UiState } from '../../../../server/ui-state.ts'
-import { fauxServer, post, removeTemp, temp } from '../../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { UiState } from '@ultimate/server/ui-state.ts'
+import { fauxServer, post, removeTemp, temp } from '@ultimate/test/helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {

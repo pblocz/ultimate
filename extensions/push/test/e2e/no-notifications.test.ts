@@ -9,11 +9,11 @@ import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { chromium } from 'playwright-core'
 import { afterEach, expect, it } from 'vitest'
-import { browserBinary } from '../../../browser/server.ts'
-import { Started } from '../../../messages/api.ts'
-import { Messages } from '../../../messages/api.ts'
-import { context } from '../../../../server/harness.ts'
-import { fauxServer, post, removeTemp, temp, until } from '../../../../test/helpers.ts'
+import { browserBinary } from '@ultimate/ext/browser/server.ts'
+import { Started } from '@ultimate/ext/messages/api.ts'
+import { Messages } from '@ultimate/ext/messages/api.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, post, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []
 afterEach(async () => {

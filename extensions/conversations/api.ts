@@ -6,7 +6,7 @@ import type { Context } from '@earendil-works/chord/context'
 import type { AssistantMessage } from '@earendil-works/pi-ai'
 import { defineDoc } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
-import { defineApi } from '../../shared/extension-api.ts'
+import { defineApi } from '@ultimate/shared/extension-api.ts'
 import { ContextDoc, MarksDoc } from './refs.ts'
 import type { AgentMarkStyle, ContextUsage } from './refs.ts'
 import type {

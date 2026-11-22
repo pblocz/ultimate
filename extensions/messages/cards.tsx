@@ -38,8 +38,17 @@ import {
   UserView,
 } from '@/sdk'
 import type { CompactSummaryProps, ToolCallView } from '@/sdk'
-import { AgentMark, AgentTitle, ConversationRef, useAgentTitle } from '../conversations/ui.tsx'
-import { openAgentSource, StandingDoc, useDefaultConversation } from '../subagents/ui.tsx'
+import {
+  AgentMark,
+  AgentTitle,
+  ConversationRef,
+  useAgentTitle,
+} from '@ultimate/ext/conversations/ui.tsx'
+import {
+  openAgentSource,
+  StandingDoc,
+  useDefaultConversation,
+} from '@ultimate/ext/subagents/ui.tsx'
 import { accentOf } from './accent.tsx'
 import {
   answerTo,
@@ -55,8 +64,8 @@ import {
   sentBy,
   sentStatus,
 } from './data.tsx'
-import { cacheBusts } from '../../lib/context-usage.ts'
-import { imagesOf } from '../../lib/entries.ts'
+import { cacheBusts } from '@ultimate/lib/context-usage.ts'
+import { imagesOf } from '@ultimate/lib/entries.ts'
 import { callerOf } from './caller.ts'
 import { MessagesDoc } from './refs.ts'
 import type { Message, Remote } from './refs.ts'

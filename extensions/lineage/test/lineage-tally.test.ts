@@ -2,8 +2,8 @@ import { expect, it } from 'vitest'
 import { CompactionTask, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { TaskId } from '@earendil-works/pi-durable'
 import { fauxAssistantMessage } from '@earendil-works/pi-ai/providers/faux'
-import { context } from '../../../server/harness.ts'
-import { fauxServer, post, seedTally, sourceCopy, temp } from '../../../test/helpers.ts'
+import { context } from '@ultimate/server/harness.ts'
+import { fauxServer, post, seedTally, sourceCopy, temp } from '@ultimate/test/helpers.ts'
 
 it('compacts a tally once at a time with the root focus and the given instructions', async () => {
   const home = await temp()

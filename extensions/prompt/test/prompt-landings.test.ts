@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { git } from '../../../lib/git.ts'
+import { git } from '@ultimate/lib/git.ts'
 import { buildNote, landings } from '../server.ts'
-import { temp } from '../../../test/helpers.ts'
+import { temp } from '@ultimate/test/helpers.ts'
 
 it('names the branches that landed between two commits, a worker under its branch', async () => {
   const cwd = await temp()

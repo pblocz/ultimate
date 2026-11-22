@@ -1,10 +1,10 @@
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
-import { onCommit } from '../../lib/commits.ts'
+import { onCommit } from '@ultimate/lib/commits.ts'
 import { defineDoc, InboxDoc, LiveDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, SubmissionRecord } from '@earendil-works/pi-durable'
-import type { ExtensionHost } from '../../server/extensions.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { resetAfter, Summaries } from './summary.ts'
-import { isInput } from '../../lib/entries.ts'
+import { isInput } from '@ultimate/lib/entries.ts'
 import { OverviewDoc } from './refs.ts'
 import type { OverviewRow, OverviewState } from './types.ts'
 

@@ -1,1 +1,1 @@
-export { usageTotals } from '../../lib/context-usage.ts'
+export { usageTotals } from '@ultimate/lib/context-usage.ts'

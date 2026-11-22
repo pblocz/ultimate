@@ -11,7 +11,7 @@ import {
 } from '@/components/ai/tool'
 import { cn, useToolDuration, useUltimate } from '@/sdk'
 import type { ToolCallView } from '@/sdk'
-import { ConversationRef } from '../conversations/ui.tsx'
+import { ConversationRef } from '@ultimate/ext/conversations/ui.tsx'
 import { MemoryChip } from './ui.tsx'
 
 const words = (value: unknown) => (typeof value === 'string' ? value.trim() : '')

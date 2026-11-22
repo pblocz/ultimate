@@ -2,7 +2,7 @@ import type {
   ConversationSubject,
   ConversationWorktree,
   WorktreeLandResult,
-} from '../conversations/types.ts'
+} from '@ultimate/ext/conversations/types.ts'
 
 export type Workspace = ConversationWorktree
 /** One `workspace submit`, waiting for or being processed by its source's lander. */

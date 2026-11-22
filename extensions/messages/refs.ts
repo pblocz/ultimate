@@ -3,8 +3,8 @@
  * and the sounds read, and the event of a question to the user. Browser-safe.
  * Stored identifiers keep the board prefix because history, tasks and events persist under them.
  */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 
 /** Images from the sender's current turn, or from a named entry. */
 export type ImagesRef = 'latest' | number

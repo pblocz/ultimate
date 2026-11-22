@@ -1,11 +1,12 @@
 // The dependency graph between built-in extensions: prints it and fails on a cycle or on a core-tier extension that
 // depends on an optional one. Edges come from every import between `extensions/<name>/` folders (runtime, type and
-// dynamic, in .ts and .tsx, outside its `test/` folder) and from `host.need`/`host.want` of a token another extension
+// dynamic, in .ts and .tsx, outside its `test/` folder; a relative path or an `@ultimate/ext/…` name) and from `host.need`/`host.want` of a token another extension
 // declares. Usage: pnpm deps.
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { parseSync } from 'vite-plus'
 import { coreTier, extensionTests } from '../shared/extension-api.ts'
+import { extensionModule, modulePath } from '../lib/module-names.ts'
 import { cycles } from '../server/extension-apis.ts'
 
 /** How one extension depends on another: a runtime import, a type-only import, or a need or want of its token. */
@@ -43,9 +44,12 @@ export function extensionGraph(directory: string): Graph {
     const tests = join(directory, name, extensionTests) + sep
     for (const file of sources(join(directory, name)).filter((path) => !path.startsWith(tests))) {
       const text = readFileSync(file, 'utf8')
-      // The extension folder a relative specifier lands in, if it is one.
+      // The extension folder a relative specifier or a name lands in, if it is one.
       const owner = (specifier: string) => {
-        if (!specifier.startsWith('.')) return undefined
+        if (!specifier.startsWith('.')) {
+          const path = modulePath(specifier)
+          return path === undefined ? undefined : extensionModule(path)?.name
+        }
         const path = relative(directory, resolve(dirname(file), specifier))
         return path.startsWith('..') ? undefined : path.split(sep)[0]
       }

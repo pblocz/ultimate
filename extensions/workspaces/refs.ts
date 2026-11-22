@@ -2,10 +2,10 @@
  * Workspaces in the browser: the worktree index every conversation's isolate and the lander queue live in, the actions
  * that inspect worktrees, and the landing event. Browser-safe.
  */
-import { actionRef, docRef } from '../../shared/extension-api.ts'
-import { defineEvent } from '../../shared/events.ts'
+import { actionRef, docRef } from '@ultimate/shared/extension-api.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import type { WorkspaceDisk, WorkspaceIndex, WorkspaceInfo, WorkspaceStats } from './types.ts'
-import type { KeptWork } from '../conversations/types.ts'
+import type { KeptWork } from '@ultimate/ext/conversations/types.ts'
 
 /** Why the project cannot isolate conversations (`reason`, absent when it can), and whether its folder is empty. */
 export type Isolation = { reason?: string; empty?: boolean }
