@@ -37,7 +37,8 @@ import type { Api, Catalogue } from '../shared/extension-api.ts'
 import { inExtensionTests } from '../shared/extension-api.ts'
 import type { Device } from '../shared/events.ts'
 import { ChannelError } from '../shared/channel-host.ts'
-import type { ChannelHost, ConversationOutput } from '../shared/channel-host.ts'
+import type { ConversationOutput } from '../shared/channel-host.ts'
+import type { LocalChannelHost } from './conversation-host.ts'
 import type { WebChannelRuntime } from './web-channel.ts'
 
 export type ExtensionHost = Pick<
@@ -76,7 +77,7 @@ export type ExtensionHost = Pick<
   /** Run finite setup after open callbacks and shared runtime admission, once per active harness activation. */
   onReady(callback: () => Promise<void>): void
   /** The current scoped conversation service; operations fail unavailable outside an open harness activation. */
-  channelHost(): ChannelHost
+  channelHost(): LocalChannelHost
   /** The runtime seen by the optional web channel; only the `web` extension may use it. */
   webChannel(): WebChannelRuntime
   /** Run `callback` each time before the harness closes while the process stays: on a core swap. */
@@ -321,7 +322,10 @@ export async function loadExtensions(
     })
     return state.running
   }
-  const callChannel = <T>(facetHost: ExtensionHost, work: (channel: ChannelHost) => Promise<T>) => {
+  const callChannel = <T>(
+    facetHost: ExtensionHost,
+    work: (channel: LocalChannelHost) => Promise<T>,
+  ) => {
     const calls = facetCalls.get(facetHost)
     if (!calls || disposedFacets.has(facetHost))
       return Promise.reject(new ChannelError('unavailable', 'Conversation service is unavailable'))
@@ -336,10 +340,11 @@ export async function loadExtensions(
     calls.add(tracked)
     return tracked
   }
-  const scopedChannelHost = (facetHost: ExtensionHost): ChannelHost => ({
+  const scopedChannelHost = (facetHost: ExtensionHost): LocalChannelHost => ({
     conversations: {
       list: () => callChannel(facetHost, (channel) => channel.conversations.list()),
-      create: (input) => callChannel(facetHost, (channel) => channel.conversations.create(input)),
+      create: (input, bind) =>
+        callChannel(facetHost, (channel) => channel.conversations.create(input, bind)),
       get: (id) => callChannel(facetHost, (channel) => channel.conversations.get(id)),
       configure: (id, change) =>
         callChannel(facetHost, (channel) => channel.conversations.configure(id, change)),
@@ -522,7 +527,7 @@ export async function loadExtensions(
             void runFacetReadies(facetHost, activation)
         }
       },
-      channelHost: (): ChannelHost =>
+      channelHost: (): LocalChannelHost =>
         sharedResource ? extensionHost.channelHost() : scopedChannelHost(facetHost),
       webChannel: () => {
         if (name !== 'web') throw new Error('Only the web extension serves the browser')

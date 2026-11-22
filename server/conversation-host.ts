@@ -92,8 +92,18 @@ type ConversationHostOptions = {
   onRefreshError?: (error: unknown) => void
 }
 
+/** In-process channels can save a binding in the same transaction as a new conversation. */
+export type LocalChannelHost = Omit<ChannelHost, 'conversations'> & {
+  conversations: Omit<ChannelHost['conversations'], 'create'> & {
+    create(
+      input: CreateConversationRequest,
+      bind?: (tx: Tx, id: ConversationId) => Promise<void>,
+    ): Promise<{ id: ChannelConversationId }>
+  }
+}
+
 export interface ConversationBackend {
-  readonly channelHost: ChannelHost
+  readonly channelHost: LocalChannelHost
   conversations(): ConversationSummary[]
   taskGraph(): TaskGraph
   refreshConversation(id: number): Promise<void>
@@ -711,10 +721,13 @@ export async function createConversationHost(
       return Number(await conversation.compact(input.instructions, hostContext))
     })
 
-  const channelHost: ChannelHost = {
+  const channelHost: LocalChannelHost = {
     conversations: {
       list: () => operation('list', async () => snapshotSummaries()),
-      create: (input: CreateConversationRequest) =>
+      create: (
+        input: CreateConversationRequest,
+        bind?: (tx: Tx, id: ConversationId) => Promise<void>,
+      ) =>
         mutation('create', async (admit) => {
           if (!input || typeof input !== 'object' || Array.isArray(input))
             throw new ChannelError('invalid_input', 'Invalid create request')
@@ -739,6 +752,7 @@ export async function createConversationHost(
               label: 'chat',
               ...(input.title && { title: input.title }),
             })
+            await bind?.(tx, created.id)
             return created.id
           }, hostContext)
           await refreshConversations(new Set([id]))

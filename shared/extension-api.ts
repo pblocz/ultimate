@@ -76,6 +76,7 @@ export const defaultOff: readonly string[] = [
   'sounds',
   'voice-live',
   'push',
+  'telegram',
   'wire',
 ]
 
