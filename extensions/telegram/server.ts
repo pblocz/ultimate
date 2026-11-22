@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Chat } from 'chat'
 import type { Logger } from 'chat'
-import { createTelegramAdapter } from '@chat-adapter/telegram'
+import { UltimateTelegramAdapter } from './adapter.ts'
 import type { TelegramMessage } from '@chat-adapter/telegram'
 import { defineExtension } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '../../server/extensions.ts'
@@ -13,7 +13,7 @@ import { readSecret } from '../../lib/secrets.ts'
 import { userSettingsPath } from '../../lib/settings.ts'
 import { isChannelError } from '../../shared/channel-host.ts'
 import { address, telegramChannel } from './channel.ts'
-import { commands, runCommand } from './commands.ts'
+import { commandMetadata, commands, runCommand } from './commands.ts'
 import { sdkState } from './state.ts'
 export const reloadOnSettings = true
 export const secrets = [{ name: 'TELEGRAM_BOT_TOKEN', description: 'Token for the Telegram bot' }]
@@ -74,11 +74,12 @@ export default function telegram(host: ExtensionHost) {
           return this
         },
       }
-      const adapter = createTelegramAdapter({
+      const adapter = new UltimateTelegramAdapter({
         botToken: token,
         mode: 'polling',
         allowedUserIds: allow,
         persistThreadHistory: false,
+        longMessages: 'split',
         longPolling: {
           limit: 1,
           allowedUpdates: ['message'],
@@ -94,9 +95,34 @@ export default function telegram(host: ExtensionHost) {
         concurrency: 'concurrent',
         logger,
       })
-      const send = async (chatId: string, text: string, replyTo?: string) =>
+      const send = async (chatId: string, text: string | { markdown: string }, replyTo?: string) =>
         (await adapter.postMessage(adapter.encodeThreadId({ chatId }), text, replyTo)).id
-      const channel = telegramChannel(host, bot, allowed, send)
+      const channel = telegramChannel(
+        host,
+        bot,
+        allowed,
+        (chatId, text, replyTo, signal, timeout) =>
+          adapter.bounded(signal, timeout, () => send(chatId, text, replyTo)),
+        {
+          typing: (chatId, signal) => adapter.typing(chatId, signal),
+          progress: {
+            post: (from, text, signal) =>
+              adapter.bounded(signal, 5_000, () => send(from.chat, text, from.message)),
+            async edit(chatId, message, text, signal) {
+              await adapter.bounded(signal, 5_000, () =>
+                adapter.editMessage(adapter.encodeThreadId({ chatId }), message, text),
+              )
+            },
+          },
+          reaction: (from, add, signal) =>
+            adapter.bounded(signal, 2_000, () => {
+              const thread = adapter.encodeThreadId({ chatId: from.chat })
+              return add
+                ? adapter.addReaction(thread, from.message, '👍')
+                : adapter.removeReaction(thread, from.message, '👍')
+            }),
+        },
+      )
       close = async () => {
         channel.stop()
         try {
@@ -137,6 +163,7 @@ export default function telegram(host: ExtensionHost) {
           if (answer) {
             try {
               await send(from.chat, answer, from.message)
+              channel.refresh(from.chat)
             } catch {
               host.notice(
                 'Telegram: command reply delivery is uncertain. It will not be sent again automatically.',
@@ -147,6 +174,16 @@ export default function telegram(host: ExtensionHost) {
       })
       await channel.recover()
       await chat.initialize()
+      await adapter
+        .publishCommands(
+          commandMetadata.map(({ name, description }) => ({
+            command: name.slice(1),
+            description,
+          })),
+        )
+        .catch(() => {
+          host.notice('Telegram: command menu could not be updated. Use /help to see commands.')
+        })
     } catch {
       if (close) await stop()
       else await lock.close()

@@ -13,6 +13,7 @@ type Input = {
   sender: string
   submission?: number
   settled?: true
+  queueReaction?: true
 }
 type Delivery = { status: 'sending' | 'sent' | 'uncertain'; message?: string }
 type BotState = {

@@ -2,6 +2,7 @@ import type { TelegramMessage } from '@chat-adapter/telegram'
 import type { ExtensionHost } from '../../server/extensions.ts'
 import { ChannelError } from '../../shared/channel-host.ts'
 import type { HistoryItem } from '../../shared/channel-host.ts'
+import { turnActivity } from './activity.ts'
 import { botState, ledger } from './state.ts'
 
 export function address(raw: TelegramMessage, allowed: Set<string>) {
@@ -20,12 +21,34 @@ export function telegramChannel(
   host: ExtensionHost,
   bot: string,
   allowed: ReadonlySet<string>,
-  send: (chat: string, text: string, replyTo?: string) => Promise<string>,
+  send: (
+    chat: string,
+    text: { markdown: string },
+    replyTo: string,
+    signal: AbortSignal,
+    timeout: number,
+  ) => Promise<string>,
+  statusTransport: Omit<Parameters<typeof turnActivity>[3], 'assistantUpdate'>,
 ) {
   const runtime = host.channelHost().conversations
   const harness = host.harness()
   const state = ledger(harness, bot)
   const stopping = new AbortController()
+  const sends = new Map<string, Promise<void>>()
+  const activity = turnActivity(
+    harness,
+    state,
+    bot,
+    {
+      ...statusTransport,
+      assistantUpdate: (from, id, entry, text) =>
+        ordered(from.chat, id, async () => {
+          const delivered = await sendEntry(from, id, String(entry), text)
+          if (delivered) activity.refresh(from.chat)
+        }),
+    },
+    host.projectRoot,
+  )
   const watchers = new Map<number, { controller: AbortController; scan: () => Promise<void> }>()
   const keyOf = ({ chat, message }: Address) => `${chat}:${message}`
   const notice = (message: string) => host.notice(`Telegram: ${message}`)
@@ -48,6 +71,58 @@ export function telegramChannel(
           .trim()
       : ''
   }
+  function ordered(chat: string, id: number, work: () => Promise<void>) {
+    const key = `${chat}:${id}`
+    const previous = sends.get(key) ?? Promise.resolve()
+    const next = previous.then(work, work)
+    sends.set(key, next)
+    return next.finally(() => {
+      if (sends.get(key) === next) sends.delete(key)
+    })
+  }
+
+  async function sendEntry(
+    from: Address,
+    id: number,
+    ref: string,
+    text: string,
+    finalKey?: string,
+  ) {
+    if (stopping.signal.aborted) return false
+    const delivery = `${from.chat}:${id}:${ref}`
+    const claimed = await state.change((data) => {
+      if (stopping.signal.aborted) return false
+      if (finalKey !== undefined) data.inputs[finalKey].settled = true
+      if (data.deliveries[delivery] || !text) return false
+      // Once a send starts, no restart can prove whether Telegram received it.
+      data.deliveries[delivery] = { status: 'sending' }
+      return true
+    })
+    if (!claimed || stopping.signal.aborted) return false
+    try {
+      const message = await send(
+        from.chat,
+        { markdown: text },
+        from.message,
+        stopping.signal,
+        finalKey === undefined ? 8_000 : 90_000,
+      )
+      if (!stopping.signal.aborted)
+        await state.change((data) => {
+          data.deliveries[delivery] = { status: 'sent', message }
+        })
+      return true
+    } catch {
+      if (!stopping.signal.aborted) {
+        await state.change((data) => {
+          data.deliveries[delivery] = { status: 'uncertain' }
+        })
+        notice('Reply delivery is uncertain. It will not be sent again automatically.')
+      }
+      return false
+    }
+  }
+
   async function deliver(id: number) {
     const entries = Object.entries((await state.read()).inputs)
     for (const [key, input] of entries) {
@@ -65,33 +140,15 @@ export function telegramChannel(
         await state.change((data) => {
           data.inputs[key].settled = true
         })
+        activity.complete(key)
         continue
       }
       if (status.status !== 'answered') continue
-      const text = textOf(await answer(id, status.answerRef))
-      const delivery = `${input.chat}:${id}:${status.answerRef}`
-      const claimed = await state.change((data) => {
-        if (stopping.signal.aborted) return false
-        data.inputs[key].settled = true
-        if (data.deliveries[delivery] || !text) return false
-        // Once a send starts, no restart can prove whether Telegram received it.
-        data.deliveries[delivery] = { status: 'sending' }
-        return true
+      await ordered(input.chat, id, async () => {
+        const text = textOf(await answer(id, status.answerRef))
+        await sendEntry(input, id, status.answerRef, text, key)
+        activity.complete(key)
       })
-      if (!claimed || stopping.signal.aborted) continue
-      try {
-        const message = await send(input.chat, text, input.message)
-        if (!stopping.signal.aborted)
-          await state.change((data) => {
-            data.deliveries[delivery] = { status: 'sent', message }
-          })
-      } catch {
-        if (stopping.signal.aborted) return
-        await state.change((data) => {
-          data.deliveries[delivery] = { status: 'uncertain' }
-        })
-        notice('Reply delivery is uncertain. It will not be sent again automatically.')
-      }
     }
   }
   const scanFailed = () => {
@@ -144,21 +201,33 @@ export function telegramChannel(
         data.inputs[key] ??= { ...from, conversation: bound }
       })
     }
-    const accepted = await runtime.submit(id, {
-      text,
-      whenBusy,
-      requestId: `telegram:${bot}:${key}`,
-      source: {
-        channel: 'telegram',
-        instanceId: bot,
-        chatId: from.chat,
-        senderId: from.sender,
-        messageId: from.message,
-      },
+    const request = activity.track({
+      ...from,
+      key,
+      conversation: id,
+      reacted: !!before.inputs[key]?.queueReaction,
     })
+    const accepted = await runtime
+      .submit(id, {
+        text,
+        whenBusy,
+        requestId: request,
+        source: {
+          channel: 'telegram',
+          instanceId: bot,
+          chatId: from.chat,
+          senderId: from.sender,
+          messageId: from.message,
+        },
+      })
+      .catch((error: unknown) => {
+        activity.forgetUnadmitted(request)
+        throw error
+      })
     await state.change((data) => {
       data.inputs[key].submission = accepted.submissionId
     })
+    await activity.hydrate(request, accepted.submissionId)
     watch(id)
   }
   async function clear(from: Address) {
@@ -180,6 +249,7 @@ export function telegramChannel(
   return {
     submit,
     clear,
+    refresh: activity.refresh,
     current: async (from: Address) => (await state.read()).chats[from.chat],
     async recover() {
       const uncertain = await state.change((data) => {
@@ -195,19 +265,24 @@ export function telegramChannel(
         notice(
           `${uncertain} pending sends have no confirmation. They will not be sent again automatically.`,
         )
-      const inputs = Object.values((await state.read()).inputs)
-      for (const id of new Set(
-        inputs
-          .filter(
-            (input) =>
-              !input.settled && input.submission !== undefined && allowed.has(input.sender),
-          )
-          .map((input) => input.conversation),
-      ))
-        watch(id)
+      const ids = new Set<number>()
+      for (const [key, input] of Object.entries((await state.read()).inputs)) {
+        if (
+          input.submission === undefined ||
+          !allowed.has(input.sender) ||
+          (input.settled && !input.queueReaction)
+        )
+          continue
+        const request = activity.track({ ...input, key, reacted: !!input.queueReaction })
+        await activity.hydrate(request, input.submission, true)
+        if (input.settled) activity.complete(key)
+        else ids.add(input.conversation)
+      }
+      for (const id of ids) watch(id)
     },
     stop() {
       stopping.abort()
+      activity.stop()
       for (const { controller } of watchers.values()) controller.abort()
     },
   }

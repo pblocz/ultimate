@@ -17,7 +17,18 @@ Telegram connects private text chats to Ultimate through Vercel Chat SDK. The ex
 
 4. Open a private chat with the bot. Send text to start a conversation.
 
-Use a separate bot for each polling installation. If the bot has a webhook, remove it yourself before you enable polling. Ultimate does not remove the webhook or request deletion of pending updates. If the allowlist is empty or invalid, the extension does not start. Groups, topics, bot messages, attachments, and streaming are not supported.
+Use a separate bot for each polling installation. If the bot has a webhook, remove it yourself before you enable polling. Ultimate does not remove the webhook or request deletion of pending updates. If the allowlist is empty or invalid, the extension does not start. Groups, topics, bot messages, attachments, and token streaming are not supported.
+
+At startup, Ultimate publishes the command list to Telegram's menu for private chats. If Telegram rejects the update, polling continues and `/help` still lists the commands.
+
+## Turn status
+
+- **Queued input:** If a message waits for the active run, Ultimate adds a 👍 reaction. It removes the reaction when the message starts or leaves the queue.
+- **Typing:** Ultimate refreshes `typing` every three seconds while it works on a message from the chat. The signal continues during tool calls and stops after the final reply send ends. If `typing` stops before an answer and does not return, the turn stopped or the bot cannot reach Telegram.
+- **Tool activity:** Each turn has at most one **Tool activity** message. Ultimate edits it as tools start and end, at most once every two seconds. It lists calls in call order, with the newest eight lines.
+- **Assistant updates:** Committed assistant text between tool rounds appears as separate messages, in order, before the final answer. Thinking and partial drafts do not appear.
+
+Tool activity shows only the tool name and one filtered detail. File tools show a short path in the workspace. Paths outside the workspace and secret-like files show no path. `web_fetch` shows only the host name. Shell, MCP, and other tools show only the tool name. Ultimate does not send commands, arguments, tool output, or error text. If an edit fails, Ultimate stops progress edits for that turn and does not send a replacement.
 
 ## Commands
 
@@ -39,6 +50,8 @@ Plain text steers a busy conversation. An idle conversation starts a turn for pl
 
 The channel saves the chat binding and input receipts in Pi Durable. A repeated Telegram message does not move to a new conversation after `/clear`. A reply to older work still goes to the chat that sent it. Telegram receives replies to its own inputs, not automation or background results.
 
-If Telegram may have received a reply but does not confirm it, Ultimate reports the uncertain send and does not try again. A stop or restart during a send can cause the same result. Read the saved answer in the conversation if the Telegram reply is missing.
+If Telegram may have received a reply but does not confirm it, Ultimate reports the uncertain send and does not try again. A long reply is split into several messages. If a later part is not confirmed, Ultimate does not resend the earlier parts or the missing part. A stop or restart during a send can cause the same result. Read the saved answer in the conversation if the Telegram reply is missing.
+
+After a restart, Ultimate resumes typing for active messages. It does not post another **Tool activity** message for a run that was already active, and it does not replay missed assistant updates. A reaction can stay on a message if the stop happens while Telegram processes it.
 
 Disabling the extension stops polling and does not stop admitted work. A reply that has not started to send can resume after you enable the channel again, if the sender is still allowed. Pi Durable keeps the transcript. Chat SDK does not keep a second transcript.

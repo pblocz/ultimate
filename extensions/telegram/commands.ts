@@ -10,30 +10,23 @@ import { ContextUsageDoc } from '../conversations/api.ts'
 import { usageTotals } from '../../lib/context-usage.ts'
 import type { Address, telegramChannel } from './channel.ts'
 
-export const commands = [
-  '/clear',
-  '/new',
-  '/stop',
-  '/compact',
-  '/stats',
-  '/model',
-  '/thinking',
-  '/persona',
-  '/followup',
-  '/help',
+export const commandMetadata = [
+  { name: '/clear', description: 'Start a fresh conversation' },
+  { name: '/new', description: 'Start a fresh conversation' },
+  { name: '/stop', description: 'Stop the current run' },
+  { name: '/compact', description: 'Compact the current context' },
+  { name: '/stats', description: 'Show context use, tokens, and recorded cost' },
+  { name: '/model', args: ' [preset or provider/model]', description: 'Show or change the model' },
+  { name: '/thinking', args: ' [level]', description: 'Show or change the thinking level' },
+  { name: '/persona', args: ' [name]', description: 'Show or change the persona' },
+  { name: '/followup', args: ' <text>', description: 'Send after the current run' },
+  { name: '/help', description: 'Show these commands' },
 ] as const
-type Command = (typeof commands)[number]
-const help = [
-  '/clear or /new: Start a fresh conversation',
-  '/stop: Stop the current run',
-  '/compact: Compact the current context',
-  '/stats: Show context use, tokens, and recorded cost',
-  '/model [preset or provider/model]: Show or change the model',
-  '/thinking [level]: Show or change the thinking level',
-  '/persona [name]: Show or change the persona',
-  '/followup <text>: Send after the current run',
-  '/help: Show these commands',
-].join('\n')
+export const commands = commandMetadata.map(({ name }) => name)
+type Command = (typeof commandMetadata)[number]['name']
+const help = commandMetadata
+  .map((item) => `${item.name}${'args' in item ? item.args : ''}: ${item.description}`)
+  .join('\n')
 
 export async function runCommand(
   host: ExtensionHost,

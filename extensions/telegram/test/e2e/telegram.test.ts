@@ -3,9 +3,25 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { fauxAssistantMessage, fauxProvider } from '@earendil-works/pi-ai/providers/faux'
+import {
+  fauxAssistantMessage,
+  fauxProvider,
+  fauxText,
+  fauxThinking,
+  fauxToolCall,
+} from '@earendil-works/pi-ai/providers/faux'
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
-import { AgentDoc, InboxDoc, LiveDoc, UsageDoc } from '@earendil-works/pi-durable'
+import { obj } from '@earendil-works/pi-schema'
+import {
+  AgentDoc,
+  GenerationTask,
+  InboxDoc,
+  LiveDoc,
+  UsageDoc,
+  defineExtension,
+  defineTool,
+  hook,
+} from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -41,9 +57,16 @@ async function fixture() {
   type Update = { update_id: number; message: object }
   let next = 0
   let updates: Update[] = []
-  let fail = false
+  let failAt = Infinity
+  let failMenu = false
   let polls = 0
-  const sends: { chat_id: string; text: string }[] = []
+  const typing: string[] = []
+  const edits: { chat: string; message: number; text: string }[] = []
+  let failEdit = false
+  const reactions: { chat: string; message: number; emoji?: string }[] = []
+  let typingMode: 'lose' | 'rate' | 'stall' | undefined
+  const menus: { commands: { command: string; description: string }[]; scope: object }[] = []
+  const sends: { chat_id: string; text: string; parse_mode?: string }[] = []
   const stub = createServer(async (req, res) => {
     let text = ''
     for await (const chunk of req) text += String(chunk)
@@ -52,6 +75,11 @@ async function fixture() {
       text: string
       offset?: number
       limit?: number
+      commands?: { command: string; description: string }[]
+      scope?: object
+      parse_mode?: string
+      message_id?: number
+      reaction?: { emoji: string }[]
     }
     const method = req.url?.split('/').at(-1)
     const reply = (result: unknown) => {
@@ -61,10 +89,46 @@ async function fixture() {
     }
     if (method === 'getMe')
       reply({ id: 42, is_bot: true, first_name: 'TestBot', username: 'fixture_bot' })
-    else if (method === 'sendChatAction') reply(true)
-    else if (method === 'sendMessage') {
-      sends.push({ chat_id: String(body.chat_id), text: body.text })
-      if (fail) req.socket.destroy()
+    else if (method === 'sendChatAction') {
+      typing.push(String(body.chat_id))
+      if (typingMode === 'lose') {
+        typingMode = undefined
+        req.socket.destroy()
+      } else if (typingMode === 'rate') {
+        typingMode = undefined
+        res.writeHead(429, { 'content-type': 'application/json' }).end(
+          JSON.stringify({
+            ok: false,
+            error_code: 429,
+            description: 'Too Many Requests',
+            parameters: { retry_after: 1 },
+          }),
+        )
+      } else if (typingMode !== 'stall') reply(true)
+    } else if (method === 'setMessageReaction') {
+      reactions.push({
+        chat: String(body.chat_id),
+        message: body.message_id!,
+        emoji: body.reaction?.[0]?.emoji,
+      })
+      reply(true)
+    } else if (method === 'setMyCommands') {
+      menus.push({ commands: body.commands ?? [], scope: body.scope ?? {} })
+      if (failMenu) res.writeHead(500).end()
+      else reply(true)
+    } else if (method === 'editMessageText') {
+      edits.push({ chat: String(body.chat_id), message: body.message_id!, text: body.text })
+      if (failEdit) req.socket.destroy()
+      else
+        reply({
+          message_id: body.message_id,
+          date: 1,
+          chat: { id: Number(body.chat_id), type: 'private' },
+          text: body.text,
+        })
+    } else if (method === 'sendMessage') {
+      sends.push({ chat_id: String(body.chat_id), text: body.text, parse_mode: body.parse_mode })
+      if (sends.length === failAt) req.socket.destroy()
       else
         reply({
           message_id: 100 + sends.length,
@@ -77,7 +141,10 @@ async function fixture() {
       updates = updates.filter((update) => update.update_id >= (body.offset ?? 0))
       const timer = setTimeout(() => reply(updates.slice(0, body.limit)), 25)
       res.once('close', () => clearTimeout(timer))
-    } else res.writeHead(404).end()
+    } else {
+      res.writeHead(404, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: false, error_code: 404, description: 'Not Found' }))
+    }
   })
   stub.listen(0, '127.0.0.1')
   await once(stub, 'listening')
@@ -107,6 +174,15 @@ async function fixture() {
   }
   return {
     sends,
+    typing,
+    edits,
+    loseEditResponse: () => {
+      failEdit = true
+    },
+    reactions,
+    setTypingMode(mode: typeof typingMode) {
+      typingMode = mode
+    },
     reopen,
     polls: () => polls,
     async disable() {
@@ -118,9 +194,13 @@ async function fixture() {
         }),
       )
     },
-    loseSendResponse: () => {
-      fail = true
+    loseSendResponse: (part = 1) => {
+      failAt = sends.length + part
     },
+    loseMenuUpdate: () => {
+      failMenu = true
+    },
+    menus,
     add(chat: number, message: number, text: string, type = 'private') {
       const command = /^\/[^\s]+/.exec(text)?.[0]
       updates.push({
@@ -140,6 +220,67 @@ async function fixture() {
   }
 }
 
+it.each([false, true])(
+  'publishes the private menu and serves help (menu failure: %s)',
+  async (fail) => {
+    const bot = await fixture()
+    if (fail) bot.loseMenuUpdate()
+    await bot.reopen()
+    await until(() => bot.polls() > 0 && bot.menus.length > 0)
+    expect(bot.menus).toEqual([
+      {
+        commands: [
+          { command: 'clear', description: 'Start a fresh conversation' },
+          { command: 'new', description: 'Start a fresh conversation' },
+          { command: 'stop', description: 'Stop the current run' },
+          { command: 'compact', description: 'Compact the current context' },
+          { command: 'stats', description: 'Show context use, tokens, and recorded cost' },
+          { command: 'model', description: 'Show or change the model' },
+          { command: 'thinking', description: 'Show or change the thinking level' },
+          { command: 'persona', description: 'Show or change the persona' },
+          { command: 'followup', description: 'Send after the current run' },
+          { command: 'help', description: 'Show these commands' },
+        ],
+        scope: { type: 'all_private_chats' },
+      },
+    ])
+    bot.add(7, 1, '/help')
+    await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+    expect(bot.sends[0].parse_mode).toBeUndefined()
+    expect(bot.menus).toHaveLength(1)
+  },
+)
+
+it('renders model Markdown and splits long replies', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const durable = ledger(server.harness, '42')
+  const body = 'long '.repeat(900)
+  server.host.faux!.setResponses([
+    () =>
+      fauxAssistantMessage(
+        [
+          '**Bold** and [link](https://example.com)',
+          '```ts\nlet n = 1\n```',
+          `${body}endword`,
+        ].join('\n\n'),
+      ),
+  ])
+  bot.add(7, 1, 'Format this')
+  await until(async () =>
+    Object.values((await durable.read()).deliveries).some((item) => item.status === 'sent'),
+  )
+  expect(bot.sends.length).toBeGreaterThan(1)
+  expect(
+    bot.sends.every(({ text, parse_mode }) => text.length <= 4096 && parse_mode === 'MarkdownV2'),
+  ).toBe(true)
+  const text = bot.sends.map((part) => part.text).join('\n')
+  expect(text).toContain('*Bold* and [link](https://example.com)')
+  expect(text).toContain('```ts\nlet n = 1\n```')
+  expect(text.match(/\blong\b/g)).toHaveLength(900)
+  expect(text).toMatch(/endword\s*$/)
+})
+
 it('admits approved private chats separately and does not admit a repeated message twice', async () => {
   const bot = await fixture()
   const server = await bot.reopen()
@@ -151,11 +292,13 @@ it('admits approved private chats separately and does not admit a repeated messa
   bot.add(8, 1, 'second')
   await until(() => bot.sends.length >= 2)
   expect(bot.sends.toSorted((a, b) => a.chat_id.localeCompare(b.chat_id))).toEqual([
-    { chat_id: '7', text: 'Answer first' },
-    { chat_id: '8', text: 'Answer second' },
+    { chat_id: '7', text: 'Answer first', parse_mode: 'MarkdownV2' },
+    { chat_id: '8', text: 'Answer second', parse_mode: 'MarkdownV2' },
   ])
   const saved = await durable.read()
   expect(Object.keys(saved.inputs).toSorted()).toEqual(['7:2', '8:1'])
+  expect(bot.typing).not.toContain('9')
+  expect(bot.reactions).toEqual([])
   expect(saved.chats['7']).not.toBe(saved.chats['8'])
   expect(server.url).toBeUndefined()
 })
@@ -207,7 +350,7 @@ it('reads and changes only the current chat and preserves its persona on a clear
       .slice(start)
       .find((send) => send.chat_id === '7' && send.text.startsWith(prefix))!.text
   }
-  const help = await command('/help', '/clear or /new')
+  const help = await command('/help', '/clear:')
   expect(help).toContain('/followup <text>')
   const stats = await command('/stats', 'Context:')
   const usage = (await server.harness.snapshot(UsageDoc, first, context))?.models['faux/faux-1']
@@ -244,6 +387,48 @@ it('reads and changes only the current chat and preserves its persona on a clear
   expect(await server.harness.snapshot(AgentDoc, second, context)).toEqual(untouched)
 })
 
+it('refreshes typing across transient failures and removes the queue reaction when placed', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const release = Promise.withResolvers<void>()
+  const started = Promise.withResolvers<void>()
+  const next = Promise.withResolvers<void>()
+  bot.setTypingMode('lose')
+  server.host.faux!.setResponses([
+    async () => {
+      started.resolve()
+      await release.promise
+      return fauxAssistantMessage('First answer')
+    },
+    (request, options, modelState, model) => {
+      next.resolve()
+      return held(request, options, modelState, model)
+    },
+  ])
+  try {
+    bot.add(7, 1, 'Start a long turn')
+    await started.promise
+    await until(() => bot.typing.length === 2)
+    bot.add(7, 2, '/followup Later')
+    await until(() => bot.reactions.some((event) => event.message === 2 && event.emoji === '👍'))
+    bot.add(7, 2, '/followup Later')
+    bot.setTypingMode('rate')
+    await until(() => bot.typing.length >= 4, 8_000)
+    expect(bot.reactions).toEqual([{ chat: '7', message: 2, emoji: '👍' }])
+    release.resolve()
+    await next.promise
+    await until(() => bot.reactions.some((event) => event.message === 2 && !event.emoji))
+    expect(bot.reactions).toEqual([
+      { chat: '7', message: 2, emoji: '👍' },
+      { chat: '7', message: 2, emoji: undefined },
+    ])
+    bot.add(7, 3, '/stop')
+    await until(() => bot.sends.some(({ text }) => text === 'Stopped the active run.'))
+  } finally {
+    release.resolve()
+  }
+})
+
 it('queues a follow-up and stops only the active run', async () => {
   const bot = await fixture()
   const server = await bot.reopen()
@@ -267,6 +452,329 @@ it('queues a follow-up and stops only the active run', async () => {
   await until(() => bot.sends.some((send) => send.text === 'Stopped the active run.'))
   expect((await server.harness.snapshot(LiveDoc, id, context))?.run).toBeUndefined()
   expect((await server.harness.snapshot(InboxDoc, id, context))?.items).toEqual(queued)
+})
+
+it.each([false, true])(
+  'keeps parallel tool calls in call order (edit failure: %s)',
+  async (fail) => {
+    const bot = await fixture()
+    const server = await bot.reopen()
+    const slow = Promise.withResolvers<void>()
+    const fast = Promise.withResolvers<void>()
+    server.host.registry.install(
+      defineExtension({
+        name: 'telegram-probe',
+        tools: [
+          defineTool({
+            name: 'slow_probe',
+            description: 'Wait for a test gate',
+            parameters: obj({}),
+            async execute() {
+              await slow.promise
+              return {}
+            },
+          }),
+          defineTool({
+            name: 'fast_probe',
+            description: 'Report a test error',
+            parameters: obj({}),
+            async execute() {
+              await fast.promise
+              return { isError: true }
+            },
+          }),
+        ],
+      }),
+    )
+    server.host.faux!.setResponses([
+      () =>
+        fauxAssistantMessage(
+          [
+            fauxToolCall('slow_probe', {}, { id: 'slow' }),
+            fauxToolCall('fast_probe', {}, { id: 'fast' }),
+          ],
+          { stopReason: 'toolUse' },
+        ),
+      () => fauxAssistantMessage('Results ready'),
+    ])
+    try {
+      bot.add(7, 1, 'Run the probes')
+      await until(() =>
+        [...bot.sends, ...bot.edits].some(
+          ({ text }) =>
+            text.includes('slow_probe · running') && text.includes('fast_probe · running'),
+        ),
+      )
+      if (fail) bot.loseEditResponse()
+      fast.resolve()
+      await until(() =>
+        bot.edits.some(
+          ({ text }) =>
+            text.includes('fast_probe · failed') && text.includes('slow_probe · running'),
+        ),
+      )
+      const edited = bot.edits.find(({ text }) => text.includes('fast_probe · failed'))!
+      expect(edited.text.split('\n')).toEqual([
+        'Tool activity',
+        'slow_probe · running',
+        'fast_probe · failed',
+      ])
+      expect(edited.chat).toBe('7')
+      slow.resolve()
+      await until(() => bot.sends.some(({ text }) => text === 'Results ready'))
+      if (!fail)
+        await until(() =>
+          bot.edits.some(
+            ({ text }) =>
+              text.includes('slow_probe · done') && text.includes('fast_probe · failed'),
+          ),
+        )
+      expect(bot.edits.at(-1) === edited).toBe(fail)
+      expect(bot.sends.filter(({ text }) => text.startsWith('Tool activity'))).toHaveLength(1)
+      expect(new Set(bot.edits.map(({ message }) => message)).size).toBe(1)
+    } finally {
+      slow.resolve()
+      fast.resolve()
+    }
+  },
+)
+
+it('excludes earlier web tools and shows fast sequential tools after a Telegram steer', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const durable = ledger(server.harness, '42')
+  bot.add(7, 1, '/new')
+  await until(() => bot.sends.some(({ text }) => text === 'Started a fresh conversation.'))
+  const id = (await durable.read()).chats['7'] as ConversationId
+  const conversation = (await server.harness.conversation(id, context))!
+  const release = Promise.withResolvers<void>()
+  const started = Promise.withResolvers<void>()
+  server.host.registry.install(
+    defineExtension({
+      name: 'telegram-sequential-probe',
+      tools: [
+        defineTool({
+          name: 'web_probe',
+          description: 'Wait for steer',
+          parameters: obj({}),
+          async execute() {
+            started.resolve()
+            await release.promise
+            return {}
+          },
+        }),
+        ...['first_probe', 'second_probe'].map((name) =>
+          defineTool({
+            name,
+            description: 'Return promptly',
+            parameters: obj({}),
+            executionMode: 'sequential',
+            execute: async () => ({}),
+          }),
+        ),
+      ],
+    }),
+  )
+  server.host.faux!.setResponses([
+    () => fauxAssistantMessage([fauxToolCall('web_probe', {})], { stopReason: 'toolUse' }),
+    () =>
+      fauxAssistantMessage(
+        [
+          fauxToolCall('first_probe', {}, { id: 'first' }),
+          fauxToolCall('second_probe', {}, { id: 'second' }),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+    () => fauxAssistantMessage('Steer finished'),
+  ])
+  try {
+    await conversation.submit({ type: 'input', content: 'Run from web' }, context)
+    await started.promise
+    expect(bot.typing).toEqual([])
+    bot.add(7, 2, 'Do the next steps')
+    await until(() => bot.reactions.some(({ message, emoji }) => message === 2 && emoji === '👍'))
+    expect(bot.typing).toEqual([])
+    expect(bot.sends.filter(({ text }) => text.startsWith('Tool activity'))).toEqual([])
+    release.resolve()
+    await until(() => bot.sends.some(({ text }) => text === 'Steer finished'))
+    await until(() =>
+      [...bot.sends, ...bot.edits].some(({ text }) =>
+        text.includes('first_probe · done\nsecond_probe · done'),
+      ),
+    )
+    expect([...bot.sends, ...bot.edits].some(({ text }) => text.includes('web_probe'))).toBe(false)
+    expect(bot.sends.filter(({ text }) => text.startsWith('Tool activity'))).toHaveLength(1)
+  } finally {
+    release.resolve()
+  }
+})
+
+it('sends committed assistant updates before tool progress and the final answer', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  server.host.registry.install(
+    defineExtension({
+      name: 'telegram-update-probe',
+      tools: ['probe_a', 'probe_b', 'probe_c'].map((name) =>
+        defineTool({
+          name,
+          description: 'Return promptly',
+          parameters: obj({}),
+          execute: async () => ({}),
+        }),
+      ),
+    }),
+  )
+  server.host.faux!.setResponses([
+    () =>
+      fauxAssistantMessage([fauxText('Checking **first**'), fauxToolCall('probe_a', {})], {
+        stopReason: 'toolUse',
+      }),
+    () =>
+      fauxAssistantMessage([fauxThinking('SECRET_THINKING'), fauxToolCall('probe_b', {})], {
+        stopReason: 'toolUse',
+      }),
+    () =>
+      fauxAssistantMessage([fauxText('Checking second'), fauxToolCall('probe_c', {})], {
+        stopReason: 'toolUse',
+      }),
+    () => fauxAssistantMessage('Final answer'),
+  ])
+  bot.add(7, 1, 'Work through it')
+  await until(() => bot.sends.some(({ text }) => text === 'Final answer'))
+  const texts = bot.sends.map(({ text }) => text)
+  const order = ['Checking *first*', 'Tool activity', 'Checking second', 'Final answer'].map(
+    (prefix) => texts.findIndex((text) => text.startsWith(prefix)),
+  )
+  expect(order.every((index) => index >= 0)).toBe(true)
+  expect(order).toEqual(order.toSorted((a, b) => a - b))
+  expect(texts.filter((text) => text.startsWith('Tool activity'))).toHaveLength(1)
+  expect(texts.filter((text) => text === 'Final answer')).toHaveLength(1)
+  expect(JSON.stringify([...bot.sends, ...bot.edits])).not.toContain('SECRET_THINKING')
+})
+
+it('sends an answer that continues the run before the final answer', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  let continued = false
+  server.host.registry.install(
+    defineExtension({
+      name: 'telegram-yield-probe',
+      hooks: [
+        hook(GenerationTask, {
+          onYield: () => {
+            if (continued) return undefined
+            continued = true
+            return { continue: 'keep going' }
+          },
+        }),
+      ],
+    }),
+  )
+  server.host.faux!.setResponses([
+    () => fauxAssistantMessage('Interim note'),
+    () => fauxAssistantMessage('Final after yield'),
+  ])
+  bot.add(7, 1, 'Continue once')
+  await until(() => bot.sends.some(({ text }) => text === 'Final after yield'))
+  expect(bot.sends.map(({ text }) => text)).toEqual(['Interim note', 'Final after yield'])
+})
+
+it.each([false, true])(
+  'does not resend an update that becomes the final answer (lost confirmation: %s)',
+  async (lost) => {
+    const bot = await fixture()
+    const server = await bot.reopen()
+    const durable = ledger(server.harness, '42')
+    server.host.registry.install(
+      defineExtension({
+        name: 'telegram-terminate-probe',
+        tools: [
+          defineTool({
+            name: 'finish_probe',
+            description: 'End the run',
+            parameters: obj({}),
+            execute: async () => ({ control: { terminate: true as const } }),
+          }),
+        ],
+      }),
+    )
+    server.host.faux!.setResponses([
+      () =>
+        fauxAssistantMessage([fauxText('Done here'), fauxToolCall('finish_probe', {})], {
+          stopReason: 'toolUse',
+        }),
+    ])
+    if (lost) bot.loseSendResponse(1)
+    bot.add(7, 1, 'Finish with a tool')
+    await until(async () => (await durable.read()).inputs['7:1']?.settled === true)
+    await server.close()
+    const next = await bot.reopen(server.host.ultimateRoot)
+    const after = ledger(next.harness, '42')
+    bot.add(8, 1, 'next')
+    await until(async () => (await after.read()).inputs['8:1']?.settled === true)
+    expect(bot.sends.filter(({ text }) => text === 'Done here')).toHaveLength(1)
+    expect(Object.values((await after.read()).deliveries).map(({ status }) => status)).toContain(
+      lost ? 'uncertain' : 'sent',
+    )
+  },
+)
+
+it('shows only filtered tool details in Telegram', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  await writeFile(join(server.host.projectRoot, 'preview-note.md'), 'TOOL_OUTPUT_SECRET\n')
+  await writeFile(join(server.host.projectRoot, '.env'), 'ENV_FILE_SECRET\n')
+  server.host.faux!.setResponses([
+    () =>
+      fauxAssistantMessage(
+        [
+          fauxToolCall('read', { path: 'preview-note.md' }, { id: 'note' }),
+          fauxToolCall('read', { path: '.env' }, { id: 'env' }),
+          fauxToolCall('read', { path: '/etc/hostname' }, { id: 'outside' }),
+          fauxToolCall('bash', { command: 'echo SHELL_ARG_SECRET; exit 3' }, { id: 'shell' }),
+          fauxToolCall(
+            'web_fetch',
+            { url: 'https://user:PASSWORD_SECRET@example.com/a?token=QUERY_SECRET' },
+            { id: 'fetch' },
+          ),
+          fauxToolCall('mcp_probe', { secret: 'MCP_ARG_SECRET' }, { id: 'mcp' }),
+        ],
+        { stopReason: 'toolUse' },
+      ),
+    () => fauxAssistantMessage('Preview done'),
+  ])
+  bot.add(7, 1, 'Preview tools')
+  await until(() => bot.sends.some(({ text }) => text === 'Preview done'))
+  const latest = () =>
+    [...bot.sends, ...bot.edits].filter(({ text }) => text.startsWith('Tool activity')).at(-1)
+      ?.text ?? ''
+  await until(() => latest().split('\n').length === 7 && !/running|waiting/.test(latest()))
+  const last = latest()
+  expect(last.split('\n')).toEqual([
+    'Tool activity',
+    'Read · preview-note.md · done',
+    expect.stringMatching(/^Read · (done|failed)$/),
+    expect.stringMatching(/^Read · (done|failed)$/),
+    'Shell · failed',
+    'Web fetch · example.com · failed',
+    'mcp_probe · failed',
+  ])
+  const wire = JSON.stringify([...bot.sends, ...bot.edits])
+  for (const leaked of [
+    'TOOL_OUTPUT_SECRET',
+    'ENV_FILE_SECRET',
+    '.env',
+    '/etc',
+    'SHELL_ARG_SECRET',
+    'echo',
+    'PASSWORD_SECRET',
+    'QUERY_SECRET',
+    'user:',
+    'MCP_ARG_SECRET',
+    'not available',
+  ])
+    expect(wire).not.toContain(leaked)
 })
 
 it('keeps the old reply in its source chat and replays clear without creating a new conversation', async () => {
@@ -353,22 +861,26 @@ it('stops polling on disable but lets admitted work finish with the web off', as
   }
 })
 
-it('does not send a reply again after a restart when Telegram did not confirm it', async () => {
-  const bot = await fixture()
-  const server = await bot.reopen()
-  const durable = ledger(server.harness, '42')
-  bot.loseSendResponse()
-  bot.add(7, 1, 'once')
-  await until(async () =>
-    Object.values((await durable.read()).deliveries).some((item) => item.status === 'uncertain'),
-  )
-  expect(bot.sends).toHaveLength(1)
-  await server.close()
-  const next = await bot.reopen(server.host.ultimateRoot)
-  const after = ledger(next.harness, '42')
-  bot.add(7, 1, 'once')
-  bot.add(8, 2, 'next')
-  await until(async () => (await after.read()).inputs['8:2']?.settled === true)
-  expect(bot.sends.filter(({ chat_id }) => chat_id === '7')).toHaveLength(1)
-  expect((await after.read()).inputs['7:1']).toMatchObject({ settled: true })
-})
+it.each([1, 2])(
+  'does not resend after restart when Telegram did not confirm part %s',
+  async (part) => {
+    const bot = await fixture()
+    const server = await bot.reopen()
+    const durable = ledger(server.harness, '42')
+    bot.loseSendResponse(part)
+    if (part > 1) server.host.faux!.setResponses([() => fauxAssistantMessage('long '.repeat(900))])
+    bot.add(7, 1, 'once')
+    await until(async () =>
+      Object.values((await durable.read()).deliveries).some((item) => item.status === 'uncertain'),
+    )
+    expect(bot.sends).toHaveLength(part)
+    await server.close()
+    const next = await bot.reopen(server.host.ultimateRoot)
+    const after = ledger(next.harness, '42')
+    bot.add(7, 1, 'once')
+    bot.add(8, 2, 'next')
+    await until(async () => (await after.read()).inputs['8:2']?.settled === true)
+    expect(bot.sends.filter(({ chat_id }) => chat_id === '7')).toHaveLength(part)
+    expect((await after.read()).inputs['7:1']).toMatchObject({ settled: true })
+  },
+)
