@@ -49,6 +49,8 @@ Tool activity uses the same hints as Nanobot: the tool and its main argument, sh
 
 Plain text steers a busy conversation. An idle conversation starts a turn for plain text or a follow-up. These commands do not change standing addresses or the web selection.
 
+`/restart` first replies `Restarting…`. After activation, it reports the generation, PID, and build, or an activation failure and rollback. It does not repeat the result after an extension reload. If delivery is uncertain, it records a diagnostic and does not resend the reply.
+
 ## Recovery limits
 
 The channel saves the chat binding and input receipts in Pi Durable. A repeated Telegram message does not move to a new conversation after `/clear`. A reply to older work still goes to the chat that sent it. Telegram receives replies to its own inputs, not automation or background results.

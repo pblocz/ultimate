@@ -21,6 +21,7 @@ type BotState = {
   inputs: Record<string, Input>
   clears: Record<string, number>
   deliveries: Record<string, Delivery>
+  restart?: { chat: string; message: string; sender: string; generation: number }
 }
 
 const Bots = defineDoc<Record<string, BotState>>({

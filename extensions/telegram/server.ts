@@ -16,7 +16,7 @@ import type { InputImage } from '@ultimate/shared/channel-host.ts'
 import { imageMimeTypes, maxImageBytes, maxImages } from '@ultimate/shared/protocol.ts'
 import { address, telegramChannel } from './channel.ts'
 import { commandMetadata, commands, runCommand } from './commands.ts'
-import { sdkState } from './state.ts'
+import { ledger, sdkState } from './state.ts'
 export const reloadOnSettings = true
 export const secrets = [{ name: 'TELEGRAM_BOT_TOKEN', description: 'Token for the Telegram bot' }]
 
@@ -96,6 +96,8 @@ export default function telegram(host: ExtensionHost) {
         },
         logger,
       })
+      const state = ledger(host.harness(), bot)
+      const stopping = new AbortController()
       const chat = new Chat({
         userName: 'ultimate',
         adapters: { telegram: adapter },
@@ -132,6 +134,7 @@ export default function telegram(host: ExtensionHost) {
         },
       )
       close = async () => {
+        stopping.abort()
         channel.stop()
         try {
           await chat.shutdown()
@@ -191,7 +194,11 @@ export default function telegram(host: ExtensionHost) {
             // requestSwap stays pending on success. SDK 4.45 shutdown waits for polling handlers,
             // so the restart request must not keep this handler open.
             host
-              .restart(async () => {})
+              .restart(async (generation) => {
+                await state.change((data) => {
+                  data.restart = { ...from, generation }
+                })
+              })
               .then(async (error) => {
                 if (error) await send(from.chat, `Restart failed: ${error}`, from.message)
               })
@@ -224,6 +231,31 @@ export default function telegram(host: ExtensionHost) {
       })
       await channel.recover()
       await chat.initialize()
+      const current = host.system().process
+      const pending = await state.change((data) => {
+        const restart = data.restart
+        if (!restart || (restart.generation > current.generation && !current.activationError))
+          return undefined
+        // Claim before sending, like final replies: a lost confirmation must not cause a duplicate.
+        const claimed = { ...restart }
+        delete data.restart
+        return claimed
+      })
+      if (pending && allowed.has(pending.sender)) {
+        const text =
+          current.generation === pending.generation
+            ? `Restarted. The shared Ultimate host is now running generation ${current.generation} (pid ${current.pid}, build ${host.build().id}).`
+            : `Restart failed during activation; rolled back to generation ${current.generation}. ${current.activationError ?? 'The target generation did not activate.'}`
+        try {
+          await adapter.bounded(stopping.signal, 5_000, () =>
+            send(pending.chat, text, pending.message),
+          )
+        } catch {
+          host.notice(
+            'Telegram: restart reply delivery is uncertain. It will not be sent again automatically.',
+          )
+        }
+      }
       await adapter
         .publishCommands(
           commandMetadata.map(({ name, description }) => ({

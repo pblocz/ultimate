@@ -26,7 +26,7 @@ import type { ConversationId } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fauxServer, held, sourceCopy, temp, until } from '@ultimate/test/helpers.ts'
-import { copies, launch } from '@ultimate/test/e2e/supervisor-helpers.ts'
+import { activationFailure, copies, launch } from '@ultimate/test/e2e/supervisor-helpers.ts'
 import { writeSecret } from '@ultimate/ext/secrets/store.ts'
 import { ledger } from '../../state.ts'
 
@@ -350,7 +350,7 @@ it('reports a refused restart', async () => {
   ])
 })
 
-it('keeps polling and releases the bot while an approved restart stays pending', async () => {
+it('keeps a pending restart through a facet reload and releases the bot', async () => {
   const bot = await fixture()
   const server = await bot.reopen()
   const restart = vi.fn<typeof server.host.restart>(async (approved) => {
@@ -362,50 +362,107 @@ it('keeps polling and releases the bot while an approved restart stays pending',
   await until(() => restart.mock.calls.length === 1)
   bot.add(7, 2, '/help')
   await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+  const file = join(server.host.ultimateRoot, 'extensions/telegram/server.ts')
+  await writeFile(
+    file,
+    (await readFile(file, 'utf8')) + '\n// Reload before the restart completes.\n',
+  )
+  await until(() => bot.menus.length === 2)
+  expect((await ledger(server.harness, '42').read()).restart?.generation).toBe(2)
+  expect(bot.sends).toHaveLength(2)
   await server.close()
   expect(restart).toHaveBeenCalledOnce()
 })
 
-it('restarts the supervised host through Telegram and answers after the swap', async () => {
-  const bot = await fixture()
-  const root = await sourceCopy(await temp('ultimate-telegram-supervisor-'))
-  await mkdir(join(root, 'extensions/telegram-probe'))
-  await writeFile(
-    join(root, 'extensions/telegram-probe/server.ts'),
-    `import { appendFile } from 'node:fs/promises'
+it.each([false, true])(
+  'reports the supervised restart outcome once (activation failure: %s)',
+  async (fail) => {
+    const bot = await fixture()
+    const root = await sourceCopy(await temp('ultimate-telegram-supervisor-'))
+    await mkdir(join(root, 'extensions/telegram-probe'))
+    await writeFile(
+      join(root, 'extensions/telegram-probe/server.ts'),
+      `import { appendFile } from 'node:fs/promises'
 import { join } from 'node:path'
 export default (host) => {
-  host.onReady(() => appendFile(join(host.home, 'telegram-ready.jsonl'), JSON.stringify(host.system().process) + '\\n'))
+  host.onReady(() => appendFile(join(host.home, 'telegram-ready.jsonl'), JSON.stringify({ ...host.system().process, build: host.build().id }) + '\\n'))
   return { name: 'telegram-probe' }
 }
 `,
-  )
-  copies.set(bot.user, root)
-  const running = await launch(bot.user)
-  cleanup.push(async () => {
-    if (running.child.exitCode !== null || running.child.signalCode !== null) return
-    const exited = once(running.child, 'exit')
-    running.child.kill('SIGTERM')
-    await exited
+    )
+    copies.set(bot.user, root)
+    const running = await launch(bot.user)
+    cleanup.push(async () => {
+      if (running.child.exitCode !== null || running.child.signalCode !== null) return
+      const exited = once(running.child, 'exit')
+      running.child.kill('SIGTERM')
+      await exited
+    })
+    const readies = async () =>
+      (await readFile(join(bot.user, 'telegram-ready.jsonl'), 'utf8').catch(() => ''))
+        .split('\n')
+        .filter(Boolean)
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              generation: number
+              pid: number
+              build: string
+              activationError?: string
+            },
+        )
+    await until(async () => (await readies()).length === 1 && bot.menus.length === 1)
+    const [first] = await readies()
+    expect(first.generation).toBe(1)
+    if (fail) await activationFailure(root)
+    bot.add(7, 1, '/restart')
+    await until(async () => (await readies()).length === 2 && bot.menus.length === 2)
+    const ready = (await readies())[1]
+    expect(ready.generation).toBe(fail ? 1 : 2)
+    expect(ready.pid === first.pid).toBe(fail)
+    expect(ready.activationError?.includes('Injected activation failure') ?? false).toBe(fail)
+    const reply = fail
+      ? `Restart failed during activation; rolled back to generation 1. ${ready.activationError}`
+      : `Restarted. The shared Ultimate host is now running generation 2 (pid ${ready.pid}, build ${ready.build}).`
+    await until(() => bot.sends.length >= 2)
+    expect(bot.sends.map(({ text }) => text)).toEqual(['Restarting…', reply])
+    bot.add(7, 2, 'after restart')
+    await until(() => bot.sends.some(({ text }) => text.replaceAll('\\', '') === 'Done.'))
+    const file = join(root, 'extensions/telegram/server.ts')
+    await writeFile(file, (await readFile(file, 'utf8')) + '\n// Reload the Telegram facet.\n')
+    await until(() => bot.menus.length === 3)
+    bot.add(7, 3, '/help')
+    await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+    expect(bot.sends.slice(0, 3).map(({ text }) => text)).toEqual(['Restarting…', reply, 'Done\\.'])
+    expect(bot.sends).toHaveLength(4)
+    expect(running.output()).not.toContain('Timed out waiting for released')
+  },
+)
+
+it('does not repeat a restart reply when Telegram did not confirm its delivery', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  await ledger(server.harness, '42').change((data) => {
+    data.restart = { chat: '7', message: '1', sender: '7', generation: 1 }
   })
-  const readies = async () =>
-    (await readFile(join(bot.user, 'telegram-ready.jsonl'), 'utf8').catch(() => ''))
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as { generation: number; pid: number })
-  await until(async () => (await readies()).length === 1 && bot.menus.length === 1)
-  const [first] = await readies()
-  expect(first.generation).toBe(1)
-  bot.add(7, 1, '/restart')
-  await until(async () => (await readies()).some(({ generation }) => generation === 2))
-  await until(() => bot.menus.length === 2)
-  bot.add(7, 2, 'after restart')
-  await until(() => bot.sends.some(({ text }) => text.replaceAll('\\', '') === 'Done.'))
-  const ready = await readies()
-  expect(ready.map(({ generation }) => generation)).toEqual([1, 2])
-  expect(ready[1].pid).not.toBe(first.pid)
-  expect(bot.sends.map(({ text }) => text)).toEqual(['Restarting…', 'Done\\.'])
-  expect(running.output()).not.toContain('Timed out waiting for released')
+  await server.close()
+  bot.loseSendResponse()
+  const next = await bot.reopen(server.host.ultimateRoot)
+  await until(() =>
+    next.system
+      .current()
+      .extensionDiagnostics.includes(
+        'Telegram: restart reply delivery is uncertain. It will not be sent again automatically.',
+      ),
+  )
+  expect(next.system.current().extensionDiagnostics).toContain(
+    'Telegram: restart reply delivery is uncertain. It will not be sent again automatically.',
+  )
+  await next.close()
+  await bot.reopen(server.host.ultimateRoot)
+  bot.add(7, 2, '/help')
+  await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+  expect(bot.sends.filter(({ text }) => text.startsWith('Restarted.'))).toHaveLength(1)
 })
 
 it('does not restart for an unapproved sender or a group', async () => {
