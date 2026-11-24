@@ -20,6 +20,7 @@ export const commandMetadata = [
   { name: '/thinking', args: ' [level]', description: 'Show or change the thinking level' },
   { name: '/persona', args: ' [name]', description: 'Show or change the persona' },
   { name: '/followup', args: ' <text>', description: 'Send after the current run' },
+  { name: '/restart', description: 'Restart the shared Ultimate host' },
   { name: '/help', description: 'Show these commands' },
 ] as const
 export const commands = commandMetadata.map(({ name }) => name)
@@ -42,7 +43,7 @@ export async function runCommand(
     return (await channel.clear(from)) ? 'Started a fresh conversation.' : undefined
   if (command === '/followup') {
     if (!arg) return 'Use /followup <text>.'
-    await channel.submit(from, arg, 'followUp')
+    await channel.submit(from, arg, undefined, 'followUp')
     return undefined
   }
   const id = await channel.current(from)

@@ -12,6 +12,8 @@ import { readJson } from '@ultimate/lib/json-file.ts'
 import { readSecret } from '@ultimate/lib/secrets.ts'
 import { userSettingsPath } from '@ultimate/lib/settings.ts'
 import { isChannelError } from '@ultimate/shared/channel-host.ts'
+import type { InputImage } from '@ultimate/shared/channel-host.ts'
+import { imageMimeTypes, maxImageBytes, maxImages } from '@ultimate/shared/protocol.ts'
 import { address, telegramChannel } from './channel.ts'
 import { commandMetadata, commands, runCommand } from './commands.ts'
 import { sdkState } from './state.ts'
@@ -150,13 +152,55 @@ export default function telegram(host: ExtensionHost) {
       }
       chat.onDirectMessage(async (_thread, message) => {
         const from = address(message.raw as TelegramMessage, allowed)
-        if (!from || message.attachments.length || !message.text.trim()) return
-        await handle(from.chat, () => channel.submit(from, message.text))
+        if (!from) return
+        await handle(from.chat, async () => {
+          const images: InputImage[] = []
+          for (const attachment of message.attachments) {
+            if (attachment.type !== 'image' && attachment.type !== 'file') continue
+            const mimeType =
+              attachment.mimeType ?? (attachment.type === 'image' ? 'image/jpeg' : undefined)
+            if (!mimeType || !imageMimeTypes.includes(mimeType)) continue
+            if (attachment.size !== undefined && attachment.size > maxImageBytes) continue
+            try {
+              const data = await attachment.fetchData?.()
+              if (!data) continue
+              const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data)
+              if (buffer.byteLength > maxImageBytes) continue
+              images.push({ mimeType, data: buffer.toString('base64') })
+              if (images.length >= maxImages) break
+            } catch {
+              // A failed download must not discard the message text or other images.
+            }
+          }
+          const text = message.text ?? ''
+          if (!text.trim() && !images.length) return
+          await channel.submit(from, text, images)
+        })
       })
       chat.onSlashCommand([...commands], async (event) => {
         const from = address(event.raw as TelegramMessage, allowed)
         const command = commands.find((name) => name === event.command)
         if (!from || !command) return
+        if (command === '/restart') {
+          await handle(from.chat, async () => {
+            try {
+              await send(from.chat, 'Restarting…', from.message)
+            } catch {
+              // A failed reply must not prevent the requested restart.
+            }
+            // requestSwap stays pending on success. SDK 4.45 shutdown waits for polling handlers,
+            // so the restart request must not keep this handler open.
+            host
+              .restart(async () => {})
+              .then(async (error) => {
+                if (error) await send(from.chat, `Restart failed: ${error}`, from.message)
+              })
+              .catch(() => {
+                host.notice('Telegram: restart failed. Check the host logs.')
+              })
+          })
+          return
+        }
         await handle(from.chat, async () => {
           let answer: string | undefined
           try {

@@ -1,7 +1,7 @@
 import { once } from 'node:events'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   fauxAssistantMessage,
@@ -25,7 +25,8 @@ import {
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import { afterEach, expect, it, vi } from 'vitest'
-import { fauxServer, held, temp, until } from '@ultimate/test/helpers.ts'
+import { fauxServer, held, sourceCopy, temp, until } from '@ultimate/test/helpers.ts'
+import { copies, launch } from '@ultimate/test/e2e/supervisor-helpers.ts'
 import { writeSecret } from '@ultimate/ext/secrets/store.ts'
 import { ledger } from '../../state.ts'
 
@@ -69,6 +70,7 @@ async function fixture(withToken = true) {
   let next = 0
   let updates: Update[] = []
   let failAt = Infinity
+  let rejectAt = Infinity
   let failMenu = false
   let polls = 0
   const typing: string[] = []
@@ -79,6 +81,12 @@ async function fixture(withToken = true) {
   const menus: { commands: { command: string; description: string }[]; scope: object }[] = []
   const sends: { chat_id: string; text: string; parse_mode?: string }[] = []
   const stub = createServer(async (req, res) => {
+    if (req.url?.startsWith('/file/')) {
+      res
+        .writeHead(200, { 'content-type': 'image/jpeg' })
+        .end(Buffer.from([0xff, 0xd8, 0xff, 0xd9]))
+      return
+    }
     let text = ''
     for await (const chunk of req) text += String(chunk)
     const body = JSON.parse(text || '{}') as {
@@ -127,6 +135,8 @@ async function fixture(withToken = true) {
       menus.push({ commands: body.commands ?? [], scope: body.scope ?? {} })
       if (failMenu) res.writeHead(500).end()
       else reply(true)
+    } else if (method === 'getFile') {
+      reply({ file_id: (body as { file_id?: string }).file_id, file_path: 'photos/test.jpg' })
     } else if (method === 'editMessageText') {
       edits.push({ chat: String(body.chat_id), message: body.message_id!, text: body.text })
       if (failEdit) req.socket.destroy()
@@ -139,7 +149,11 @@ async function fixture(withToken = true) {
         })
     } else if (method === 'sendMessage') {
       sends.push({ chat_id: String(body.chat_id), text: body.text, parse_mode: body.parse_mode })
-      if (sends.length === failAt) req.socket.destroy()
+      if (sends.length === rejectAt)
+        res
+          .writeHead(400, { 'content-type': 'application/json' })
+          .end(JSON.stringify({ ok: false, error_code: 400, description: 'Bad Request' }))
+      else if (sends.length === failAt) req.socket.destroy()
       else
         reply({
           message_id: 100 + sends.length,
@@ -184,6 +198,7 @@ async function fixture(withToken = true) {
     return server
   }
   return {
+    user,
     sends,
     typing,
     edits,
@@ -209,6 +224,9 @@ async function fixture(withToken = true) {
     loseSendResponse: (part = 1) => {
       failAt = sends.length + part
     },
+    rejectSendResponse: (part = 1) => {
+      rejectAt = sends.length + part
+    },
     loseMenuUpdate: () => {
       failMenu = true
     },
@@ -226,6 +244,33 @@ async function fixture(withToken = true) {
           ...(command && {
             entities: [{ type: 'bot_command', offset: 0, length: command.length }],
           }),
+        },
+      })
+    },
+    addImage(chat: number, message: number, kind: 'photo' | 'document', caption = '') {
+      updates.push({
+        update_id: ++next,
+        message: {
+          message_id: message,
+          date: 1,
+          chat: { id: chat, type: 'private' },
+          from: { id: chat, is_bot: false, first_name: 'Test' },
+          caption,
+          ...(kind === 'photo'
+            ? {
+                photo: [
+                  { file_id: 'photo1', file_unique_id: 'u1', width: 10, height: 10, file_size: 4 },
+                ],
+              }
+            : {
+                document: {
+                  file_id: 'document1',
+                  file_unique_id: 'u2',
+                  file_name: 'test.jpg',
+                  mime_type: 'image/jpeg',
+                  file_size: 4,
+                },
+              }),
         },
       })
     },
@@ -251,6 +296,7 @@ it.each([false, true])(
           { command: 'thinking', description: 'Show or change the thinking level' },
           { command: 'persona', description: 'Show or change the persona' },
           { command: 'followup', description: 'Send after the current run' },
+          { command: 'restart', description: 'Restart the shared Ultimate host' },
           { command: 'help', description: 'Show these commands' },
         ],
         scope: { type: 'all_private_chats' },
@@ -260,6 +306,154 @@ it.each([false, true])(
     await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
     expect(bot.sends[0].parse_mode).toBeUndefined()
     expect(bot.menus).toHaveLength(1)
+  },
+)
+
+it.each([
+  ['photo', 'look at this'],
+  ['photo', ''],
+  ['document', 'look at this'],
+] as const)('passes a %s with caption %j to the model', async (kind, caption) => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  let content: unknown
+  server.host.faux!.setResponses([
+    (request) => {
+      content = request.messages.findLast((message) => message.role === 'user')?.content
+      return fauxAssistantMessage('Answer image')
+    },
+  ])
+  bot.addImage(7, 1, kind, caption)
+  await until(() => bot.sends.length >= 1)
+  expect(content).toEqual([
+    ...(caption ? [{ type: 'text', text: caption }] : []),
+    {
+      type: 'image',
+      mimeType: 'image/jpeg',
+      data: Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64'),
+    },
+  ])
+  expect(bot.sends).toEqual([{ chat_id: '7', text: 'Answer image', parse_mode: 'MarkdownV2' }])
+})
+
+it('reports a refused restart', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const restart = vi.fn<typeof server.host.restart>(async () => 'Restart refused')
+  server.host.restart = restart
+  bot.add(7, 1, '/restart')
+  await until(() => bot.sends.length === 2)
+  expect(restart).toHaveBeenCalledOnce()
+  expect(bot.sends.map(({ text }) => text)).toEqual([
+    'Restarting…',
+    'Restart failed: Restart refused',
+  ])
+})
+
+it('keeps polling and releases the bot while an approved restart stays pending', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const restart = vi.fn<typeof server.host.restart>(async (approved) => {
+    await approved(2)
+    return new Promise<string>(() => {})
+  })
+  server.host.restart = restart
+  bot.add(7, 1, '/restart')
+  await until(() => restart.mock.calls.length === 1)
+  bot.add(7, 2, '/help')
+  await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+  await server.close()
+  expect(restart).toHaveBeenCalledOnce()
+})
+
+it('restarts the supervised host through Telegram and answers after the swap', async () => {
+  const bot = await fixture()
+  const root = await sourceCopy(await temp('ultimate-telegram-supervisor-'))
+  await mkdir(join(root, 'extensions/telegram-probe'))
+  await writeFile(
+    join(root, 'extensions/telegram-probe/server.ts'),
+    `import { appendFile } from 'node:fs/promises'
+import { join } from 'node:path'
+export default (host) => {
+  host.onReady(() => appendFile(join(host.home, 'telegram-ready.jsonl'), JSON.stringify(host.system().process) + '\\n'))
+  return { name: 'telegram-probe' }
+}
+`,
+  )
+  copies.set(bot.user, root)
+  const running = await launch(bot.user)
+  cleanup.push(async () => {
+    if (running.child.exitCode !== null || running.child.signalCode !== null) return
+    const exited = once(running.child, 'exit')
+    running.child.kill('SIGTERM')
+    await exited
+  })
+  const readies = async () =>
+    (await readFile(join(bot.user, 'telegram-ready.jsonl'), 'utf8').catch(() => ''))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { generation: number; pid: number })
+  await until(async () => (await readies()).length === 1 && bot.menus.length === 1)
+  const [first] = await readies()
+  expect(first.generation).toBe(1)
+  bot.add(7, 1, '/restart')
+  await until(async () => (await readies()).some(({ generation }) => generation === 2))
+  await until(() => bot.menus.length === 2)
+  bot.add(7, 2, 'after restart')
+  await until(() => bot.sends.some(({ text }) => text.replaceAll('\\', '') === 'Done.'))
+  const ready = await readies()
+  expect(ready.map(({ generation }) => generation)).toEqual([1, 2])
+  expect(ready[1].pid).not.toBe(first.pid)
+  expect(bot.sends.map(({ text }) => text)).toEqual(['Restarting…', 'Done\\.'])
+  expect(running.output()).not.toContain('Timed out waiting for released')
+})
+
+it('does not restart for an unapproved sender or a group', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const restart = vi.fn<typeof server.host.restart>()
+  server.host.restart = restart
+  bot.add(9, 1, '/restart')
+  bot.add(7, 1, '/restart', 'group')
+  bot.add(7, 2, '/help')
+  await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+  expect(restart).not.toHaveBeenCalled()
+  expect(bot.sends).toHaveLength(1)
+})
+
+it('requests restart even when Telegram rejects the initial reply', async () => {
+  const bot = await fixture()
+  const server = await bot.reopen()
+  const restart = vi.fn<typeof server.host.restart>(async () => 'Restart refused')
+  server.host.restart = restart
+  bot.rejectSendResponse()
+  bot.add(7, 1, '/restart')
+  await until(() => bot.sends.some(({ text }) => text === 'Restart failed: Restart refused'))
+  expect(restart).toHaveBeenCalledOnce()
+  expect(bot.sends.map(({ text }) => text)).toEqual([
+    'Restarting…',
+    'Restart failed: Restart refused',
+  ])
+})
+
+it.each(['request', 'reply'] as const)(
+  'reports a restart %s failure and continues polling',
+  async (failure) => {
+    const bot = await fixture()
+    const server = await bot.reopen()
+    const restart = vi.fn<typeof server.host.restart>(async () => {
+      if (failure === 'request') throw new Error('Restart request failed')
+      return 'Restart refused'
+    })
+    server.host.restart = restart
+    if (failure === 'reply') bot.rejectSendResponse(2)
+    bot.add(7, 1, '/restart')
+    const warning = 'Telegram: restart failed. Check the host logs.'
+    await until(() => server.system.current().extensionDiagnostics.includes(warning))
+    bot.add(7, 2, '/help')
+    await until(() => bot.sends.some(({ text }) => text.includes('/help: Show these commands')))
+    expect(restart).toHaveBeenCalledOnce()
+    expect(server.system.current().extensionDiagnostics).toContain(warning)
   },
 )
 

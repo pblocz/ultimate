@@ -1,7 +1,7 @@
 import type { TelegramMessage } from '@chat-adapter/telegram'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { ChannelError } from '@ultimate/shared/channel-host.ts'
-import type { HistoryItem } from '@ultimate/shared/channel-host.ts'
+import type { HistoryItem, InputImage } from '@ultimate/shared/channel-host.ts'
 import { turnActivity } from './activity.ts'
 import { botState, ledger } from './state.ts'
 
@@ -174,9 +174,14 @@ export function telegramChannel(
       .finally(() => watchers.delete(id))
   }
 
-  const submit = async (from: Address, text: string, whenBusy: 'steer' | 'followUp' = 'steer') => {
+  const submit = async (
+    from: Address,
+    text: string,
+    images?: InputImage[],
+    whenBusy: 'steer' | 'followUp' = 'steer',
+  ) => {
     if (stopping.signal.aborted) throw new ChannelError('unavailable', 'Telegram is stopping')
-    if (!text.trim()) return
+    if (!text.trim() && !images?.length) return
     const key = keyOf(from)
     const before = await state.read()
     if (before.inputs[key]?.submission !== undefined) return
@@ -204,6 +209,7 @@ export function telegramChannel(
     const accepted = await runtime
       .submit(id, {
         text,
+        ...(images?.length ? { images } : {}),
         whenBusy,
         requestId: request,
         source: {

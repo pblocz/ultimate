@@ -1,6 +1,6 @@
 # Telegram
 
-Telegram connects private text chats to Ultimate through Vercel Chat SDK. The extension is off by default. It uses outbound polling and works without the web listener.
+Telegram connects private chats to Ultimate through Vercel Chat SDK. The extension is off by default. It uses outbound polling and works without the web listener.
 
 ## Setup
 
@@ -17,7 +17,9 @@ Telegram connects private text chats to Ultimate through Vercel Chat SDK. The ex
 
 4. Open a private chat with the bot. Send text to start a conversation.
 
-Use a separate bot for each polling installation. If the bot has a webhook, remove it yourself before you enable polling. Ultimate does not remove the webhook or request deletion of pending updates. If the allowlist is empty or invalid, the extension does not start. Groups, topics, bot messages, attachments, and token streaming are not supported.
+Use a separate bot for each polling installation. If the bot has a webhook, remove it yourself before you enable polling. Ultimate does not remove the webhook or request deletion of pending updates. If the allowlist is empty or invalid, the extension does not start. Groups, topics, bot messages, non-image attachments, and token streaming are not supported.
+
+Photos and image documents pass to the model inline, with or without a caption. Supported types are PNG, JPEG, WebP, and GIF. Each message accepts up to four images, each at most 2 MiB. The extension skips unsupported, oversized, or failed image downloads.
 
 At startup, Ultimate publishes the command list to Telegram's menu for private chats. If Telegram rejects the update, polling continues and `/help` still lists the commands.
 
@@ -42,6 +44,7 @@ Tool activity uses the same hints as Nanobot: the tool and its main argument, sh
 | `/thinking [level]`                 | Show or change the thinking level.                                                                             |
 | `/persona [name]`                   | Show or change the persona. Use `none` to remove the selection.                                                |
 | `/followup <text>`                  | Wait for the active run to finish.                                                                             |
+| `/restart`                         | Restart the shared Ultimate host. Requires the supervisor (`pnpm start`).                                       |
 | `/help`                             | Show available commands.                                                                                       |
 
 Plain text steers a busy conversation. An idle conversation starts a turn for plain text or a follow-up. These commands do not change standing addresses or the web selection.
