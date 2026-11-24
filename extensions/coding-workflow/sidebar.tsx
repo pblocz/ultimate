@@ -11,7 +11,7 @@ import {
   formatAgo,
   formatTokens,
   ParkedRuns,
-  projectTitle,
+  ProjectTitle,
   AllProvided,
   Provided,
   Slot,
@@ -70,7 +70,6 @@ function Project({
 }) {
   const system = useSystem()
   const actions = useShell()
-  const title = projectTitle(system)
   const [open, setOpen] = useSidebarState('projectOpen', false)
   return (
     <div aria-label="Project" className="mb-1 border-b border-border/70 pb-1" role="group">
@@ -80,7 +79,9 @@ function Project({
           title={system?.project.root}
         >
           <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate">{title}</span>
+          <span className="truncate">
+            <ProjectTitle />
+          </span>
         </div>
       ) : (
         <div
@@ -107,11 +108,13 @@ function Project({
             className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md pr-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset"
             data-root-context={root}
             onClick={() => actions.switchConversation(root)}
-            title={`${system?.project.root ?? title} · open the project's History: every branch, abstract and landing`}
+            title={`${system?.project.root} · open the project's History: every branch, abstract and landing`}
             type="button"
           >
             <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{title}</span>
+            <span className="truncate">
+              <ProjectTitle />
+            </span>
             <span className="ml-auto shrink-0 font-mono text-[10px] font-normal text-muted-foreground/50 group-hover/project:text-muted-foreground">
               History #{root}
             </span>

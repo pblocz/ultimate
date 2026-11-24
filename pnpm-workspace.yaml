@@ -1,3 +1,15 @@
+packages:
+  - extensions/claude-code
+  - extensions/cloud
+  - extensions/coding-workflow
+  - extensions/instance
+  - extensions/lineage
+  - extensions/project-git/support
+  - extensions/review
+  - extensions/setup
+  - extensions/update
+  - extensions/workspaces
+
 allowBuilds:
   '@google/genai': false
   esbuild: true

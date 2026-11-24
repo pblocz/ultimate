@@ -103,7 +103,7 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
     resolve: { alias: { '@': resolvePath(ultimateRoot, 'web/src') } },
     plugins: [
       // Server facets outside the Ultimate root resolve its packages through it.
-      extensionModules(ultimateRoot, projectRoot, host.userHome),
+      extensionModules(ultimateRoot, projectRoot, host.userHome, undefined, host.projectAccess),
       {
         name: 'ultimate:watchers',
         configureServer: (server) => {
@@ -222,6 +222,7 @@ export async function prepareServer(options: Partial<ServerOptions> = {}) {
     processInfo,
     access.origins,
     () => bundle?.info() ?? { id: '', changed: [] },
+    loaded.sourceStatusProvider,
   )
   const ready = system
   /** Serve the opened harness: shared backend, facet openers, resume, then readiness. */

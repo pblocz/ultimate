@@ -69,7 +69,26 @@ lander checks and preview model.
 
 A project's `.ultimate/` applies only once it is chosen: its `extensions/`, the project `extensions` settings layer,
 `agents/`, and `skills/` load only when the project decision is local. Decisions are kept per project path with Pi's
-`ProjectTrustStore` in `~/.ultimate/trust.json`, and a linked git worktree shares its main checkout's; undecided behaves like global and is reported in system info
+`ProjectTrustStore` in `~/.ultimate/trust.json`. The installation's project identity module (below) chooses that path; with
+`project-git`'s module, a linked git worktree shares its main checkout's. Undecided behaves like global and is reported in system info
 (`project.decision`). Every `.ultimate/settings.json` key (`defaultSurface`, `isolates`, …) goes through the gated
 `host.projectSettings()`; onboarding reads the file only to show what choosing the project would bring. The `onboarding` extension asks once and its Extensions panel changes the choice live. Resources you add to a
 project's `.ultimate/` stay unloaded until that project is local; tests seed the decision in their temporary home.
+
+## Project identity
+
+`ultimate-startup.json` at the installation root names an optional project identity module:
+
+```json
+{ "projectIdentity": "extensions/project-git/worktree-identity.ts" }
+```
+
+The host loads the module once at startup, before trust. Its default export takes the project root's canonical path
+and returns the canonical directory that keys project trust and saved presets. It returns a key, not a decision.
+Project files never choose the module: the path must resolve inside the installation, also through symlinks. A
+configured module that does not load, or a result that is not a canonical directory, fails startup or the decision
+read with a clear error. Without the file, or without `projectIdentity`, the key is the project root itself.
+
+The module is startup policy, so `extensions.disable` does not affect it. A change takes effect at the next start.
+`project-git`'s module maps a registered linked worktree to its main checkout and returns every other directory as it
+is.

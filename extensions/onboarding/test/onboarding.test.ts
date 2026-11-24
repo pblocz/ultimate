@@ -5,8 +5,12 @@ import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/provid
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import { facetsOf, fauxServer, post, temp, removeTemp } from '@ultimate/test/helpers.ts'
 import { context } from '@ultimate/server/harness.ts'
-import { git } from '@ultimate/lib/git.ts'
-import { projectDecision } from '@ultimate/server/project-setup.ts'
+import { git } from '@ultimate/test/git.ts'
+import {
+  createProjectAccess,
+  loadProjectIdentity,
+  projectDecision,
+} from '@ultimate/server/project-setup.ts'
 import { updateSettings } from '@ultimate/lib/settings.ts'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
 
@@ -425,12 +429,13 @@ it.concurrent('shares one choice between a checkout and its linked worktrees', a
     await git(main, 'add', '.')
     await git(main, '-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-m', 'base')
     await git(main, 'worktree', 'add', worktree, '-b', 'branch')
-    expect(projectDecision(worktree, home)).toBe(null)
+    const access = createProjectAccess(worktree, home, await loadProjectIdentity(resolve('.')))
+    expect(access.decision()).toBe(null)
     new ProjectTrustStore(join(home, '.ultimate')).set(main, true)
-    expect(projectDecision(worktree, home)).toBe(true)
+    expect(access.decision()).toBe(true)
     // A worktree's own entry is not consulted, and choosing from it decides for the checkout.
     new ProjectTrustStore(join(home, '.ultimate')).set(worktree, false)
-    expect(projectDecision(worktree, home)).toBe(true)
+    expect(access.decision()).toBe(true)
     const server = await fauxServer({
       ultimateRoot: resolve('.'),
       projectRoot: worktree,

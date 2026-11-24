@@ -1,0 +1,8 @@
+{
+  "name": "ultimate-extension-instance",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ultimate-project-git-support": "workspace:*"
+  }
+}

@@ -17,7 +17,8 @@ import type { ConversationId } from '@earendil-works/pi-durable'
 import { implementAction } from '@ultimate/lib/actions.ts'
 import { hostDefault } from '@ultimate/lib/agents.ts'
 import type { ActionInput } from '@ultimate/lib/actions.ts'
-import { empty, git, isolatable, noCommit, noRepository } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
+import { empty, isolatable, noCommit, noRepository } from 'ultimate-project-git-support/checkout'
 import type { ActionContext } from '@ultimate/server/actions.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { ConversationsApi, Release, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
@@ -31,10 +32,11 @@ import {
   ProgressAction,
   StatsAction,
 } from './refs.ts'
-import { githubRepo } from '@ultimate/lib/project-identity.ts'
+import { githubRepo } from 'ultimate-project-git-support/github'
 import { sweepChecks } from './lander.ts'
 import { Workspaces, workspaces } from './workspaces.ts'
-import { subagentWorktrees } from './subagents.ts'
+import { conversationIsolation, subagentWorktrees } from './subagents.ts'
+import { ConversationIsolationApi } from '@ultimate/shared/conversation-isolation.ts'
 export const order = -200
 export const docs = [Workspaces]
 export const userActions = ['setupGit']
@@ -143,6 +145,7 @@ export default function workspaceExtension(host: ExtensionHost) {
     setupGit: () => setupGit(host),
   })
   host.implement(WorktreeSupport, subagentWorktrees(service))
+  host.implement(ConversationIsolationApi, conversationIsolation(subagentWorktrees(service)))
   // Concluding conversations frees their worktrees, through conversations' extension point.
   host.implement(Release, { release: (ids, caller) => service.release(ids, caller) })
   const resume = () =>

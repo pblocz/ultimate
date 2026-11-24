@@ -355,7 +355,14 @@ function globals(
       signature:
         "(): Promise<{ definitions: { name: string; description: string; path: string; source: 'builtin' | 'user' | 'project'; instructions: string; model?: { provider: string; modelId: string }; thinking?: string; tools?: string[]; isolate?: 'none' | 'worktree'; resident?: boolean; fast?: boolean; summaries?: boolean; overlays?: string[] }[]; errors: { name: string; path: string; source: string; error: string }[]; replaced: { name: string; path: string; source: string }[]; projectSetup: 'trusted' | 'declined' | 'undecided' }>",
       execute: () =>
-        discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime),
+        discoverAgents(
+          host.ultimateRoot,
+          host.projectRoot,
+          host.userHome,
+          host.modelRuntime,
+          undefined,
+          host.projectAccess,
+        ),
     },
     {
       name: 'doc',

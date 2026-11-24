@@ -93,8 +93,9 @@ nothing:
   no `model`, `family` or `thinking` keeps the conversation's model, thinking level and preset.
 - A `preset` sets its model and thinking and keeps the definition and its tools. A direct `model` clears the preset.
   A request with both a `preset` and a `model` is `invalid_input`.
-- An unknown definition or preset is `invalid_input`. A definition that needs worktree isolation or summary control
-  is `unavailable` when that optional support is absent.
+- An unknown definition or preset is `invalid_input`. A definition with an `isolate` mode other than `none` is
+  `unavailable` when no `ultimate.conversation-isolation` backend supports that mode (`workspaces` supports
+  `worktree`). A definition that needs summary control is `unavailable` when that support is absent.
 - A definition change is a `conflict` on a conversation that is not an ordinary chat, during a run, or on an isolated
   conversation.
 

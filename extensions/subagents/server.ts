@@ -461,6 +461,8 @@ export const actions = {
       host.projectRoot,
       host.userHome,
       host.modelRuntime,
+      undefined,
+      host.projectAccess,
     )
     const main = await (await host
       .harness()
@@ -492,6 +494,8 @@ export const actions = {
       host.projectRoot,
       host.userHome,
       host.modelRuntime,
+      undefined,
+      host.projectAccess,
     )
     const definition = definitions.find((candidate) => candidate.name === name)
     // A later file that fails to parse leaves an earlier one applying.
@@ -499,7 +503,12 @@ export const actions = {
     const shown = definition ?? invalid
     if (!shown) throw new Error(`Unknown agent: ${name}`)
     const files: Source[] = []
-    for (const root of await agentRoots(host.ultimateRoot, host.projectRoot, host.userHome))
+    for (const root of await agentRoots(
+      host.ultimateRoot,
+      host.projectRoot,
+      host.userHome,
+      host.projectAccess,
+    ))
       if (existsSync(join(root.path, `${name}.md`))) files.push(root.source)
     return {
       ...(definition ? { definition } : {}),
@@ -568,6 +577,8 @@ export const actions = {
       host.projectRoot,
       host.userHome,
       host.modelRuntime,
+      undefined,
+      host.projectAccess,
     )
     const existing = definitions.find((definition) => definition.name === name)
     if (create === true && existing) throw new Error(`A definition named ${name} exists already`)
@@ -599,6 +610,8 @@ export const actions = {
         host.projectRoot,
         host.userHome,
         host.modelRuntime,
+        undefined,
+        host.projectAccess,
       )
       return saved.find((definition) => definition.name === name)!
     }
@@ -618,6 +631,7 @@ export default function subagents(
     ExtensionHost,
     | 'ultimateRoot'
     | 'projectRoot'
+    | 'projectAccess'
     | 'userHome'
     | 'harness'
     | 'metadata'
@@ -647,7 +661,14 @@ export default function subagents(
   }
   const residentDefinitions = async () =>
     (
-      await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
+      await discoverAgents(
+        host.ultimateRoot,
+        host.projectRoot,
+        host.userHome,
+        host.modelRuntime,
+        undefined,
+        host.projectAccess,
+      )
     ).definitions.filter((definition) => definition.resident === true)
   /** Drops standing agents whose definition is gone; their conversations become ordinary ones. Retirement waits
    * until every definition parses: an error names a file, not the agent it defines, so a typo retires nothing. The
@@ -659,6 +680,8 @@ export default function subagents(
       host.projectRoot,
       host.userHome,
       host.modelRuntime,
+      undefined,
+      host.projectAccess,
     )
     const kept = new Set(
       definitions
@@ -703,6 +726,8 @@ export default function subagents(
         host.projectRoot,
         host.userHome,
         host.modelRuntime,
+        undefined,
+        host.projectAccess,
       )
       const definition = definitions.find((item) => item.name === name)
       return definition?.runs ? definition.runs.model : definition?.model
@@ -837,7 +862,12 @@ export default function subagents(
       )
     if (named && (args.tools || args.instructions))
       throw new Error('tools and instructions make an agent on the fly: leave out agent')
-    const families = await readFamilies(host.userHome, host.projectRoot)
+    const families = await readFamilies(
+      host.userHome,
+      host.projectRoot,
+      undefined,
+      host.projectAccess,
+    )
     if (args.family !== undefined && !Object.hasOwn(families.families, args.family))
       throw new Error(
         `Unknown family: ${args.family}. Families: ${Object.keys(families.families).join(', ')}`,
@@ -1094,6 +1124,8 @@ export default function subagents(
           host.projectRoot,
           host.userHome,
           host.modelRuntime,
+          undefined,
+          host.projectAccess,
         )
         const definitions = discovered.definitions
           .map((agent) => {
@@ -1201,6 +1233,8 @@ export default function subagents(
                       host.projectRoot,
                       host.userHome,
                       host.modelRuntime,
+                      undefined,
+                      host.projectAccess,
                     )
                   ).definitions
                 : undefined

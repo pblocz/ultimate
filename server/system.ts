@@ -18,7 +18,7 @@ import type { ExtensionInfo, SystemInfo } from '../shared/protocol.ts'
 import type { Watch } from './extensions.ts'
 import type { PreparedHost } from './harness.ts'
 import { watchRoots } from './watch-roots.ts'
-import { exec as run } from '../lib/exec.ts'
+import type { SourceStatusApi } from '../shared/source-status.ts'
 
 /** The skills the Info tab lists, with their scope and overrides, and Pi's load diagnostics as text. */
 export function skillInfo({
@@ -60,6 +60,7 @@ export async function createSystem(
   processInfo: { activationError?: string } = {},
   origins: () => string[] = () => [],
   web: () => SystemInfo['web'] = () => ({ id: '', changed: [] }),
+  sourceStatusProvider: () => (typeof SourceStatusApi)['service'] = () => undefined,
 ) {
   const startedAt = new Date().toISOString()
   let coreStale = false
@@ -72,40 +73,47 @@ export async function createSystem(
   let value: SystemInfo
   let previous = ''
   let timer: ReturnType<typeof setTimeout> | undefined
-  let lastGit = 0
+  let lastSourceRefresh = 0
+  let sourceProvider: ReturnType<typeof sourceStatusProvider>
   let closed = false
   let chain = Promise.resolve()
   const reportError = (error: unknown) => notice(`System refresh failed: ${String(error)}`)
-  async function refresh(git = false) {
-    if (git) {
-      const command = async (args: string[]) => {
-        try {
-          return (await run('git', args, { cwd: host.ultimateRoot })).stdout.trim()
-        } catch {
-          return ''
-        }
-      }
+  async function refresh(recheckSource = false) {
+    const provider = sourceStatusProvider()
+    if (recheckSource || provider !== sourceProvider) {
+      sourceProvider = provider
+      const status = await provider?.read().catch((error: unknown) => {
+        notice(`Source status unavailable: ${String(error)}`)
+        return undefined
+      })
       code = {
         ultimateRoot: host.ultimateRoot,
-        branch: await command(['branch', '--show-current']),
-        sha: await command(['rev-parse', '--short', 'HEAD']),
-        dirty: (await command(['status', '--porcelain'])).length > 0,
+        branch: '',
+        sha: '',
+        dirty: false,
+        ...status,
+        sourceAvailable: status !== undefined,
         coreStale,
       }
-      lastGit = Date.now()
+      lastSourceRefresh = Date.now()
     }
     const cpu = cpus()
     let settingsError: string | undefined
-    const settings = await projectSettings(host.projectRoot, host.userHome, (message) => {
-      settingsError = message
-      notice(message)
-    })
+    const settings = await projectSettings(
+      host.projectRoot,
+      host.userHome,
+      (message) => {
+        settingsError = message
+        notice(message)
+      },
+      host.projectAccess,
+    )
     value = {
       build: host.build(),
       project: {
         root: host.projectRoot,
         name: basename(host.projectRoot),
-        ...(await projectSetup(host.projectRoot, host.userHome)),
+        ...(await projectSetup(host.projectRoot, host.userHome, host.projectAccess)),
         settings,
         ...(settingsError ? { settingsError } : {}),
       },
@@ -180,11 +188,10 @@ export async function createSystem(
         timer = undefined
         chain = chain.then(() => refresh(true)).catch(reportError)
       },
-      Math.max(100, 2000 - (Date.now() - lastGit)),
+      Math.max(100, 2000 - (Date.now() - lastSourceRefresh)),
     )
   }
-  // Not the storage home: it changes with every conversation update (conversations.json), each refresh runs git, and
-  // nothing broadcast reads it (database sizes are left out above).
+  // Do not watch the storage home. It changes with every conversation update, but the system feed does not need those changes.
   const unwatch = watchRepo((watcher) => {
     watcher.add([
       host.ultimateRoot,

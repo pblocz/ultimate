@@ -16,7 +16,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { discoverAgents } from '@ultimate/lib/agents.ts'
 import { readFamilyLayers } from '@ultimate/lib/families-settings.ts'
-import { isolatable } from '@ultimate/lib/git.ts'
+import { isolatable } from 'ultimate-project-git-support/checkout'
 import { implementAction } from '@ultimate/lib/actions.ts'
 import { readSettings, userSettingsPath } from '@ultimate/lib/settings.ts'
 import { readSecret, secretMetadata } from '@ultimate/lib/secrets.ts'
@@ -47,6 +47,7 @@ type CheckHost = Pick<
   ExtensionHost,
   | 'ultimateRoot'
   | 'projectRoot'
+  | 'projectAccess'
   | 'userHome'
   | 'modelRuntime'
   | 'projectSettings'
@@ -119,6 +120,8 @@ async function agentsArea(host: CheckHost): Promise<SetupIssue[]> {
     host.projectRoot,
     host.userHome,
     host.modelRuntime,
+    undefined,
+    host.projectAccess,
   )
   const issues: SetupIssue[] = []
   const missing = new Map<string, string[]>()
@@ -370,6 +373,7 @@ async function familiesArea(host: CheckHost): Promise<SetupIssue[]> {
     host.userHome,
     host.projectRoot,
     await host.projectSettings(),
+    host.projectAccess,
   )
   return errors.map((error) => ({
     area: 'Model families',

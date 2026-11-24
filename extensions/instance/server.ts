@@ -30,7 +30,8 @@ import { WorkspacesApi } from '@ultimate/ext/workspaces/api.ts'
 import type { WorkspaceService } from '@ultimate/ext/workspaces/api.ts'
 import { cleanPreview, sweepPreviews } from './cleanup.ts'
 import { implementAction } from '@ultimate/lib/actions.ts'
-import { git, isolatable } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
+import { isolatable } from 'ultimate-project-git-support/checkout'
 import { spawnGroup, stopGroup } from '@ultimate/lib/process-group.ts'
 import type { Group, GroupProcess } from '@ultimate/lib/process-group.ts'
 import { Previews } from '@ultimate/ext/conversations/api.ts'
@@ -48,7 +49,7 @@ export const DEFAULT_PREVIEW_MODEL = BUILTIN_FAMILIES[FEATURES.preview.family].m
  * it, the model of the family previews are assigned to (`modelFamilies`, default `fast`).
  */
 export async function previewModelSetting(
-  host: Pick<ExtensionHost, 'userHome' | 'projectSettings' | 'projectRoot'> &
+  host: Pick<ExtensionHost, 'userHome' | 'projectSettings' | 'projectRoot' | 'projectAccess'> &
     Partial<Pick<ExtensionHost, 'settings'>>,
 ): Promise<string | undefined> {
   // Invalid settings JSON is reported where settings load; here it counts as unset.
@@ -67,7 +68,7 @@ export async function previewModelSetting(
         return model
       }
   }
-  const families = await readFamilies(host.userHome, host.projectRoot, project)
+  const families = await readFamilies(host.userHome, host.projectRoot, project, host.projectAccess)
   const assigned = families.assign.preview ?? FEATURES.preview.family
   const family = Object.hasOwn(families.families, assigned) ? assigned : DEFAULT_FAMILY
   const own = families.families[family].model
@@ -419,6 +420,7 @@ export default function instanceExtension(
     | 'home'
     | 'ultimateRoot'
     | 'projectRoot'
+    | 'projectAccess'
     | 'userHome'
     | 'modelRuntime'
     | 'harness'

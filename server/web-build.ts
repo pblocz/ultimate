@@ -9,6 +9,7 @@ import { gzipSync } from 'node:zlib'
 import { build } from 'vite-plus'
 import type { Rolldown } from 'vite-plus'
 import { extensionModules } from './vite-extensions.ts'
+import { createProjectAccess, loadProjectIdentity } from './project-setup.ts'
 
 export interface WebBuildRequest {
   ultimateRoot: string
@@ -24,6 +25,11 @@ export type WebBuildResult = { inputs: string[] } | { error: { file?: string; me
 const request = JSON.parse(process.argv[2]) as WebBuildRequest
 let result: WebBuildResult
 try {
+  const projectAccess = createProjectAccess(
+    request.projectRoot,
+    request.userHome,
+    await loadProjectIdentity(request.ultimateRoot),
+  )
   const output = (await build({
     configFile: resolve(request.ultimateRoot, 'vite.config.ts'),
     root: resolve(request.ultimateRoot, 'web'),
@@ -31,7 +37,13 @@ try {
     logLevel: 'error',
     resolve: { alias: { '@': resolve(request.ultimateRoot, 'web/src') } },
     plugins: [
-      extensionModules(request.ultimateRoot, request.projectRoot, request.userHome, request.broken),
+      extensionModules(
+        request.ultimateRoot,
+        request.projectRoot,
+        request.userHome,
+        request.broken,
+        projectAccess,
+      ),
     ],
     build: {
       outDir: request.outDir,

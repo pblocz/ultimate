@@ -284,7 +284,14 @@ export function supervisor(
   /** Copy an explicit caller, an optional coding coordinator, or the current runtime defaults. */
   async function agentFor(caller?: number): Promise<Prepared> {
     const profile = (
-      await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
+      await discoverAgents(
+        host.ultimateRoot,
+        host.projectRoot,
+        host.userHome,
+        host.modelRuntime,
+        undefined,
+        host.projectAccess,
+      )
     ).definitions.find((d) => d.name === 'watcher')
     if (!profile) throw new Error('Missing watcher agent definition')
     const coordinator =

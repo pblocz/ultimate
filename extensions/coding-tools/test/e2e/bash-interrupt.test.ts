@@ -8,6 +8,7 @@ import {
 } from '@earendil-works/pi-ai/providers/faux'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import { changes } from '../../server.ts'
+import { gitChange } from '@ultimate/ext/project-git/bash.ts'
 import { context } from '@ultimate/server/harness.ts'
 import { LiveDoc } from '@earendil-works/pi-durable'
 import { fauxServer, post, removeTemp, temp, until } from '@ultimate/test/helpers.ts'
@@ -162,7 +163,7 @@ it('refuses an interruptible call that changes things', async () => {
     'until [ -f /tmp/install-done ] || [ -f install.done ]; do sleep 10; done',
     'git log --grep=commit; sleep 5',
   ])
-    expect(changes(poll)).toBeUndefined()
+    expect(gitChange(poll) ?? changes(poll)).toBeUndefined()
   for (const command of [
     'git commit -m x',
     'git \\\npush origin main',
@@ -171,5 +172,5 @@ it('refuses an interruptible call that changes things', async () => {
     'php artisan migrate:fresh',
     'sleep 5 && git merge x',
   ])
-    expect(changes(command)).toBeDefined()
+    expect(gitChange(command) ?? changes(command)).toBeDefined()
 })

@@ -34,7 +34,9 @@ async function fixture() {
   return { user, project, home }
 }
 const reset = (user: string, ...args: string[]) =>
-  run(process.execPath, [script, ...args], { env: cleanEnv({ HOME: user }) })
+  run(process.execPath, ['--import', './lib/node-names.ts', script, ...args], {
+    env: cleanEnv({ HOME: user }),
+  })
 
 it('moves the state into a backup folder and keeps worktrees and project.json', async () => {
   const { user, project, home } = await fixture()

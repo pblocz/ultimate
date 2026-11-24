@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { useProjectSetup } from './project-setup.ts'
+import { createProjectAccess } from './project-setup.ts'
+import type { ProjectAccess } from './project-setup.ts'
 import { compareExtensions } from './discovery.ts'
 import { loadSkills, stripFrontmatter } from '@earendil-works/pi-coding-agent'
 import type { Skill } from '@earendil-works/pi-coding-agent'
@@ -24,14 +25,16 @@ export type SkillOwner = Pick<ExtensionInfo, 'name' | 'path' | 'enabled' | 'sour
  * extension), so a disabled extension leaves no skill behind. Diagnostics are Pi's, per file.
  */
 export function projectSkills(
-  host: { projectRoot: string; userHome: string },
+  host: { projectRoot: string; userHome: string; projectAccess?: ProjectAccess },
   cwd: string,
   extensions: readonly SkillOwner[],
 ) {
   // A project's `.agents/skills` (the Agent Skills folder other tools share) loads with its `.ultimate/skills`, once the
   // project is trusted. The personal `~/.agents/skills` does not: personal skills for Ultimate live in
   // `~/.ultimate/skills`.
-  const trusted = useProjectSetup(host.projectRoot, host.userHome)
+  const trusted = (
+    host.projectAccess ?? createProjectAccess(host.projectRoot, host.userHome)
+  ).trusted()
   const layers: { path: string; scope: SkillScope; extension?: string }[] = [
     ...extensions
       .filter((extension) => extension.enabled)

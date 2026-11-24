@@ -53,6 +53,8 @@ export const branchTool = (host: ExtensionHost) =>
           host.projectRoot,
           host.userHome,
           host.modelRuntime,
+          undefined,
+          host.projectAccess,
         )
         const definition = definitions.find((candidate) => candidate.name === 'coordinator')
         if (!definition) throw new Error('Missing coordinator definition')
@@ -62,7 +64,7 @@ export const branchTool = (host: ExtensionHost) =>
             : onFamily(
                 definition,
                 input.family,
-                await readFamilies(host.userHome, host.projectRoot),
+                await readFamilies(host.userHome, host.projectRoot, undefined, host.projectAccess),
                 host.modelRuntime.getAvailableSnapshot(),
               )
         // The model and thinking level the definition pins when its provider has a login here, thinking clamped to

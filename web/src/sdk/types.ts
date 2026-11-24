@@ -266,6 +266,13 @@ export const ConversationKind = definePoint<ConversationSummary | undefined, str
   'ultimate.conversationKind',
 )
 /**
+ * How the title bar and the window title name the project at a root (`workspaces` names a branch checkout
+ * `<project> #<conversation>`). Undefined uses the project's folder and name.
+ */
+export const ProjectLabel = definePoint<string, { name: string; suffix: string } | undefined>(
+  'ultimate.projectLabel',
+)
+/**
  * The text another conversation can follow to read message `id` of `conversation` (`codemode` provides it); a stored
  * message offers to copy it. No copy action while nothing provides it.
  */

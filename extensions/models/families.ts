@@ -60,13 +60,20 @@ const piDefault = (host: Pick<ExtensionHost, 'settings'>) => {
 
 async function read(host: ExtensionHost) {
   const project = await host.projectSettings()
-  const layers = await readFamilyLayers(host.userHome, host.projectRoot, project)
+  const layers = await readFamilyLayers(
+    host.userHome,
+    host.projectRoot,
+    project,
+    host.projectAccess,
+  )
   const config = mergeLayers(layers)
   const { definitions } = await discoverAgents(
     host.ultimateRoot,
     host.projectRoot,
     host.userHome,
     host.modelRuntime,
+    undefined,
+    host.projectAccess,
   )
   return { project, layers, config, definitions }
 }
@@ -186,6 +193,7 @@ export async function setDefault(host: ExtensionHost, name: string) {
     host.userHome,
     host.projectRoot,
     await host.projectSettings(),
+    host.projectAccess,
   )
   const effective = mergeLayers(layers).families
   // Saved like the panel's families: what differs from the team's defaults. The most recent families become this
@@ -205,7 +213,12 @@ export async function setDefault(host: ExtensionHost, name: string) {
             ([user]) => !Object.hasOwn(layers.project.assign, user),
           ),
         )
-  await writeFamilies(host.userHome, host.projectRoot, compact({ families, assign }))
+  await writeFamilies(
+    host.userHome,
+    host.projectRoot,
+    compact({ families, assign }),
+    host.projectAccess,
+  )
   return { model: ref, thinkingLevel }
 }
 
@@ -214,6 +227,7 @@ export async function saveFamilies(host: ExtensionHost, args: SaveFamilies) {
     host.userHome,
     host.projectRoot,
     await host.projectSettings(),
+    host.projectAccess,
   )
   const families = userFamilies(args.families, mergeFamilies(userDefaults, project).families)
   const value = { families, assign: args.assign }
@@ -227,7 +241,7 @@ export async function saveFamilies(host: ExtensionHost, args: SaveFamilies) {
   for (const name of Object.values(args.assign))
     if (!Object.hasOwn(args.families, name) && !Object.hasOwn(BUILTIN_FAMILIES, name))
       throw new Error(`Unknown family ${name}`)
-  await writeFamilies(host.userHome, host.projectRoot, compact(value))
+  await writeFamilies(host.userHome, host.projectRoot, compact(value), host.projectAccess)
   if (args.unpin.length)
     await updateSettings(userSettingsPath(host.userHome), (settings) => {
       for (const feature of args.unpin) {

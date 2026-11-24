@@ -6,7 +6,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { downloadSnapshot, uploadSnapshot } from '../snapshot.ts'
 import type { SnapshotManifest } from '../snapshot.ts'
 import { vacuum } from '@ultimate/lib/database-files.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { cloudStub, hashKey as project } from './cloud-stub.ts'
 import { temp } from '@ultimate/test/helpers.ts'
 

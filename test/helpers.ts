@@ -234,9 +234,13 @@ export async function fauxServer(options: FixtureOptions) {
   return server as typeof server & { readonly url: string; readonly port: number }
 }
 /** The web facets the next bundle holds, by `web.tsx` path. */
-export const facetsOf = (server: {
-  host: { ultimateRoot: string; projectRoot: string; userHome: string }
-}) => webFacets(server.host.ultimateRoot, server.host.projectRoot, server.host.userHome)
+export const facetsOf = (server: Pick<Awaited<ReturnType<typeof fauxServer>>, 'host'>) =>
+  webFacets(
+    server.host.ultimateRoot,
+    server.host.projectRoot,
+    server.host.userHome,
+    server.host.projectAccess,
+  )
 export async function prepareFauxServer(options: FixtureOptions) {
   return prepareServer(await isolated(options))
 }

@@ -1,8 +1,8 @@
 import { readFile, realpath } from 'node:fs/promises'
 import { existsSync, lstatSync, watch as watchDirectory } from 'node:fs'
 import { compareExtensions, discoverExtensions } from './discovery.ts'
-import { decisionRoot, projectSetup, projectSettings, projectDiagnostics } from './project-setup.ts'
-import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
+import { projectSetup, projectSettings } from './project-setup.ts'
+import type { ProjectAccess } from './project-setup.ts'
 import { discoveryRoots, projects } from './project.ts'
 import type { ProjectInfo } from './project.ts'
 import { extensionSettingsFiles } from './extension-settings.ts'
@@ -22,6 +22,8 @@ import type {
 import type { ViteDevServer } from 'vite-plus'
 import type { ConversationSummary, ExtensionInfo, SystemInfo } from '../shared/protocol.ts'
 import type { PreparedHost } from './harness.ts'
+import { SourceStatusApi } from '../shared/source-status.ts'
+import { ConversationIsolationApi } from '../shared/conversation-isolation.ts'
 import type { ConfigurationServices } from './conversation-configuration.ts'
 import { Metadata } from './metadata.ts'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -108,7 +110,9 @@ export type ExtensionHost = Pick<
   projects(): Promise<ProjectInfo[]>
   /** Discovered extensions, including disabled project folders, with effective deciding layers. */
   extensions(): ExtensionInfo[]
-  /** Project setup availability, the decision of the root (a linked worktree's main checkout), and capped README. */
+  /** Installation policy for this project's trust and preset identity. */
+  projectAccess?: ProjectAccess
+  /** Project setup availability, the trust decision, and capped README. */
   projectSetup(): ReturnType<typeof projectSetup>
   /** Parsed project settings only after a local decision; otherwise empty. Invalid JSON reports a notice and returns empty. */
   projectSettings(): Promise<JsonObject>
@@ -721,6 +725,7 @@ export async function loadExtensions(
     onLoadError: (callback) => loadErrorListeners.add(callback),
     onBeforeLoad: (callback) => beforeLoad.add(callback),
     ultimateRoot: host.ultimateRoot,
+    projectAccess: host.projectAccess,
     projectRoot: host.projectRoot,
     userHome: host.userHome,
     home: host.home,
@@ -742,14 +747,17 @@ export async function loadExtensions(
     conversations: runtime.conversations,
     projects: () => projects(host.userHome, host.home),
     extensions: () => info(),
-    projectSetup: () => projectSetup(host.projectRoot, host.userHome),
-    projectSettings: () => projectSettings(host.projectRoot, host.userHome, notice),
+    projectSetup: () => projectSetup(host.projectRoot, host.userHome, host.projectAccess),
+    projectSettings: () =>
+      projectSettings(host.projectRoot, host.userHome, notice, host.projectAccess),
     projectExtensions: async () => {
       const available = await discoverExtensions(
         host.ultimateRoot,
         host.projectRoot,
         host.userHome,
         true,
+        undefined,
+        host.projectAccess,
       )
       return available
         .filter((entry) => entry.source === 'project')
@@ -771,10 +779,7 @@ export async function loadExtensions(
         }))
     },
     setProjectDecision: async (local) => {
-      new ProjectTrustStore(join(host.userHome, '.ultimate')).set(
-        decisionRoot(host.projectRoot),
-        local,
-      )
+      host.projectAccess.setDecision(local)
       await extensionHost.reloadExtensions()
     },
     reloadExtensions: async () => {
@@ -826,13 +831,21 @@ export async function loadExtensions(
   let previousSettings: string | undefined
   let diagnostics: string[] = []
   async function discover() {
-    const active = await discoverExtensions(host.ultimateRoot, host.projectRoot, host.userHome)
+    const active = await discoverExtensions(
+      host.ultimateRoot,
+      host.projectRoot,
+      host.userHome,
+      false,
+      undefined,
+      host.projectAccess,
+    )
     const available = await discoverExtensions(
       host.ultimateRoot,
       host.projectRoot,
       host.userHome,
       true,
       active.settings,
+      host.projectAccess,
     )
     const winners = [
       ...active,
@@ -852,7 +865,7 @@ export async function loadExtensions(
     const settings = winners.settings
     diagnostics = [
       ...settings.notices,
-      ...projectDiagnostics(host.projectRoot, host.userHome),
+      ...host.projectAccess.diagnostics(),
       ...[...settings.overrides.keys()]
         .filter((name) => !folders.includes(name))
         .map((name) => `Unknown extension: ${name}`),
@@ -1163,7 +1176,7 @@ export async function loadExtensions(
               item.untilSecretSet && names.has(item.untilSecretSet) ? [] : [message],
             ),
             ...apis.missing(),
-            ...projectDiagnostics(host.projectRoot, host.userHome),
+            ...host.projectAccess.diagnostics(),
           ]),
         ]
       },
@@ -1175,10 +1188,13 @@ export async function loadExtensions(
     invoke,
     doc: findDoc,
     catalogue: () => apis.catalogue(),
+    sourceStatusProvider: () =>
+      providers.get(SourceStatusApi.name)?.value as (typeof SourceStatusApi)['service'],
     // Use the existing provider table; a public conversation operation takes a fresh view after facet reloads.
     configurationServices(this: void): ConfigurationServices {
-      const isolation = providers.get('conversations.worktrees')
-        ?.value as ConfigurationServices['isolation']
+      const isolation = providers.get(ConversationIsolationApi.name)?.value as
+        | ConfigurationServices['isolation']
+        | undefined
       const conversations = providers.get('conversations')?.value as
         | { setAutomaticSummaries: ConfigurationServices['summaries'] }
         | undefined

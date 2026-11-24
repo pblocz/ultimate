@@ -6,7 +6,6 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
-import { git } from '../lib/git.ts'
 import { readJson, writeJson } from '../lib/json-file.ts'
 import { acquireLock, readOwner } from '../server/lock.ts'
 import { runtimePaths } from '../server/project.ts'
@@ -153,31 +152,6 @@ export async function apply(p: Plan) {
   }
 }
 
-/** Worktrees with uncommitted changes and `ultimate/*` branches not merged into HEAD: work the reset leaves in place. */
-async function unlanded(home: string, project: string) {
-  const dirty: string[] = []
-  const worktrees = join(home, 'worktrees')
-  if (existsSync(worktrees))
-    for (const name of await readdir(worktrees)) {
-      const path = join(worktrees, name)
-      const status = await git(path, 'status', '--porcelain').catch(() => '')
-      if (status) dirty.push(path)
-    }
-  const branches = (
-    await git(
-      project,
-      'branch',
-      '--no-merged',
-      'HEAD',
-      '--format=%(refname:short)',
-      'ultimate/*',
-    ).catch(() => '')
-  )
-    .split('\n')
-    .filter(Boolean)
-  return { dirty, branches }
-}
-
 export async function size(path: string) {
   const bytes = (await stat(path)).size
   return bytes > 1024 ** 2
@@ -198,7 +172,12 @@ async function main() {
   const project = await realpath(positionals[0] ?? process.env.INIT_CWD ?? process.cwd())
   const { home } = runtimePaths(project)
   const p = await plan(home, join(user, '.ultimate', 'backups'))
-  const work = await unlanded(home, project)
+  const report = new URL('../extensions/project-git/support/reset-report.ts', import.meta.url)
+  const work = existsSync(report)
+    ? await (
+        await import('../extensions/project-git/support/reset-report.ts')
+      ).unlanded(home, project)
+    : undefined
 
   console.log(`Reset ${project}\n  home   ${home}\n  backup ${p.backup}\n`)
   if (p.resumes) console.log('Finishing an interrupted reset into the same backup.')
@@ -207,9 +186,9 @@ async function main() {
   console.log(
     '\nKept: settings, secrets, logins, project.json, the lander checkout, worktrees and ultimate/* branches.',
   )
-  if (work.dirty.length)
+  if (work?.dirty.length)
     console.log(`Worktrees with uncommitted changes:\n  ${work.dirty.join('\n  ')}`)
-  if (work.branches.length)
+  if (work?.branches.length)
     console.log(`Branches not merged into ${project}'s HEAD:\n  ${work.branches.join('\n  ')}`)
   if (p.running) {
     if (!values['dry-run']) throw refusal(p.running)

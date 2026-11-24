@@ -14,12 +14,10 @@ import {
 import type { ConversationId, PromptInput, Tx } from '@earendil-works/pi-durable'
 import type { Context } from '@earendil-works/chord/context'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
-import type { ConversationSummary } from '@ultimate/shared/protocol.ts'
 import { agentRoots, discoverAgents } from '@ultimate/lib/agents.ts'
-import { git } from '@ultimate/lib/git.ts'
-import { shortTitle } from '@ultimate/lib/title.ts'
 import { Profile } from '@ultimate/ext/subagents/api.ts'
 import { WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
+import { BuildDetails } from './api.ts'
 import type { BuildNote, Landing } from './refs.ts'
 
 export const order = -100
@@ -60,49 +58,6 @@ export function buildNote(
   )
 }
 
-/**
- * The landings in the clone from commit `from` to `to`, newest first: one row per branch, named by its title, else by
- * its newest commit's subject. A commit names its conversation by trailer, a lander merge in its subject; a
- * subagent's commit counts for the branch that owns it. A commit made outside Ultimate is a row of its own.
- */
-export async function landings(
-  cwd: string,
-  from: string,
-  to: string,
-  conversations: ConversationSummary[],
-): Promise<Landing[]> {
-  const log = await git(
-    cwd,
-    'log',
-    '--first-parent',
-    '-n',
-    '200',
-    '--format=%H%x00%s%x00%(trailers:key=Ultimate-Conversation,valueonly)%x1e',
-    `${from}..${to}`,
-  )
-  const byId = new Map(conversations.map((conversation) => [conversation.id, conversation]))
-  const rows = new Map<string, Landing>()
-  for (const record of log.split('\x1e')) {
-    const [sha, subject, trailer] = record.trim().split('\0')
-    if (!sha) continue
-    let id = Number(trailer?.trim()) || Number(/ from #(\d+) into /.exec(subject)?.[1]) || undefined
-    // An owned conversation (a worker, a designer) worked for its owner's branch.
-    for (let owner = id && byId.get(id)?.parentConversationId; owner;) {
-      id = owner
-      owner = byId.get(owner)?.parentConversationId
-    }
-    const key = id ? `#${id}` : sha
-    if (rows.has(key)) continue
-    const title = id && byId.get(id)?.title
-    rows.set(key, {
-      ...(id ? { conversation: id } : {}),
-      title: title ? shortTitle(title) : subject,
-      sha,
-    })
-  }
-  return [...rows.values()]
-}
-
 const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 16)
 
 /** The clone's docs and bundled definitions, including definitions in enabled extensions. */
@@ -112,7 +67,9 @@ async function cloneDocs(host: ExtensionHost, files: Record<string, string>) {
     (await readdir(folder).catch(() => [] as string[]))
       .filter((name) => name.endsWith('.md'))
       .map((name) => join(folder, name))
-  const roots = (await agentRoots(host.ultimateRoot, host.projectRoot, host.userHome)).filter(
+  const roots = (
+    await agentRoots(host.ultimateRoot, host.projectRoot, host.userHome, host.projectAccess)
+  ).filter(
     (root) => root.source === 'builtin' && !relative(host.ultimateRoot, root.path).startsWith('..'),
   )
   const paths = [
@@ -157,6 +114,8 @@ async function instructionChanges(
     host.projectRoot,
     host.userHome,
     host.modelRuntime,
+    undefined,
+    host.projectAccess,
   )
   const definition = definitions.find((candidate) => candidate.name === name)
   if (!definition) {
@@ -223,6 +182,8 @@ async function definitionSkills(host: ExtensionHost, input: PromptInput, context
     host.projectRoot,
     host.userHome,
     host.modelRuntime,
+    undefined,
+    host.projectAccess,
   )
   return definitions.find((definition) => definition.name === profile.definition)?.skills
 }
@@ -242,22 +203,12 @@ export default function prompt(host: ExtensionHost) {
           const previous = seen.id
           seen.id = build.id
           const built = previous !== undefined && previous !== build.id
-          let landed: Landing[] = []
-          if (seen.head === undefined || built) {
-            // Outside Git the build changes without commits: no landings to name.
-            const head = await git(host.ultimateRoot, 'rev-parse', 'HEAD').catch(() => undefined)
-            if (built && head && seen.head && head !== seen.head)
-              landed = await landings(
-                host.ultimateRoot,
-                seen.head,
-                head,
-                host.conversations(),
-              ).catch(
-                // A seen commit no longer in the clone (history rewritten) names nothing.
-                () => [],
-              )
-            if (head) seen.head = head
-          }
+          const details =
+            seen.head === undefined || built
+              ? await host.want(BuildDetails)?.read(seen.head, built)
+              : undefined
+          if (details?.head) seen.head = details.head
+          const landed = details?.landed ?? []
           const text = [built && buildNote(build, previous, landed), instructionNote(changes)]
             .filter(Boolean)
             .join('\n')

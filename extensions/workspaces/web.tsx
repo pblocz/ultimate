@@ -2,7 +2,15 @@ import type { ReactNode } from 'react'
 import { ChevronRightIcon, GitMergeIcon } from 'lucide-react'
 import { MentionText } from '@/components/ai/message'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { cn, column, defineWebExtension, provide, useConversation, useTranscript } from '@/sdk'
+import {
+  cn,
+  column,
+  defineWebExtension,
+  ProjectLabel,
+  provide,
+  useConversation,
+  useTranscript,
+} from '@/sdk'
 import { useWorkspaceIndex } from './data.tsx'
 import { CommitCount, LandingCard, useGithubRepo } from './landing.tsx'
 import { LanderLogEntry, LanderReport, WorkspaceCall } from './log.tsx'
@@ -10,6 +18,7 @@ import { compareUrl } from '@ultimate/lib/compare.ts'
 import { AgentName } from '@ultimate/ext/messages/ui.tsx'
 import { ChildBadge, ChildResult } from '@ultimate/ext/subagents/ui.tsx'
 import { IsolateBadge, Landed } from './child.tsx'
+import { worktreeLabel } from './project-label.ts'
 import type { EntryRecord } from '@earendil-works/pi-durable'
 
 /** The lander's note in the root: the landing's card, from the note's own data, with the state it froze. */
@@ -145,6 +154,7 @@ export default defineWebExtension({
     provide(ChildBadge, (id: number) => <IsolateBadge childId={id} />),
     provide(ChildResult, useChildResult),
     provide(AgentName, useLanderName),
+    provide(ProjectLabel, worktreeLabel),
   ],
   tools: { workspace: WorkspaceCall },
   entries: {

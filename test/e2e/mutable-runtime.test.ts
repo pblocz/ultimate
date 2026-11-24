@@ -4,7 +4,7 @@ import { fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/provid
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { afterEach, expect, it } from 'vitest'
-import { git } from '../../lib/git.ts'
+import { git } from '../../extensions/project-git/support/run.ts'
 import { context } from '../../server/harness.ts'
 import { fauxServer, post, removeTemp, temp, until } from '../helpers.ts'
 import { omittedExtensions, ordinarySource } from '../ordinary-web-fixture.ts'

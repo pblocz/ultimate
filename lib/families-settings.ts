@@ -12,7 +12,8 @@ import type { Families } from './families.ts'
 import { readJson, updateJson } from './json-file.ts'
 import { readSettings, userSettingsPath } from './settings.ts'
 // oxlint-disable-next-line no-restricted-imports -- family settings follow the core project trust decision, as definitions do
-import { decisionRoot, projectSettings } from '../server/project-setup.ts'
+import { createProjectAccess, projectSettings } from '../server/project-setup.ts'
+import type { ProjectAccess } from '../server/project-setup.ts'
 
 /** The families file of this machine. */
 export const familiesPath = (userHome: string) => join(userHome, '.ultimate/model-families.json')
@@ -24,9 +25,12 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 
 /** The key of a project's families: its main checkout for a linked worktree, as its trust decision is. */
-export function projectKey(projectRoot: string) {
+export function projectKey(
+  projectRoot: string,
+  access: ProjectAccess = createProjectAccess(projectRoot),
+) {
   try {
-    return decisionRoot(projectRoot)
+    return access.key()
   } catch {
     // A project folder that is gone or unreadable has no main checkout to share: its own path keys it.
     return resolve(projectRoot)
@@ -59,6 +63,7 @@ export async function readFamilyLayers(
   userHome: string,
   projectRoot: string,
   settings?: JsonObject,
+  access: ProjectAccess = createProjectAccess(projectRoot, userHome),
 ): Promise<FamilyLayers> {
   const errors: string[] = []
   const layer = (value: unknown, where: string) => {
@@ -79,14 +84,16 @@ export async function readFamilyLayers(
     errors.push(`${userPath}: ${String(error)}`)
     return {}
   })
-  const own = isObject(stored.projects) ? stored.projects[projectKey(projectRoot)] : undefined
+  const own = isObject(stored.projects)
+    ? stored.projects[projectKey(projectRoot, access)]
+    : undefined
   const from = own !== undefined ? 'project' : stored.recent !== undefined ? 'recent' : 'builtin'
   return {
     user: layer(user.modelFamilies, 'user settings: modelFamilies'),
     base: layer(own ?? stored.recent, `${familiesPath(userHome)} (${from})`),
     from,
     project: layer(
-      (settings ?? (await projectSettings(projectRoot, userHome))).modelFamilies,
+      (settings ?? (await projectSettings(projectRoot, userHome, undefined, access))).modelFamilies,
       'project settings: modelFamilies',
     ),
     errors,
@@ -102,18 +109,24 @@ export async function readFamilies(
   userHome: string,
   projectRoot: string,
   settings?: JsonObject,
+  access: ProjectAccess = createProjectAccess(projectRoot, userHome),
 ): Promise<Families> {
-  return mergeLayers(await readFamilyLayers(userHome, projectRoot, settings))
+  return mergeLayers(await readFamilyLayers(userHome, projectRoot, settings, access))
 }
 
 /** Save `value` as `projectRoot`'s families and as the most recent ones, which new projects start from. */
-export async function writeFamilies(userHome: string, projectRoot: string, value: JsonObject) {
+export async function writeFamilies(
+  userHome: string,
+  projectRoot: string,
+  value: JsonObject,
+  access: ProjectAccess = createProjectAccess(projectRoot, userHome),
+) {
   parseFamilies(value)
   await updateJson(familiesPath(userHome), readStored, (stored) => {
     stored.recent = value
     stored.projects = {
       ...(isObject(stored.projects) ? stored.projects : {}),
-      [projectKey(projectRoot)]: value,
+      [projectKey(projectRoot, access)]: value,
     }
   })
 }

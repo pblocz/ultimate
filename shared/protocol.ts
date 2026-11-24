@@ -155,7 +155,14 @@ export interface SystemInfo {
     settings: Record<string, JsonValue>
     settingsError?: string
   }
-  code: { ultimateRoot: string; branch: string; sha: string; dirty: boolean; coreStale?: boolean }
+  code: {
+    ultimateRoot: string
+    branch: string
+    sha: string
+    dirty: boolean
+    sourceAvailable?: boolean
+    coreStale?: boolean
+  }
   /**
    * The web bundle served now; a page on another id reloads onto it. `changed` lists the sources that changed since the
    * previous bundle, relative to the Ultimate root when inside it. `building` is set while a rebuild runs; the last

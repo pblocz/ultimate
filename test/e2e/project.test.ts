@@ -2,15 +2,27 @@ import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
 import { projectHome, runtimePaths } from '../../server/project.ts'
-import { projectDecision } from '../../server/project-setup.ts'
+import {
+  createProjectAccess,
+  loadProjectIdentity,
+  projectDecision,
+} from '../../server/project-setup.ts'
 import { readFamilies, writeFamilies } from '../../lib/families-settings.ts'
-import { git } from '../../lib/git.ts'
-import { attach, temp, sourceCopy, cleanEnv, until, post as requestPost } from '../helpers.ts'
+import { git } from '../../extensions/project-git/support/run.ts'
+import {
+  attach,
+  temp,
+  sourceCopy,
+  cleanEnv,
+  until,
+  fauxServer,
+  post as requestPost,
+} from '../helpers.ts'
 
 const children: ChildProcess[] = []
 afterEach(async () => {
@@ -55,14 +67,83 @@ it('keeps linked-worktree trust and preset sharing independent of explicit runti
   await git(main, 'worktree', 'add', '-b', 'linked', linked)
   new ProjectTrustStore(join(userHome, '.ultimate')).set(main, true)
   await writeFamilies(userHome, main, { families: { local: { model: 'faux/first' } } })
-  expect(projectDecision(linked, userHome)).toBe(true)
-  expect((await readFamilies(userHome, linked)).families.local.model).toBe('faux/first')
+  const identify = await loadProjectIdentity(resolve('.'))
+  const access = createProjectAccess(linked, userHome, identify)
+  expect(access.decision()).toBe(true)
+  expect((await readFamilies(userHome, linked, undefined, access)).families.local.model).toBe(
+    'faux/first',
+  )
   const state = runtimePaths(linked, { userHome, home: join(userHome, 'separate-state') })
   expect(state.home).toBe(join(userHome, 'separate-state'))
-  await writeFamilies(state.userHome, linked, { families: { local: { model: 'faux/second' } } })
+  await writeFamilies(
+    state.userHome,
+    linked,
+    { families: { local: { model: 'faux/second' } } },
+    access,
+  )
   expect((await readFamilies(userHome, main)).families.local.model).toBe('faux/second')
   expect(projectDecision(main, userHome)).toBe(true)
   expect(existsSync(state.home)).toBe(false)
+
+  const local = join(linked, '.ultimate')
+  await extension(local, 'worktree-probe', 'trusted')
+  await writeFile(
+    join(local, 'extensions/worktree-probe/web.tsx'),
+    `export function Probe() { return <span className="rotate-[43deg]" /> }`,
+  )
+  const server = await fauxServer({
+    ultimateRoot: resolve('.'),
+    projectRoot: linked,
+    userHome,
+    home: state.home,
+    localSetup: false,
+  })
+  try {
+    const stylesheet = async () => {
+      const page = await (await fetch(server.url)).text()
+      const url = /href="(\/assets\/[^"\s]+\.css)"/.exec(page)?.[1]
+      if (!url) throw new Error('No stylesheet in the web page')
+      return (await fetch(server.url + url)).text()
+    }
+    expect(server.extensions.action('worktree-probe', 'hello')).toBeDefined()
+    expect(await stylesheet()).toContain('43deg')
+    access.setDecision(false)
+    await until(() => !server.extensions.action('worktree-probe', 'hello'))
+    await until(async () => !(await stylesheet()).includes('43deg'))
+    expect(access.decision()).toBe(false)
+  } finally {
+    await server.close()
+  }
+})
+
+it('loads project identity only from the installation and rejects a provider outside it', async () => {
+  const home = await temp()
+  const installation = join(home, 'installation')
+  const project = join(home, 'project')
+  await mkdir(installation)
+  await mkdir(project)
+  const manifest = JSON.stringify({ projectIdentity: 'identity.ts' })
+  await writeFile(join(project, 'ultimate-startup.json'), manifest)
+  await writeFile(join(project, 'identity.ts'), 'export default () => "outside"\n')
+  const control = await loadProjectIdentity(installation)
+  expect(control).toBeUndefined()
+  expect(createProjectAccess(project, home, control).key()).toBe(project)
+  await writeFile(join(installation, 'ultimate-startup.json'), manifest)
+  await expect(loadProjectIdentity(installation)).rejects.toThrow('cannot load projectIdentity')
+  await symlink(join(project, 'identity.ts'), join(installation, 'identity.ts'))
+  await expect(loadProjectIdentity(installation)).rejects.toThrow(
+    'outside the Ultimate installation',
+  )
+})
+
+it('does not share trust when worktree metadata is invalid', async () => {
+  const home = await temp()
+  const project = join(home, 'project')
+  await mkdir(project)
+  await writeFile(join(project, '.git'), 'invalid metadata\n')
+  const access = createProjectAccess(project, home, await loadProjectIdentity(resolve('.')))
+  expect(access.key()).toBe(project)
+  expect(access.decision()).toBeNull()
 })
 
 it('prints a single-line error for a missing project', async () => {

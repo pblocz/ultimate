@@ -1,0 +1,13 @@
+{
+  "name": "ultimate-project-git-support",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./run": "./run.ts",
+    "./checkout": "./checkout.ts",
+    "./github": "./github.ts",
+    "./backup-identity": "./backup-identity.ts",
+    "./token-weight": "./token-weight.ts",
+    "./reset-report": "./reset-report.ts"
+  }
+}

@@ -1,8 +1,10 @@
 # Workspaces
 
 An isolated conversation gets its own Git checkout. Coordinator branches started by @ultimate are isolated by
-default. Subagents reach this extension through the optional `conversations.worktrees` point. Uncommitted source
-changes are not included.
+default. Subagents reach this extension through the optional `conversations.worktrees` point. Ordinary conversations
+with an `isolate: worktree` persona reach it through the host's `ultimate.conversation-isolation` service
+(`shared/conversation-isolation.ts`), which supports only the `worktree` mode. The web facet provides `ProjectLabel`, so
+the title bar names a branch checkout `<project> #<conversation>`. Uncommitted source changes are not included.
 
 Isolation needs a Git repository with a checked-out branch and a first commit. Until a project has them, `isolation`
 returns `{ reason }`, an isolated start fails with that reason, and the project has no lander.

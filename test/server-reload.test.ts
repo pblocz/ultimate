@@ -1,12 +1,13 @@
 import { request } from 'node:http'
-import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { cp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { join, resolve as resolvePath } from 'node:path'
 import { defineExtension } from '@earendil-works/pi-durable'
 import { describe, expect, it } from 'vitest'
 import { prepareFauxServer as prepareServer, until, post, attach } from './helpers.ts'
 import { context } from '../server/harness.ts'
 import type { ServerEvents } from '../shared/protocol.ts'
 import { fixture, orderedSource } from './server-fixture.ts'
+import { git } from './git.ts'
 
 describe('server reload', () => {
   it('tracks extension and web builds and stores positional prompt changes', async () => {
@@ -72,6 +73,77 @@ describe('server reload', () => {
       { from: second.id, to: third.id },
     ])
     await stream.close()
+  })
+  it('reports source status and adds source history only while the provider is active', async () => {
+    const { server, options } = await fixture(true)
+    const root = options.ultimateRoot
+    const code = () => server.system.current().code
+    expect(code().sourceAvailable).toBe(false)
+    await cp(resolvePath('extensions/source-git'), join(root, 'extensions/source-git'), {
+      recursive: true,
+    })
+    await until(() =>
+      server.extensions
+        .info()
+        .some((entry) => entry.name === 'source-git' && entry.server?.loadedAt),
+    )
+    expect(code().sourceAvailable).toBe(false)
+
+    const file = 'extensions/counter/value.ts'
+    const commit = async (subject: string) => {
+      await git(root, 'add', '-f', file)
+      await git(
+        root,
+        '-c',
+        'user.name=Fixture',
+        '-c',
+        'user.email=test@example.com',
+        'commit',
+        '-qm',
+        subject,
+      )
+      return git(root, 'rev-parse', 'HEAD')
+    }
+    await git(root, 'init', '-qb', 'fixture')
+    await writeFile(join(root, '.git/info/exclude'), '*\n')
+    const first = await commit('Initial source')
+    // The status publisher listens to the watcher's `all` event. Git metadata is not watched.
+    const refreshStatus = () => server.vite.watcher.emit('all', 'change', join(root, file))
+    refreshStatus()
+    await until(() => code().sha === first.slice(0, 7) && !code().dirty)
+    expect(code()).toMatchObject({ sourceAvailable: true, branch: 'fixture', dirty: false })
+
+    const submit = async (text: string) => {
+      await post(server, '/api/conversations/1/submit', { text })
+      await server.harness.waitForIdle(context)
+      return (await server.root.context(context)).entries.filter(
+        (entry) => entry.kind === 'prompt.build',
+      )
+    }
+    expect(await submit('before')).toEqual([])
+    const before = server.host.build().id
+    await writeFile(join(root, file), "export const value = 'second'\n")
+    await until(() => code().dirty)
+    const second = await commit('A source change')
+    await git(root, 'checkout', '--detach', '-q', second)
+    refreshStatus()
+    await until(() => code().sha === second.slice(0, 7) && !code().branch && !code().dirty)
+    expect(code()).toMatchObject({ sourceAvailable: true, dirty: false })
+    await until(() => server.host.build().id !== before)
+    const notes = await submit('after')
+    expect(notes).toHaveLength(1)
+    expect(notes[0].data).toMatchObject({ landed: [{ title: 'A source change', sha: second }] })
+
+    await mkdir(join(options.userHome, '.ultimate'), { recursive: true })
+    await writeFile(
+      join(options.userHome, '.ultimate/settings.json'),
+      JSON.stringify({ extensions: { disable: ['source-git'] } }),
+    )
+    await until(() => !code().sourceAvailable)
+    expect(code()).toMatchObject({ branch: '', sha: '', dirty: false })
+    const generic = await submit('without source status')
+    expect(generic).toHaveLength(2)
+    expect(generic[1].data).not.toHaveProperty('landed')
   })
   it('rejects foreign Hosts on API and Vite and accepts localhost Origin', async () => {
     const { server } = await fixture()

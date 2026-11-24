@@ -70,7 +70,7 @@ if (process.argv.includes('status')) {
     expect(clampThinkingLevel(sonnet, 'off')).not.toBe('off')
     expect(clampThinkingLevel(sonnet, 'low')).toBe('low')
     const upstream = await server.vite.ssrLoadModule(
-      resolve('node_modules/@earendil-works/pi-claude-code/src/provider.ts'),
+      resolve('extensions/claude-code/node_modules/@earendil-works/pi-claude-code/src/provider.ts'),
     )
     expect(staticModels.filter((model) => model.id !== sonnet.id)).toEqual(
       upstream

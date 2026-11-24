@@ -1,13 +1,25 @@
 import { configure, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { exec } from '@ultimate/lib/exec.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import type { WorktreeService } from '@ultimate/ext/conversations/api.ts'
+import type { ConversationIsolation } from '@ultimate/shared/conversation-isolation.ts'
 import type { WorkspaceService } from './api.ts'
 import { Workspaces } from './workspaces.ts'
 import type { Workspace } from './types.ts'
 
 const instructionsFor = (workspace: Workspace, instructions: string) =>
   `${instructions}\nWork only in ${workspace.path} on ${workspace.branch}, cut from ${workspace.base}. Commit your work on this branch with clear messages. Never push and never touch other checkouts.`
+
+/** The host's isolation backend for ordinary conversations: the `worktree` mode, over the same worktree service. */
+export function conversationIsolation(
+  worktrees: Pick<WorktreeService, 'prepare' | 'get'>,
+): ConversationIsolation {
+  return {
+    supports: (mode) => mode === 'worktree',
+    exists: async (id, caller) => (await worktrees.get(id, caller)) !== undefined,
+    prepare: (tx, id, { cwd, instructions }) => worktrees.prepare(tx, id, { cwd, instructions }),
+  }
+}
 
 /** The optional Git operations of child agents, using the same worktree service as the workspace tools. */
 export function subagentWorktrees(

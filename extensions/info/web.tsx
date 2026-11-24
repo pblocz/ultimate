@@ -174,13 +174,14 @@ function Execution({ system }: { system: SystemInfo }) {
 function Code({ system }: { system: SystemInfo }) {
   const path = usePath(system)
   const { code, build } = system
+  const sourceAvailable = code.sourceAvailable ?? Boolean(code.branch || code.sha)
   const restart = useRestart()
   return (
     <Section
       id="code"
       meta={
         <>
-          {code.branch || 'detached'}
+          {sourceAvailable ? code.branch || 'detached' : 'source status unavailable'}
           {code.dirty && <span className="text-warning">*</span>}
         </>
       }
@@ -195,11 +196,12 @@ function Code({ system }: { system: SystemInfo }) {
         </Row>
         <Row label="sha">
           <Copy value={code.sha} />
-          {code.dirty ? (
-            <span className="text-warning">uncommitted changes</span>
-          ) : (
-            <span className="text-muted-foreground/60">clean</span>
-          )}
+          {sourceAvailable &&
+            (code.dirty ? (
+              <span className="text-warning">uncommitted changes</span>
+            ) : (
+              <span className="text-muted-foreground/60">clean</span>
+            ))}
         </Row>
         <Row label="build">
           <Copy value={build.id}>{build.id.slice(0, 7)}</Copy>

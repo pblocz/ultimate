@@ -18,7 +18,7 @@ import {
 import type { ContextEdit, ConversationId, Cursor, EntryId, Tx } from '@earendil-works/pi-durable'
 import { implementAction } from '@ultimate/lib/actions.ts'
 import type { ActionInput } from '@ultimate/lib/actions.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { defineEvent } from '@ultimate/shared/events.ts'
 import { Committed } from '@ultimate/ext/coding-tools/api.ts'

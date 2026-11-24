@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { cloudConfig } from '@ultimate/lib/cloud.ts'
-import { projectIdentity } from '@ultimate/lib/project-identity.ts'
+import { projectIdentity } from 'ultimate-project-git-support/backup-identity'
 import { backUp } from '../backup.ts'
 import { CloudApi } from '../api.ts'
 import cloud, { backup } from '../server.ts'
@@ -11,8 +11,8 @@ vi.mock('@ultimate/lib/cloud.ts', async (original) => ({
   ...(await original<typeof import('@ultimate/lib/cloud.ts')>()),
   cloudConfig: vi.fn<typeof cloudConfig>(),
 }))
-vi.mock('@ultimate/lib/project-identity.ts', async (original) => ({
-  ...(await original<typeof import('@ultimate/lib/project-identity.ts')>()),
+vi.mock('ultimate-project-git-support/backup-identity', async (original) => ({
+  ...(await original<typeof import('ultimate-project-git-support/backup-identity')>()),
   projectIdentity: vi.fn<typeof projectIdentity>(),
 }))
 vi.mock('../backup.ts', async (original) => ({

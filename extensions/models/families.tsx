@@ -47,7 +47,7 @@ export function useFamilies() {
   )
   const system = useSystem()
   // The settings file and landings both reach the open tab as a system broadcast.
-  const source = `${system?.code.sha} ${JSON.stringify(system?.project.settings)}`
+  const source = `${system?.build.id} ${JSON.stringify(system?.project.settings)}`
   useEffect(() => {
     if (fetchedFor === source) return
     fetchedFor = source

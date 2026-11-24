@@ -71,6 +71,7 @@ export default async function web(host: ExtensionHost) {
   const bundle = await createWeb({
     ultimateRoot: host.ultimateRoot,
     projectRoot: host.projectRoot,
+    projectAccess: host.projectAccess,
     userHome: host.userHome,
     home: host.home,
     watch: runtime.watch,

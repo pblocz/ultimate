@@ -40,7 +40,7 @@ export function AgentsOverview() {
   const system = useSystem()
   // A landing or a settings change broadcasts new system info: definitions may have changed with it.
   const { data, refetch } = useAction(DefinitionsAction, null, {
-    on: [editing, system?.code.sha, system?.project.settings],
+    on: [editing, system?.build.id, system?.project.settings],
     focus: true,
   })
   const show = useOpenDefinition()

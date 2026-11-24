@@ -1,0 +1,8 @@
+{
+  "name": "ultimate-extension-cloud",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ultimate-project-git-support": "workspace:*"
+  }
+}

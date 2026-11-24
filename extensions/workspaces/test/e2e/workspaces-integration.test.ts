@@ -21,7 +21,7 @@ import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import type { ActionContext } from '@ultimate/server/actions.ts'
 import workspaceExtension, { actions, order as workspacesOrder } from '../../server.ts'
 import { Workspaces, workspaces } from '../../workspaces.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { setup } from '../../setup.ts'
 import type { LanderEntry, WorkspaceIndex } from '../../types.ts'
 import { createLander, landerCheckout, landerPath } from '../../lander.ts'
@@ -34,6 +34,7 @@ import {
   subject,
 } from '@ultimate/ext/conversations/server.ts'
 import { ConversationsApi, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
+import { ConversationIsolationApi } from '@ultimate/shared/conversation-isolation.ts'
 import { createConversationHost } from '@ultimate/server/conversation-host.ts'
 import type { ConversationsService } from '@ultimate/ext/conversations/api.ts'
 import { setAutomaticSummaries, Summaries } from '@ultimate/ext/conversations/summary.ts'
@@ -684,7 +685,7 @@ it.concurrent('applies an ordinary conversation definition through the existing 
   const f = await fixture()
   const backend = await createConversationHost(f.prepared, f.opened, {
     configurationServices: () => ({
-      isolation: f.host.want(WorktreeSupport),
+      isolation: f.host.want(ConversationIsolationApi),
       summaries: setAutomaticSummaries,
     }),
   })
@@ -721,6 +722,32 @@ it.concurrent('applies an ordinary conversation definition through the existing 
     expect(
       (await backend.channelHost.conversations.get(id)).summary.parentConversationId,
     ).toBeUndefined()
+    await expect(
+      backend.channelHost.conversations.configure(id, { definition: null }),
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Change an isolated profile in a new conversation',
+    })
+  } finally {
+    await backend.close()
+  }
+})
+it.concurrent('rejects an isolation mode its backend does not support before any write', async () => {
+  const f = await fixture()
+  const isolation = f.host.want(ConversationIsolationApi)!
+  const backend = await createConversationHost(f.prepared, f.opened, {
+    configurationServices: () => ({
+      isolation: { ...isolation, supports: () => false },
+      summaries: setAutomaticSummaries,
+    }),
+  })
+  backend.openAdmission()
+  try {
+    const before = (await backend.channelHost.conversations.list()).length
+    await expect(
+      backend.channelHost.conversations.create({ definition: 'worker' }),
+    ).rejects.toMatchObject({ code: 'unavailable', message: 'Worktree isolation is not available' })
+    expect((await backend.channelHost.conversations.list()).length).toBe(before)
   } finally {
     await backend.close()
   }

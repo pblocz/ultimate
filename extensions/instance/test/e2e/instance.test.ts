@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
-import { cp, readFile, stat, symlink, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { cp, mkdir, readFile, readdir, stat, symlink, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
 import {
   fauxAssistantMessage,
   fauxProvider,
@@ -17,7 +18,7 @@ import subagents from '@ultimate/ext/subagents/server.ts'
 import { Subagents } from '@ultimate/ext/subagents/api.ts'
 import workspaceExtension from '@ultimate/ext/workspaces/server.ts'
 import { workspaces } from '@ultimate/ext/workspaces/workspaces.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { projectSettings } from '@ultimate/server/project-setup.ts'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
@@ -52,31 +53,39 @@ async function fixture({ foreign = false } = {}) {
   vi.stubEnv('TMPDIR', root)
   const checkout = resolve('.')
   const source = join(root, 'source')
-  await git(root, 'clone', '--no-hardlinks', checkout, source)
-  await git(source, 'switch', '-c', 'preview-source')
-  // The preview runs the clone's committed code: give it this checkout's preview and landing code.
-  for (const path of ['extensions/instance', 'extensions/workspaces', 'lib'])
-    await cp(join(checkout, path), join(source, path), { recursive: true })
-  await symlink(join(checkout, 'node_modules'), join(source, 'node_modules'))
+  await git(root, 'clone', '--no-checkout', '--no-hardlinks', checkout, source)
+  await git(source, 'branch', 'preview-source')
+  await git(source, 'symbolic-ref', 'HEAD', 'refs/heads/preview-source')
+  // Snapshot the current code, not a mix of HEAD and working-tree files. The preview runs a real checkout of it.
+  const files = await git(checkout, 'ls-files', '-z', '--cached', '--others', '--exclude-standard')
+  for (const path of files.split('\0').filter(Boolean)) {
+    const from = join(checkout, path)
+    if (!existsSync(from)) continue
+    const to = join(source, path)
+    await mkdir(dirname(to), { recursive: true })
+    await cp(from, to, { verbatimSymlinks: true })
+  }
+  // Use the installed packages offline, but preserve the relative importer links to the fixture's workspace package.
+  const quote = (path: string) => `'${path.replaceAll("'", "'\\''")}'`
+  const modules = join(checkout, 'node_modules')
+  await symlink(modules, join(source, 'node_modules'))
+  const setup = [`ln -s ${quote(modules)} node_modules`]
+  for (const name of await readdir(join(source, 'extensions'))) {
+    if (!existsSync(join(source, 'extensions', name, 'package.json'))) continue
+    const path = join('extensions', name, 'node_modules')
+    if (!existsSync(join(checkout, path))) continue
+    await cp(join(checkout, path), join(source, path), { recursive: true, verbatimSymlinks: true })
+    setup.push(`cp -a ${quote(join(checkout, path))} ${quote(path)}`)
+  }
   await writeFile(
     join(source, '.ultimate/settings.json'),
-    JSON.stringify({
-      isolates: { worktree: { setup: [`ln -s '${join(checkout, 'node_modules')}' node_modules`] } },
-    }),
+    JSON.stringify({ isolates: { worktree: { setup } } }),
   )
   await writeFile(
     join(source, '.gitignore'),
     (await readFile(join(source, '.gitignore'), 'utf8')) + '\n/node_modules\n',
   )
-  await git(
-    source,
-    'add',
-    '.ultimate/settings.json',
-    '.gitignore',
-    'extensions/instance',
-    'extensions/workspaces',
-    'lib',
-  )
+  await git(source, 'add', '-A')
   await git(source, 'commit', '-m', 'Configure preview setup')
   const project = foreign ? join(root, 'app') : source
   if (foreign) {

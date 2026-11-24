@@ -175,6 +175,8 @@ export default function fastExtension(host: ExtensionHost) {
                 host.projectRoot,
                 host.userHome,
                 host.modelRuntime,
+                undefined,
+                host.projectAccess,
               )
             ).definitions.some((definition) => definition.name === name && definition.fast)
           if (!fast) sessions.delete(provider.sessionId)

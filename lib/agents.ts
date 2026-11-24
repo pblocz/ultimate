@@ -14,7 +14,8 @@ import { DEFAULT_FAMILY, definitionRuns, isFamilyName, refName, refOf } from './
 import type { Families } from './families.ts'
 import { readFamilies } from './families-settings.ts'
 // oxlint-disable-next-line no-restricted-imports -- agent discovery follows the core project trust decision
-import { projectDecision, useProjectSetup } from '../server/project-setup.ts'
+import { createProjectAccess } from '../server/project-setup.ts'
+import type { ProjectAccess } from '../server/project-setup.ts'
 // oxlint-disable-next-line no-restricted-imports -- extension-owned definitions follow the same enabled folders as their facets
 import { discoverExtensions } from '../server/discovery.ts'
 
@@ -120,11 +121,18 @@ type DefaultHost = {
   settings: DefaultSettings
   userHome: string
   projectRoot: string
+  projectAccess?: ProjectAccess
 }
 
 /** The model of the project's default family, when it names one; else the default is Pi's. */
-export const familyDefault = async (host: Pick<DefaultHost, 'userHome' | 'projectRoot'>) =>
-  refOf((await readFamilies(host.userHome, host.projectRoot)).families[DEFAULT_FAMILY].model)
+export const familyDefault = async (
+  host: Pick<DefaultHost, 'userHome' | 'projectRoot' | 'projectAccess'>,
+) =>
+  refOf(
+    (await readFamilies(host.userHome, host.projectRoot, undefined, host.projectAccess)).families[
+      DEFAULT_FAMILY
+    ].model,
+  )
 
 /**
  * What a conversation runs on when nothing pins it, as agent fields: `defaultModel`, and the default family's thinking
@@ -146,7 +154,9 @@ export const hostDefault = async (host: DefaultHost) =>
   defaultAgent(
     host.modelRuntime.getAvailableSnapshot(),
     host.settings,
-    (await readFamilies(host.userHome, host.projectRoot)).families[DEFAULT_FAMILY],
+    (await readFamilies(host.userHome, host.projectRoot, undefined, host.projectAccess)).families[
+      DEFAULT_FAMILY
+    ],
   )
 
 /**
@@ -445,15 +455,27 @@ function readDefinition(text: string, path: string, modelRuntime: ModelRuntime):
 }
 
 /** Enabled extensions' definitions are built-ins, before user/project definitions and overlays. */
-export async function agentRoots(ultimateRoot: string, projectRoot: string, userHome: string) {
-  const extensions = await discoverExtensions(ultimateRoot, projectRoot, userHome)
+export async function agentRoots(
+  ultimateRoot: string,
+  projectRoot: string,
+  userHome: string,
+  access: ProjectAccess = createProjectAccess(projectRoot, userHome),
+) {
+  const extensions = await discoverExtensions(
+    ultimateRoot,
+    projectRoot,
+    userHome,
+    false,
+    undefined,
+    access,
+  )
   return [
     { source: 'builtin' as const, path: join(ultimateRoot, 'agents') },
     ...extensions
       .filter((extension) => extension.enabled && extension.files.includes('agents'))
       .map((extension) => ({ source: 'builtin' as const, path: join(extension.path, 'agents') })),
     { source: 'user' as const, path: join(userHome, '.ultimate/agents') },
-    ...(useProjectSetup(projectRoot, userHome)
+    ...(access.trusted()
       ? [{ source: 'project' as const, path: join(projectRoot, '.ultimate/agents') }]
       : []),
   ]
@@ -471,12 +493,18 @@ export async function discoverAgents(
   modelRuntime: ModelRuntime,
   /** A file read as if absent: saving an overlay diffs against what applies without it. */
   skip?: string,
+  access: ProjectAccess = createProjectAccess(projectRoot, userHome),
 ): Promise<AgentDiscovery> {
   const definitions = new Map<string, AgentDefinition & { source: Source }>()
   const errors: AgentDiscovery['errors'] = []
   const builtins = new Set<string>()
   const replaced: AgentDiscovery['replaced'] = []
-  for (const { source, path: directory } of await agentRoots(ultimateRoot, projectRoot, userHome)) {
+  for (const { source, path: directory } of await agentRoots(
+    ultimateRoot,
+    projectRoot,
+    userHome,
+    access,
+  )) {
     let files: string[]
     try {
       files = await readdir(directory)
@@ -530,8 +558,8 @@ export async function discoverAgents(
       }
     }
   }
-  const decision = projectDecision(projectRoot, userHome)
-  const families = await readFamilies(userHome, projectRoot)
+  const decision = access.decision()
+  const families = await readFamilies(userHome, projectRoot, undefined, access)
   return {
     definitions: [...definitions.values()].map((definition) => ({
       ...definition,
@@ -602,9 +630,14 @@ export function serializeDefinition(
 }
 
 /** The folder a user or project definition is written to; the project's only once its setup is chosen as local. */
-function scopeRoot(scope: 'user' | 'project', projectRoot: string, userHome: string) {
+function scopeRoot(
+  scope: 'user' | 'project',
+  projectRoot: string,
+  userHome: string,
+  access: ProjectAccess = createProjectAccess(projectRoot, userHome),
+) {
   if (scope === 'user') return join(userHome, '.ultimate/agents')
-  if (!useProjectSetup(projectRoot, userHome))
+  if (!access.trusted())
     throw new Error("Choose this project's local setup before saving project definitions")
   return join(projectRoot, '.ultimate/agents')
 }
@@ -614,14 +647,14 @@ function scopeRoot(scope: 'user' | 'project', projectRoot: string, userHome: str
  * throws and writes nothing. A built-in is never changed: saving one writes an override into the scope.
  */
 export async function saveDefinition(
-  roots: { projectRoot: string; userHome: string },
+  roots: { projectRoot: string; userHome: string; projectAccess?: ProjectAccess },
   modelRuntime: ModelRuntime,
   scope: 'user' | 'project',
   name: string,
   frontmatter: DefinitionFields,
   instructions: string,
 ) {
-  const directory = scopeRoot(scope, roots.projectRoot, roots.userHome)
+  const directory = scopeRoot(scope, roots.projectRoot, roots.userHome, roots.projectAccess)
   const text = serializeDefinition(name, frontmatter, instructions)
   // Reading it back checks the name before it becomes a path.
   const definition = readDefinition(text, join(directory, `${name}.md`), modelRuntime)
@@ -635,7 +668,12 @@ export async function saveDefinition(
  * A change an overlay cannot express (removing a base tool, rewriting the base instructions) throws and writes nothing.
  */
 export async function saveOverlay(
-  roots: { ultimateRoot: string; projectRoot: string; userHome: string },
+  roots: {
+    ultimateRoot: string
+    projectRoot: string
+    userHome: string
+    projectAccess?: ProjectAccess
+  },
   modelRuntime: ModelRuntime,
   scope: 'user' | 'project',
   name: string,
@@ -643,7 +681,10 @@ export async function saveOverlay(
   instructions: string,
 ) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error('name must be a nonempty identifier')
-  const path = join(scopeRoot(scope, roots.projectRoot, roots.userHome), `${name}.md`)
+  const path = join(
+    scopeRoot(scope, roots.projectRoot, roots.userHome, roots.projectAccess),
+    `${name}.md`,
+  )
   const { ultimateRoot, projectRoot, userHome } = roots
   const { definitions } = await discoverAgents(
     ultimateRoot,
@@ -651,11 +692,12 @@ export async function saveOverlay(
     userHome,
     modelRuntime,
     path,
+    roots.projectAccess,
   )
   const base = definitions.find((definition) => definition.name === name)
   if (!base) throw new Error(`No definition named ${name} for an overlay to extend`)
   // A project file applies over a user overlay, so the form shows it; saving it to the user file would copy it there.
-  const later = (await agentRoots(ultimateRoot, projectRoot, userHome))
+  const later = (await agentRoots(ultimateRoot, projectRoot, userHome, roots.projectAccess))
     .filter((root) => scope === 'user' && root.source === 'project')
     .map((root) => root.path)
   const shadowing = [base.path, ...(base.overlays ?? [])].find((file) =>
@@ -735,12 +777,15 @@ export async function saveOverlay(
 
 /** Remove a user or project definition file; a built-in of the same name applies again. */
 export async function deleteDefinition(
-  roots: { projectRoot: string; userHome: string },
+  roots: { projectRoot: string; userHome: string; projectAccess?: ProjectAccess },
   scope: 'user' | 'project',
   name: string,
 ) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error('name must be a nonempty identifier')
-  const path = join(scopeRoot(scope, roots.projectRoot, roots.userHome), `${name}.md`)
+  const path = join(
+    scopeRoot(scope, roots.projectRoot, roots.userHome, roots.projectAccess),
+    `${name}.md`,
+  )
   try {
     await rm(path)
   } catch (error) {

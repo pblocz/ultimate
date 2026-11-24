@@ -2,7 +2,7 @@
 import { lstat, readlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { exec } from '@ultimate/lib/exec.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import type { ReviewDiff, ReviewFile, ReviewKind } from './refs.ts'
 
 /** Patches over this many bytes per file are listed without their hunks. */

@@ -65,7 +65,7 @@ import type { RootEvent } from './types.ts'
 import { compareUrl } from '@ultimate/lib/compare.ts'
 import { hasLogin, hostDefault } from '@ultimate/lib/agents.ts'
 import { admitCompaction } from '@ultimate/lib/compaction.ts'
-import { githubRepo } from '@ultimate/lib/project-identity.ts'
+import { githubRepo } from 'ultimate-project-git-support/github'
 
 export type BranchImage = { data: string; mimeType: string }
 

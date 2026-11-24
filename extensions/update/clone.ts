@@ -1,8 +1,8 @@
 /** The Ultimate clone against origin: what it lacks, what that touches, and fetching it at most hourly. */
 import { stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
-import type { Git } from '@ultimate/lib/fast-forward.ts'
-import { fetchOrigin, standing } from '@ultimate/lib/fast-forward.ts'
+import type { Git } from './fast-forward.ts'
+import { fetchOrigin, standing } from './fast-forward.ts'
 import { readJson, writeJson } from '@ultimate/lib/json-file.ts'
 import { corePath, packagePath } from '@ultimate/lib/layers.ts'
 // oxlint-disable-next-line no-restricted-imports -- the core's process-safe lock, shared with secrets and tailscale

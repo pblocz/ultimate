@@ -28,9 +28,6 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 1.6.0
         version: 1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(undici@8.10.2)(ws@8.22.0)
-      '@earendil-works/pi-claude-code':
-        specifier: github:earendil-works/pi-claude-code#70abb65186592ca788b29b3db22c3160d629c41f
-        version: https://codeload.github.com/earendil-works/pi-claude-code/tar.gz/70abb65186592ca788b29b3db22c3160d629c41f(patch_hash=bd3825e7cab2a13a494c87f2c6658f445f3978c0b5de2857273fb36ade3ff78e)(@earendil-works/pi-ai@1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(undici@8.10.2)(ws@8.22.0))(@earendil-works/pi-coding-agent@1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(ws@8.22.0))
       '@earendil-works/pi-codemode':
         specifier: 1.6.0
         version: 1.6.0
@@ -143,6 +140,71 @@ importers:
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@types/node@26.0.0)(@vitest/browser-preview@5.0.5)(@vitest/ui@5.0.5)(vite@8.3.5(@types/node@26.0.0)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0))
+
+  extensions/claude-code:
+    dependencies:
+      '@earendil-works/pi-ai':
+        specifier: 1.6.0
+        version: 1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(undici@8.10.2)(ws@8.22.0)
+      '@earendil-works/pi-claude-code':
+        specifier: github:earendil-works/pi-claude-code#70abb65186592ca788b29b3db22c3160d629c41f
+        version: https://codeload.github.com/earendil-works/pi-claude-code/tar.gz/70abb65186592ca788b29b3db22c3160d629c41f(patch_hash=bd3825e7cab2a13a494c87f2c6658f445f3978c0b5de2857273fb36ade3ff78e)(@earendil-works/pi-ai@1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(undici@8.10.2)(ws@8.22.0))(@earendil-works/pi-coding-agent@1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(ws@8.22.0))
+      '@earendil-works/pi-coding-agent':
+        specifier: 1.6.0
+        version: 1.6.0(@aws-sdk/credential-provider-node@3.972.84)(@smithy/signature-v4@5.7.4)(google-auth-library@10.9.1)(ws@8.22.0)
+      undici:
+        specifier: 8.10.2
+        version: 8.10.2
+
+  extensions/cloud:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/coding-workflow:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/instance:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/lineage:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/project-git/support: {}
+
+  extensions/review:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/setup:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/update:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
+
+  extensions/workspaces:
+    dependencies:
+      ultimate-project-git-support:
+        specifier: workspace:*
+        version: link:../project-git/support
 
 packages:
 

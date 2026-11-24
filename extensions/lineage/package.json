@@ -1,0 +1,8 @@
+{
+  "name": "ultimate-extension-lineage",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ultimate-project-git-support": "workspace:*"
+  }
+}

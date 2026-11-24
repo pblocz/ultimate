@@ -7,7 +7,7 @@ import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import type { JsonObject } from '@earendil-works/pi-durable'
 import { exec } from '@ultimate/lib/exec.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 
 /** A configured command may fetch, build or register the tree: allow it more than git's 30 seconds. */
 const commandTimeout = 300_000

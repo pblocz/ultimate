@@ -11,8 +11,8 @@
 - `extensions/claude-code/test/claude-code-leading-users.test.ts` — drives pi-claude-code's runClaudeRequest through the patched useSpawn() with a request that starts with two user messages, as Claude Code 2.1.319 and newer send for a prompt that mentions an existing path with "@" (#566809), and checks that turns start with CLAUDE_CODE_DISABLE_FILE_MENTIONS=1. Drop with the patch when upstream places system messages after every leading user message and the pin reaches 799943e.
 - `extensions/claude-code/test/claude-code-discovery.test.ts` — drives pi-claude-code's discoverClaudeModels through the patched useSpawn() with a child that exits before its output ends, and checks that discovery starts Claude Code without CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC and DISABLE_TELEMETRY, with which it answers from its built-in model list instead of the account's (#542940). It also imports the patched modelFromDiscovery, which gives a model newer than Pi's built-in list (Fable 5.2) its family's limits instead of 200k / 64k (#544597). Drop each part with its patch when upstream settles childExit() for a child that already exited, discovers without those switches, or knows the new model's limits.
 - `extensions/claude-code/test/claude-code-turn-relay.test.ts` — drives pi-claude-code's patched TurnRelay, which retries a request whose connection fails in transport before any response byte (PR #113, anthropics/claude-code#106197). Drop with the patch when upstream retries these failures.
-- `test/process-group.test.ts` — calls pi-claude-code's patched killProcessTree, which signals a process group only for an integer pid above 1 (#562356). Drop with the patch when upstream checks the pid before a group kill.
-- `extensions/wire/test/wire.test.ts` — drives pi-claude-code's patched TurnRelay, which keeps each turn's exchange for useExchangeTap. Drop with the patch when upstream exposes the relay's exchanges.
+- `extensions/claude-code/test/process-group.test.ts` — calls pi-claude-code's patched killProcessTree, which signals a process group only for an integer pid above 1 (#562356). Drop with the patch when upstream checks the pid before a group kill.
+- `extensions/wire/test/wire.test.ts` — drives pi-claude-code's patched TurnRelay, through `extensions/claude-code/test/relay.ts`, which keeps each turn's exchange for useExchangeTap. Drop with the patch when upstream exposes the relay's exchanges.
 - `lib/compaction.ts` — inlines Pi's unexported createCompaction so a caller's checks and manual compaction creation share one transaction (lineage's tally compaction). Drop when Pi exposes atomic compaction admission.
 - `extensions/claude-code/server.ts` — calls the patched useSpawn() of pi-claude-code's claude-cli.ts so Claude Code starts from the process helper. Drop with the patch when upstream accepts a spawn function. It also calls the patched useExchangeTap(), which hands each relayed request (headers with credentials redacted, the exact body) and its raw response to Wire (`extensions/wire`). Drop that part when upstream exposes the relay's exchanges.
 - `extensions/lineage/rewind.ts` — copies pi-durable's unexported normalizeToolPath (unicode spaces, a leading @) so going back resolves edit and write paths exactly as those tools do, then resolves them with the exported NodeExecutionEnv.absolutePath (home directory and file URLs). Drop when Pi exports resolveToolPath's normalization.
@@ -53,8 +53,9 @@ This test did not need a backup for rollback. It did not test records for tools 
 
 ## Searching Pi's code
 
-The Pi packages live under `node_modules/@earendil-works/<pkg>` (pnpm symlinks). Only pi-claude-code ships its TypeScript
-source; the others ship type declarations and compiled JS, so start in the `.d.ts` files, whose doc comments carry the
+The Pi packages live under `node_modules/@earendil-works/<pkg>` (pnpm symlinks). pi-claude-code is a dependency of the
+`claude-code` extension only, so it lives under `extensions/claude-code/node_modules/@earendil-works/pi-claude-code`. Only
+pi-claude-code ships its TypeScript source; the others ship type declarations and compiled JS, so start in the `.d.ts` files, whose doc comments carry the
 contracts.
 
 | Package           | Types and compiled JS          | Also                                 |

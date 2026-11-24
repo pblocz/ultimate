@@ -2,7 +2,8 @@ import { readdir, readFile, realpath, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { discoveryRoots } from './project.ts'
 import type { Source } from './project.ts'
-import { useProjectSetup } from './project-setup.ts'
+import { createProjectAccess } from './project-setup.ts'
+import type { ProjectAccess } from './project-setup.ts'
 import { extensionSettings } from './extension-settings.ts'
 import { coreTier, defaultOff } from '../shared/extension-api.ts'
 
@@ -25,6 +26,7 @@ export async function discoverExtensions(
   userHome?: string,
   includeProject = false,
   settings?: Awaited<ReturnType<typeof extensionSettings>>,
+  projectAccess: ProjectAccess = createProjectAccess(projectRoot, userHome),
 ) {
   const winners = new Map<
     string,
@@ -41,8 +43,7 @@ export async function discoverExtensions(
   >()
   const builtinCore = new Set<string>()
   for (const root of discoveryRoots(ultimateRoot, projectRoot, userHome)) {
-    if (root.source === 'project' && !includeProject && !useProjectSetup(projectRoot, userHome))
-      continue
+    if (root.source === 'project' && !includeProject && !projectAccess.trusted()) continue
     const directory = join(root.path, 'extensions')
     const entries = await readdir(directory, { withFileTypes: true }).catch(
       (error: NodeJS.ErrnoException) => {
@@ -82,7 +83,7 @@ export async function discoverExtensions(
       }
     }
   }
-  settings ??= await extensionSettings(projectRoot, userHome)
+  settings ??= await extensionSettings(projectRoot, userHome, projectAccess)
   const { overrides } = settings
   const entries = [...winners.values()]
     .map((entry) => ({

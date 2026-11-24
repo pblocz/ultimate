@@ -1,23 +1,20 @@
 /** Apply the existing agent definition mechanism to ordinary conversations, without creating a resident or child. */
 import { configure } from '@earendil-works/pi-durable'
 import type { Agent, ConversationId, Tx } from '@earendil-works/pi-durable'
-import type { Context } from '@earendil-works/chord/context'
 import { discoverAgents, definitionAgent, definitionFamily } from '../lib/agents.ts'
 import { Family, Profile } from '../shared/conversation-configuration.ts'
 import { ChannelError } from '../shared/channel-host.ts'
+import type { ConversationIsolation } from '../shared/conversation-isolation.ts'
 import type { PreparedHost } from './harness.ts'
 
 type DefinitionHost = Pick<
   PreparedHost,
-  'ultimateRoot' | 'projectRoot' | 'userHome' | 'modelRuntime'
+  'ultimateRoot' | 'projectRoot' | 'userHome' | 'modelRuntime' | 'projectAccess'
 >
 
 /** Existing optional conversation operations, resolved from the extension host for each public mutation. */
 export type ConfigurationServices = {
-  isolation?: {
-    get(id: ConversationId, ctx: Context): Promise<{ path: string; state: string } | undefined>
-    prepare(tx: Tx, id: ConversationId, input: { cwd: string; instructions: string }): Promise<void>
-  }
+  isolation?: ConversationIsolation
   summaries?: (tx: Tx, id: ConversationId, enabled: boolean) => Promise<void>
 }
 
@@ -35,7 +32,14 @@ export async function prepareDefinition(
   const discovered =
     name === null
       ? undefined
-      : await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
+      : await discoverAgents(
+          host.ultimateRoot,
+          host.projectRoot,
+          host.userHome,
+          host.modelRuntime,
+          undefined,
+          host.projectAccess,
+        )
   const definition = discovered?.definitions.find((candidate) => candidate.name === name)
   if (name !== null && !definition)
     throw new ChannelError('invalid_input', `Unknown agent definition: ${name}`)

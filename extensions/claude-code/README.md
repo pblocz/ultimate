@@ -16,8 +16,10 @@ identity or raw CLI output.
 
 ## Contract
 
-- **Upstream:** `earendil-works/pi-claude-code`, pinned to an immutable commit in `package.json` and patched in
-  `patches/`. Ultimate reuses its provider, status and environment helpers, process cleanup, streaming transport and
+- **Upstream:** `earendil-works/pi-claude-code`, pinned to an immutable commit in this extension's `package.json` and
+  patched in `patches/`. The extension also declares the `pi-ai`, `pi-coding-agent` and `undici` versions of the
+  root `package.json`, so the provider resolves the same Pi instances as the host. An installation without this
+  extension does not fetch the Git-sourced package. Other extensions' tests reach the relay through `test/relay.ts`. Ultimate reuses its provider, status and environment helpers, process cleanup, streaming transport and
   billing guard, minus its in-app OAuth login.
 - **Environment:** `PI_CLAUDE_CODE_COMMAND` selects the CLI executable, `PI_CLAUDE_CODE_CONFIG_DIR` its config
   directory. Requests default `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, so the CLI's auto-memory stays out of a conversation

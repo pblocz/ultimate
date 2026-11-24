@@ -33,10 +33,12 @@ definition is gone, the hook keeps the configuration and writes a notice. The do
 clone's `AGENTS.md`, `docs/*.md`, `agents/*.md`, and enabled extensions' `agents/*.md`, and the note names the definition re-applied and the files changed
 since the last run ("Instructions changed: … · Docs changed: …").
 
-A build note also names what landed: the document keeps the clone's commit each run started on, and the first-parent
+With a `prompt.build-details` provider (`BuildDetails` in `api.ts`, provided by `source-git`), a build note also names
+what landed: the document keeps the clone's commit each run started on, and the first-parent
 commits since then, grouped by the branch that made them (a lander merge's `from #N`, else the `Ultimate-Conversation`
 trailer, a subagent under its owner), become "landed: <branch title> (#N), …". A commit made outside Ultimate is named
-by its subject; a reload without commits (a hand edit in the clone) names none.
+by its subject; a reload without commits (a hand edit in the clone) names none. Without a provider, the note names the builds only and
+the document keeps the previous commit.
 
 The transcript shows every note as one quiet divider: "↻ Reloaded · <branch> #N · <branch> #M · +K more" with links to
 the branches, else "↻ Reloaded · build a → b" or "↻ Instructions changed · …", its full text on hover. `self`'s

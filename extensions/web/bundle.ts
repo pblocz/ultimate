@@ -21,6 +21,7 @@ import { extensionSettingsFiles } from '@ultimate/server/extension-settings.ts'
 import type { Watch } from '@ultimate/server/extensions.ts'
 // oxlint-disable-next-line no-restricted-imports -- an extension root that appears later is watched, as the core does
 import { watchRoots } from '@ultimate/server/watch-roots.ts'
+import type { ProjectAccess } from '@ultimate/server/project-setup.ts'
 import type { WebBuildRequest, WebBuildResult } from '@ultimate/server/web-build.ts'
 
 interface Manifest {
@@ -49,8 +50,15 @@ const types: Record<string, string> = {
 }
 
 /** The enabled web facets' `web.tsx` paths, as the bundle's loader map keys them. */
-export async function webFacets(ultimateRoot: string, projectRoot: string, userHome: string) {
-  return (await discoverExtensions(ultimateRoot, projectRoot, userHome))
+export async function webFacets(
+  ultimateRoot: string,
+  projectRoot: string,
+  userHome: string,
+  projectAccess?: ProjectAccess,
+) {
+  return (
+    await discoverExtensions(ultimateRoot, projectRoot, userHome, false, undefined, projectAccess)
+  )
     .filter((entry) => entry.enabled && entry.files.includes('web.tsx'))
     .map((entry) => join(entry.path, 'web.tsx'))
 }
@@ -58,6 +66,7 @@ export async function webFacets(ultimateRoot: string, projectRoot: string, userH
 export async function createWeb(options: {
   ultimateRoot: string
   projectRoot: string
+  projectAccess?: ProjectAccess
   userHome: string
   home: string
   watch: Watch
@@ -69,7 +78,7 @@ export async function createWeb(options: {
   changed: () => void
   notice: (message: string) => void
 }) {
-  const { ultimateRoot, projectRoot, userHome } = options
+  const { ultimateRoot, projectRoot, userHome, projectAccess } = options
   const folder = join(options.home, 'web')
   const roots = discoveryRoots(ultimateRoot, projectRoot, userHome).map((root) =>
     join(root.path, 'extensions'),
@@ -109,7 +118,7 @@ export async function createWeb(options: {
   const closing = new AbortController()
 
   async function fresh(current: Manifest) {
-    const facets = await webFacets(ultimateRoot, projectRoot, userHome)
+    const facets = await webFacets(ultimateRoot, projectRoot, userHome, projectAccess)
     // A broken facet may have been fixed while the host was down: try it again.
     if (current.broken?.length || facets.join('\0') !== current.facets.join('\0')) return false
     return !(await changedSince(current.inputs, current.at))
@@ -142,8 +151,15 @@ export async function createWeb(options: {
 
   async function buildOnce() {
     const at = Date.now()
-    const facets = await webFacets(ultimateRoot, projectRoot, userHome)
-    const targets = await discoverExtensions(ultimateRoot, projectRoot, userHome)
+    const facets = await webFacets(ultimateRoot, projectRoot, userHome, projectAccess)
+    const targets = await discoverExtensions(
+      ultimateRoot,
+      projectRoot,
+      userHome,
+      false,
+      undefined,
+      projectAccess,
+    )
     const outDir = join(folder, 'next')
     const broken: Record<string, string> = {}
     const brokenFolders: string[] = []
@@ -329,7 +345,7 @@ export async function createWeb(options: {
       ...(failed ? { error: failed } : {}),
     }),
     /** The facets the bundle's loader map holds, by web.tsx path, as the next build will see them. */
-    facets: () => webFacets(ultimateRoot, projectRoot, userHome),
+    facets: () => webFacets(ultimateRoot, projectRoot, userHome, projectAccess),
     /** Rebuild now when a page is open, else at the next page load; settles once applied. */
     async rebuild() {
       stale = true

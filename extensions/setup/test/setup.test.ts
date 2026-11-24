@@ -5,7 +5,7 @@ import { afterEach, expect, it } from 'vitest'
 import { fallbackModel, summaryModelStatus } from '@ultimate/ext/conversations/summary-model.ts'
 import { check, noteFor } from '../server.ts'
 import type { SetupIssue } from '../refs.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { removeTemps, temp } from '@ultimate/test/helpers.ts'
 
 afterEach(removeTemps)

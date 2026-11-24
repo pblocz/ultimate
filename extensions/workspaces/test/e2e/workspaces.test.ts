@@ -9,7 +9,7 @@ import { Metadata } from '@ultimate/server/metadata.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import workspaceExtension from '../../server.ts'
 import { workspaces } from '../../workspaces.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { temp, until } from '@ultimate/test/helpers.ts'
 
 const cleanup: (() => Promise<void>)[] = []

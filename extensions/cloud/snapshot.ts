@@ -10,7 +10,7 @@ import { pipeline } from 'node:stream/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { createZstdCompress, createZstdDecompress } from 'node:zlib'
 import { vacuum } from '@ultimate/lib/database-files.ts'
-import { git as gitIn } from '@ultimate/lib/git.ts'
+import { git as gitIn } from 'ultimate-project-git-support/run'
 
 export interface SnapshotManifest {
   id: string

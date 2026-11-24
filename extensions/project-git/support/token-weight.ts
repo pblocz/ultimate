@@ -1,4 +1,4 @@
-import { git } from './git.ts'
+import { git } from './run.ts'
 
 /**
  * Token weight: what the repository costs an agent that reads it. Estimated as bytes ÷ 4 from git blob sizes, so

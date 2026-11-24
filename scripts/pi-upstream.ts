@@ -2,7 +2,8 @@
 // `Pi upstream: @earendil-works/<pkg>@<version>` marker, and every tracked marker names the installed version and its
 // file is listed. Runs in `pnpm check` so a new coupling fails in the worktree, not minutes later in the lander.
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 const root = new URL('../', import.meta.url)
 const doc = 'docs/pi-upstream.md'
@@ -31,6 +32,23 @@ const borrowed = new Set(
 const marker = /Pi upstream: (@earendil-works\/[\w-]+)@([\d.\w+-]+)/g
 const installed = new Map<string, string>()
 const problems: string[] = []
+// Workspace packages own their own dependencies, such as `extensions/claude-code`'s pi-claude-code.
+const importers = [
+  ...(readFileSync(new URL('pnpm-workspace.yaml', root), 'utf8')
+    .split(/^packages:\n/m)[1]
+    ?.matchAll(/^  - (.+)$/gm) ?? []),
+].map(([, path]) => path)
+
+/** The installed version of `pkg`: from the marker file's folder up to the root, then from any workspace package. */
+function installedVersion(file: string, pkg: string) {
+  const folders: string[] = []
+  for (let folder = dirname(file); folder !== '.'; folder = dirname(folder)) folders.push(folder)
+  const found = [...folders, '.', ...importers]
+    .map((folder) => new URL(`${folder}/node_modules/${pkg}/package.json`, root))
+    .find((url) => existsSync(url))
+  if (!found) throw new Error(`${file}: ${pkg} is not installed`)
+  return (JSON.parse(readFileSync(found, 'utf8')) as { version: string }).version
+}
 
 for (const file of borrowed) {
   if (!tracked.has(file)) problems.push(`${file}: no such file; remove its stale ${doc} entry`)
@@ -40,14 +58,11 @@ for (const file of borrowed) {
 for (const file of files) {
   const text = readFileSync(new URL(file, root), 'utf8')
   for (const [, pkg, version] of text.matchAll(marker)) {
-    if (!installed.has(pkg))
-      installed.set(
-        pkg,
-        JSON.parse(readFileSync(new URL(`node_modules/${pkg}/package.json`, root), 'utf8')).version,
-      )
-    if (version !== installed.get(pkg))
+    const key = `${dirname(file)} ${pkg}`
+    if (!installed.has(key)) installed.set(key, installedVersion(file, pkg))
+    if (version !== installed.get(key))
       problems.push(
-        `${file}: marker names ${pkg}@${version}, installed is ${installed.get(pkg)}; recheck it`,
+        `${file}: marker names ${pkg}@${version}, installed is ${installed.get(key)}; recheck it`,
       )
     if (!borrowed.has(file))
       problems.push(`${file}: couples to ${pkg}; document it under "Borrowed from Pi" in ${doc}`)

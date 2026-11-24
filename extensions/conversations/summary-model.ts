@@ -20,7 +20,10 @@ const DEFAULT_SUMMARY_MODEL = `${tiny.model}:${tiny.thinking ?? 'medium'}`
 /** A resolved summary model, kept in a task's memo so a resumed task asks the same one. */
 export type SummaryModel = { provider: string; id: string; thinking: ModelThinkingLevel }
 
-export type SummaryModelHost = Pick<ExtensionHost, 'userHome' | 'projectSettings' | 'notice'> & {
+export type SummaryModelHost = Pick<
+  ExtensionHost,
+  'userHome' | 'projectSettings' | 'projectAccess' | 'notice'
+> & {
   modelRuntime: Pick<ExtensionHost['modelRuntime'], 'getAvailableSnapshot'>
   settings?: Pick<ExtensionHost['settings'], 'getDefaultProvider' | 'getDefaultModel'>
   /** The project whose model families apply; without it, the built-in ones. */
@@ -32,7 +35,10 @@ export type SummaryModelHost = Pick<ExtensionHost, 'userHome' | 'projectSettings
  * the family summaries are assigned to (`modelFamilies`, default `tiny`).
  */
 export async function summaryModelSetting(
-  host: Pick<SummaryModelHost, 'userHome' | 'projectSettings' | 'settings' | 'projectRoot'>,
+  host: Pick<
+    SummaryModelHost,
+    'userHome' | 'projectSettings' | 'projectAccess' | 'settings' | 'projectRoot'
+  >,
 ) {
   // Invalid settings JSON is reported where settings load; here it counts as unset.
   const user: JsonObject = await readSettings(userSettingsPath(host.userHome)).catch(() => ({}))
@@ -44,7 +50,7 @@ export async function summaryModelSetting(
     if (Object.hasOwn(settings, 'summaryModel'))
       return { value: settings.summaryModel, source, default: DEFAULT_SUMMARY_MODEL }
   const families = host.projectRoot
-    ? await readFamilies(host.userHome, host.projectRoot, project)
+    ? await readFamilies(host.userHome, host.projectRoot, project, host.projectAccess)
     : mergeFamilies()
   const assigned = families.assign.summaries ?? FEATURES.summaries.family
   const family = Object.hasOwn(families.families, assigned) ? assigned : DEFAULT_FAMILY

@@ -1,10 +1,10 @@
-Commits made through `bash` carry an `Ultimate-Conversation: <id>` trailer via process-local Git config hooks; commits outside the tool and repository hook files are untouched. Existing attribution is preserved when a commit is rebased, cherry-picked or amended; messages without attribution receive the current conversation's trailer when the message hook runs.
-
-Commit attribution needs Git 2.54 or newer: older Git silently ignores config-based hooks.
-
-Each commit made through `bash` is also recorded as the durable event `coding-tools.committed` (`refs.ts`): the conversation, the full sha, its parents, the repository, the linked worktree and branch, the subject, and for an amend or rebase the commit it replaced (`rewrittenFrom`). So the link survives a discarded worktree, a deleted branch or garbage collection. Per bash call, `post-commit`, `post-applypatch` (`git am`, apply-backend rebases), `post-merge` and `post-rewrite` hooks (same `GIT_CONFIG_*` mechanism) append one line each to a temp log unique to that invocation; every hook ends in `|| true`, so it never fails a commit. When the call ends, even with an error or a timeout, the tool reads and removes the log and emits one event per commit the hooks saw being made. A merge counts when it made a merge commit (not a fast-forward or squash); a rewrite only adds `rewrittenFrom` to a commit made in the same call, so a rebase resumed in a later call records each commit once. Cherry-picks, reverts and rebased commits count; commits made during a rebase have no `branch`, since HEAD is detached then.
-
-The events commit on their own right after the bash call, with its trace context, not in the tool result's commit: Pi settles the result after the wrapper returns. A crash between the git commit and that commit loses its event; the trailer remains. Commits made outside an agent's `bash` (the user in a terminal, extensions' own `git` calls such as the lander's merge commit) are not recorded. Find them with `debug {call: 'events', events: ['coding-tools.committed']}` or the System stream's Events filter.
+`bash` has an optional instrumentation point, `coding-tools.bash` (`BashInstrumentation` in `api.ts`). A provider
+prepares each call's execution and finishes it when the call ends, also after an error or a timeout. The tool takes the
+provider when the call starts, so a reload or disable during the call does not change it. A provider failure is logged
+and does not replace the Bash result. `project-git` provides it: commit trailers, the durable event
+`coding-tools.committed` (`refs.ts`) for each commit made through `bash`, and the refusal of interruptible Git
+commands that change things. See [project-git](../project-git/README.md). Without a provider, `bash` adds no Git
+config and records no commits.
 
 Pi's coding tools and how the transcript shows them: `read` as a numbered, highlighted excerpt; `write` with its size and content; `edit` as a unified diff with old and new line numbers; `bash` as a terminal with streamed output, exit status, and duration. `bash-command.tsx` parses the command with [unbash](https://github.com/webpro-nl/unbash) (display only): the card stays collapsed once finished (open while running or failed) and its header condenses the command to its programs: pipes as arrows, list operators between steps, repeats folded (`sed ×2 · rg → head`), a heredoc's target file, and a literal leading `cd` as the directory on the right. Expanded, each step gets a highlighted row and every heredoc body is highlighted by its target file or interpreter. Unparsable commands stay raw.
 
@@ -16,8 +16,9 @@ A bash call with `interruptible: true` (waits and polls: CI checks, deploys, a f
 is queued in its conversation: the tool watches the conversation's `pi.inbox` and cancels the command, which kills its
 process, then returns the output so far followed by "[Interrupted by a steering message after Ns; …]" (last, so
 tail truncation keeps it) as an ordinary result, so the run goes on and the steer is placed at the next boundary
-instead of after the wait. Follow-ups never interrupt. A marked command that changes things (`git push|commit|merge`,
-an `install` or `migrate` word) is refused with a hint to split it, so a steer can never cut it mid-way.
+instead of after the wait. Follow-ups never interrupt. A marked command that changes things (an `install` or `migrate` word, or what the
+instrumentation provider names, such as `git push|commit|merge`) is refused with a hint to split it, so a steer can
+never cut it mid-way.
 
 Any running bash call can be cancelled from its card (the × next to its timer): the user-only action
 `cancel {callId}` (`refs.ts`) records the call in the conversation's durable `coding-tools.cancelled` document, which

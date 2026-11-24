@@ -25,7 +25,14 @@ const terminal = {
 }
 async function definition(host: ExtensionHost, name: string) {
   const found = (
-    await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
+    await discoverAgents(
+      host.ultimateRoot,
+      host.projectRoot,
+      host.userHome,
+      host.modelRuntime,
+      undefined,
+      host.projectAccess,
+    )
   ).definitions.find((d) => d.name === name)
   if (!found) throw new Error(`Unknown agent: ${name}`)
   return found

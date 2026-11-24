@@ -589,7 +589,14 @@ function backend(host: ExtensionHost) {
       throw new Error(`Unknown action: ${args.action}`)
     if (args.agent) {
       const found = (
-        await discoverAgents(host.ultimateRoot, host.projectRoot, host.userHome, host.modelRuntime)
+        await discoverAgents(
+          host.ultimateRoot,
+          host.projectRoot,
+          host.userHome,
+          host.modelRuntime,
+          undefined,
+          host.projectAccess,
+        )
       ).definitions.some((d) => d.name === args.agent)
       if (!found) throw new Error(`Unknown agent: ${args.agent}`)
     }

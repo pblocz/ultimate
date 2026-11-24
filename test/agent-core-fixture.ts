@@ -29,7 +29,7 @@ export const agentCoreExtensions = [
   'automations',
 ] as const
 const facets = {
-  'coding-tools': ['refs', 'server'],
+  'coding-tools': ['api', 'refs', 'server'],
   models: ['api', 'fallback', 'families', 'refs', 'server'],
   conversations: [
     'activity',
@@ -97,7 +97,15 @@ const foundation = {
     'vite-extensions',
     'watch-roots',
   ],
-  shared: ['channel-host', 'conversation-configuration', 'events', 'extension-api', 'protocol'],
+  shared: [
+    'channel-host',
+    'conversation-configuration',
+    'conversation-isolation',
+    'events',
+    'extension-api',
+    'protocol',
+    'source-status',
+  ],
   lib: [
     'acting-as',
     'actions',
@@ -112,12 +120,10 @@ const foundation = {
     'exec',
     'families-settings',
     'families',
-    'git',
     'json-file',
     'marks',
     'message-state',
     'process-group',
-    'project-identity',
     'schema',
     'secrets',
     'settings',

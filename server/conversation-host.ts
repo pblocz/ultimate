@@ -374,7 +374,12 @@ export async function createConversationHost(
     let model = change.model
     let thinking = change.thinkingLevel
     if (change.preset) {
-      const { families } = await readFamilies(host.userHome, host.projectRoot)
+      const { families } = await readFamilies(
+        host.userHome,
+        host.projectRoot,
+        undefined,
+        host.projectAccess,
+      )
       if (!Object.hasOwn(families, change.preset))
         throw new ChannelError('invalid_input', `Unknown model preset: ${change.preset}`)
       const spec = families[change.preset]
@@ -427,8 +432,13 @@ export async function createConversationHost(
     }
     const family = change.preset !== undefined ? change.preset : model ? null : profile?.family
     const services = options.configurationServices?.() ?? {}
-    if (profile?.isolate === 'worktree' && !services.isolation)
-      throw new ChannelError('unavailable', 'Worktree isolation is not available')
+    // The mode is persona data: the host knows only that `none` needs no backend.
+    const mode = profile?.isolate ?? 'none'
+    if (mode !== 'none' && !services.isolation?.supports(mode))
+      throw new ChannelError(
+        'unavailable',
+        `${mode.charAt(0).toUpperCase()}${mode.slice(1)} isolation is not available`,
+      )
     if (profile?.definition?.summaries === false && !services.summaries)
       throw new ChannelError('unavailable', 'Conversation summaries support is not available')
     return { fields, profile, family, services }
@@ -445,8 +455,9 @@ export async function createConversationHost(
     if (prepared.family !== undefined) (await tx.doc(Family, id)).name = prepared.family
     if (prepared.profile && prepared.services.summaries)
       await prepared.services.summaries(tx, id, prepared.profile.definition?.summaries !== false)
-    if (prepared.profile?.isolate === 'worktree')
+    if (prepared.profile && prepared.profile.isolate !== 'none')
       await prepared.services.isolation!.prepare(tx, id, {
+        mode: prepared.profile.isolate,
         cwd,
         instructions:
           typeof prepared.fields.instructions === 'string' ? prepared.fields.instructions : '',
@@ -786,7 +797,7 @@ export async function createConversationHost(
           const prepared = await prepareChange(base, change, true)
           if (
             prepared.profile &&
-            (await prepared.services.isolation?.get(conversationId, hostContext))
+            (await prepared.services.isolation?.exists(conversationId, hostContext))
           )
             throw new ChannelError('conflict', 'Change an isolated profile in a new conversation')
           admit()

@@ -16,56 +16,88 @@ import { actions } from '../sdk/actions.ts'
 import { shortenPath } from '../sdk/format.ts'
 import { useExtensions, useStore, useSystem } from '../sdk/hooks.ts'
 import { HOME, slotItems, surfaceItems } from '../sdk/registry.ts'
-import { Slot } from './boundary.tsx'
+import { ProjectLabel } from '../sdk/types.ts'
+import { Provided, Slot } from './boundary.tsx'
 import { Shortcut } from './palette.tsx'
 import { sidebarWidthBeyondPhone } from './primitives.tsx'
 
+/** What an extension names the project at its root (`ProjectLabel`), such as a branch checkout's. */
+type Label = { name: string; suffix: string } | undefined
+
+/** A server with a home outside `~/.ultimate/projects`, as test previews have, is a preview. */
+const isPreview = (system: SystemInfo) =>
+  !system.persistence.path.startsWith(`${system.machine.home}/.ultimate/projects/`)
+
 /**
- * The project as tabs name it: its folder from home. A branch's checkout (`<home>/worktrees/<id>`) is the project's
- * name and that conversation, and a server with a home outside `~/.ultimate/projects`, as test previews have, says
- * it is a preview.
+ * The project as tabs name it: the provided label (`<name> <suffix>`), else its folder from home; a preview says it is
+ * one.
  */
-export function projectTitle(system: SystemInfo | undefined) {
+export function projectTitle(system: SystemInfo | undefined, label?: Label) {
   if (!system) return undefined
-  const { home } = system.machine
-  const worktree = /\/\.ultimate\/projects\/(.+)-[\da-f]{8}\/worktrees\/(\d+)$/.exec(
-    system.project.root,
-  )
-  const project = worktree
-    ? `${worktree[1]} #${worktree[2]}`
-    : shortenPath(system.project.root, { home })
-  return system.persistence.path.startsWith(`${home}/.ultimate/projects/`)
-    ? project
-    : `preview · ${project}`
+  const project = label
+    ? `${label.name} ${label.suffix}`
+    : shortenPath(system.project.root, { home: system.machine.home })
+  return isPreview(system) ? `preview · ${project}` : project
 }
 
 /**
- * The project as the title bar's chip says it beside the wordmark: another project's name, a branch checkout's
- * `#<worktree>`; nothing for Ultimate's own checkout, whose name the wordmark already says.
+ * The project as the title bar's chip says it beside the wordmark: another project's name and the label's suffix;
+ * nothing for Ultimate's own checkout, whose name the wordmark already says.
  */
-export function projectName(system: SystemInfo | undefined) {
+export function projectName(system: SystemInfo | undefined, label?: Label) {
   if (!system) return ''
-  const worktree = /\/\.ultimate\/projects\/(.+)-[\da-f]{8}\/worktrees\/(\d+)$/.exec(
-    system.project.root,
-  )
-  const name = worktree?.[1] ?? system.project.name
+  const name = label?.name ?? system.project.name
   const own = name.toLowerCase() === 'ultimate'
-  return [own ? '' : name, worktree ? `#${worktree[2]}` : ''].filter(Boolean).join(' ')
+  return [own ? '' : name, label?.suffix ?? ''].filter(Boolean).join(' ')
 }
+
+/** Renders `children` with the label the provider of `ProjectLabel` gives the project; undefined without one. */
+export function WithProjectLabel({
+  system,
+  children,
+}: {
+  system: SystemInfo | undefined
+  children: (label: Label) => ReactNode
+}) {
+  return (
+    <Provided<string, Label> input={system?.project.root ?? ''} point={ProjectLabel}>
+      {(label) => children(label)}
+    </Provided>
+  )
+}
+
+/** The project's title (`projectTitle`) as text, with the label an extension provides. */
+export function ProjectTitle() {
+  const system = useSystem()
+  return (
+    <WithProjectLabel system={system}>{(label) => projectTitle(system, label)}</WithProjectLabel>
+  )
+}
+
+type ChipProps = ComponentProps<'button'> & { menu?: boolean; children?: ReactNode }
 
 /**
  * The title bar's project chip: `projectName`, its full path in the tooltip; nothing when that is empty and nothing
  * else is in it. Pass `menu` to show a chevron and act as a dropdown trigger (spread the trigger's props through);
  * without it the chip is plain text.
  */
-export const ProjectChip = forwardRef<
+export const ProjectChip = forwardRef<HTMLButtonElement, ChipProps>(
+  function ProjectChip(props, ref) {
+    const system = useSystem()
+    return (
+      <WithProjectLabel system={system}>
+        {(label) => <Chip {...props} label={label} ref={ref} system={system} />}
+      </WithProjectLabel>
+    )
+  },
+)
+
+const Chip = forwardRef<
   HTMLButtonElement,
-  ComponentProps<'button'> & { menu?: boolean; children?: ReactNode }
->(function ProjectChip({ menu, className, children, ...props }, ref) {
-  const system = useSystem()
-  const name = projectName(system)
-  const preview =
-    system && !system.persistence.path.startsWith(`${system.machine.home}/.ultimate/projects/`)
+  ChipProps & { label: Label; system: SystemInfo | undefined }
+>(function Chip({ menu, className, children, label, system, ...props }, ref) {
+  const name = projectName(system, label)
+  const preview = system && isPreview(system)
   if (!system || (!name && !preview && !menu)) return null
   const body = (
     <>

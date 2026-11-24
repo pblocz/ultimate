@@ -1,7 +1,7 @@
-// What the repository weighs in estimated tokens (bytes ÷ 4, `lib/token-weight.ts`): by area, the heaviest files and
+// What the repository weighs in estimated tokens (bytes ÷ 4, `extensions/project-git/support/token-weight.ts`): by area, the heaviest files and
 // the weekly trend from history. Usage: pnpm weigh [rev] (default HEAD).
-import { git } from '../lib/git.ts'
-import { areas, filesAt, tokensOf } from '../lib/token-weight.ts'
+import { git } from '../extensions/project-git/support/run.ts'
+import { areas, filesAt, tokensOf } from '../extensions/project-git/support/token-weight.ts'
 import { formatTokens } from '../web/src/sdk/format.ts'
 
 const cwd = process.cwd()

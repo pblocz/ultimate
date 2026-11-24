@@ -158,7 +158,7 @@ it.each(['reset', 'restore'])(
     const args = script === 'reset' ? [f.workspace] : ['--dir', f.workspace]
     const result = await run(
       process.execPath,
-      // As `pnpm restore`: the cloud code it imports reaches the core by name.
+      // As in the package scripts, extension helpers reach the host by name.
       [
         '--import',
         join(f.ultimateRoot, 'lib/node-names.ts'),
@@ -190,7 +190,13 @@ it.each([false, true])(
     const before = await readFile(marker)
     const result = await run(
       process.execPath,
-      [join(f.ultimateRoot, 'scripts/reset.ts'), f.workspace, '--dry-run'],
+      [
+        '--import',
+        join(f.ultimateRoot, 'lib/node-names.ts'),
+        join(f.ultimateRoot, 'scripts/reset.ts'),
+        f.workspace,
+        '--dry-run',
+      ],
       {
         cwd: f.launch,
         env: cleanEnv({

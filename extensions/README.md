@@ -70,14 +70,18 @@ No restart, no reload.
 - One feature per folder; the folder name is the extension name; a README is required. Keep it small.
 - Prefer documents, commands, events, or the SDK. Another extension's runtime code is reached only through its
   `api.ts` on the server and its `ui.tsx` in the browser; type imports are free. Lint enforces both.
-- Import the core and other extensions by name, such as `@ultimate/ext/messages/api.ts` or `@ultimate/lib/git.ts`,
+- Import the core and other extensions by name, such as `@ultimate/ext/messages/api.ts` or `@ultimate/lib/exec.ts`,
   never by a relative path that leaves the folder; see [import by name](../docs/extensions/contracts.md#import-by-name).
-- Shared pure helpers live in the top-level `lib/`, not in another extension: `exec.ts` (run a program), `git.ts`
-  (git and isolation checks), `json-file.ts` (read, atomic write, serialised update), `settings.ts`, `secrets.ts`
-  (read-only), `cloud.ts` (the user's cloud settings), `project-identity.ts` (a project's GitHub key), `entries.ts`
-  (`isInput`) and `agents.ts` (agent definitions and their discovery). Import them freely; they reload with the
+- Shared pure helpers live in the top-level `lib/`, not in another extension: `exec.ts` (run a program),
+  `json-file.ts` (read, atomic write, serialised update), `settings.ts`, `secrets.ts` (read-only), `cloud.ts` (the
+  user's cloud settings), `entries.ts` (`isInput`) and `agents.ts` (agent definitions and their discovery). Import them freely; they reload with the
   extensions that import them. `lib/` holds no state and imports no extension or `web/` code; only `agents.ts` reads
-  the core project trust decision at runtime.
+  the core project trust decision at runtime. `lib/` runs no Git.
+- Git helpers for user repositories are the local package `ultimate-project-git-support`
+  (`extensions/project-git/support/`): `run` (the `git` wrapper), `checkout` (isolation checks), `github`,
+  `backup-identity` (a project's GitHub key), `token-weight` and `reset-report`. An extension that uses them declares
+  `"ultimate-project-git-support": "workspace:*"` in its own `package.json` and is listed in `pnpm-workspace.yaml`. The
+  package is installed, not enabled: it works whether the `project-git` facet is on or off.
 
 ## Tests
 

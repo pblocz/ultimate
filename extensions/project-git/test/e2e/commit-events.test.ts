@@ -7,8 +7,10 @@ import type { ConversationId, ToolExecutionApi } from '@earendil-works/pi-durabl
 import { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
 import type { createBashTool } from '@earendil-works/pi-durable/tools'
 import type { EventToken } from '@ultimate/shared/events.ts'
-import codingTools from '../../server.ts'
-import { Committed } from '../../refs.ts'
+import codingTools from '@ultimate/ext/coding-tools/server.ts'
+import { BashInstrumentation, Committed } from '@ultimate/ext/coding-tools/api.ts'
+import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { trackBashCommits } from '../../bash.ts'
 import { context } from '@ultimate/server/harness.ts'
 import { removeTemp, temp } from '@ultimate/test/helpers.ts'
 
@@ -32,13 +34,24 @@ afterEach(async () => {
 })
 
 /** The extension's bash tool, run as one call of conversation 7 in `dir`. */
-async function bash(command: string, dir = cwd) {
-  const extension = codingTools({
+async function bash(
+  command: string,
+  dir = cwd,
+  options: { track?: boolean; timeout?: number; removeOnOutput?: boolean } = {},
+) {
+  let track = options.track ?? true
+  const provider = trackBashCommits({
     emit: async (_tx, event, data) => {
       expect(event).toBe(Committed)
       emitted.push(data as Event)
       return undefined as never
     },
+  })
+  const extension = codingTools({
+    want: ((token) =>
+      track && token.name === BashInstrumentation.name
+        ? provider
+        : undefined) as ExtensionHost['want'],
   })
   const tool = extension.tools!.find((candidate) => candidate.name === 'bash') as ReturnType<
     typeof createBashTool
@@ -49,7 +62,10 @@ async function bash(command: string, dir = cwd) {
     taskId: 'task-commit-events',
     callId: 'call',
     env: new NodeExecutionEnv({ cwd: dir }),
-    output: (chunk: string | Uint8Array) => (output += chunk.toString()),
+    output: (chunk: string | Uint8Array) => {
+      output += chunk.toString()
+      if (options.removeOnOutput) track = false
+    },
     outputWindow: undefined,
     retainedOutput: () => ({ text: output, truncated: false }),
     diagnostic: () => {},
@@ -62,9 +78,30 @@ async function bash(command: string, dir = cwd) {
     }),
     commit: async (change: (tx: never) => unknown) => change(undefined as never),
   } as unknown as ToolExecutionApi
-  const result = await tool.execute({ command }, api, context)
+  const result = await tool.execute({ command, timeout: options.timeout }, api, context)
   return { result, output }
 }
+
+it('leaves Bash uninstrumented when the provider is absent', async () => {
+  const { output } = await bash('printf "%s" "${ULTIMATE_COMMIT_LOG-unset}"', cwd, { track: false })
+  expect(output).toBe('unset')
+  expect(emitted).toEqual([])
+})
+
+it('records a commit even when the following command fails', async () => {
+  await bash('git commit -q --allow-empty -m recorded; exit 7')
+  expect(emitted).toEqual([expect.objectContaining({ subject: 'recorded' })])
+})
+
+it('keeps the call-local tracker through provider removal and timeout', async () => {
+  await expect(
+    bash('git commit -q --allow-empty -m recorded; echo running; sleep 10', cwd, {
+      timeout: 1,
+      removeOnOutput: true,
+    }),
+  ).rejects.toThrow('timed out')
+  expect(emitted).toEqual([expect.objectContaining({ subject: 'recorded' })])
+})
 
 it('records a commit through bash with its full sha, parents, branch and subject', async () => {
   await bash('git commit -q --allow-empty -m first && git commit -q --allow-empty -m second')

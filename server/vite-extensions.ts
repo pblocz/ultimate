@@ -4,7 +4,8 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import type { Plugin } from 'vite-plus'
 import { discoverExtensions } from './discovery.ts'
 import { discoveryRoots } from './project.ts'
-import { useProjectSetup } from './project-setup.ts'
+import { createProjectAccess } from './project-setup.ts'
+import type { ProjectAccess } from './project-setup.ts'
 import { resolveModuleName } from './vite-names.ts'
 import { extensionTests } from '../shared/extension-api.ts'
 
@@ -20,6 +21,7 @@ export function extensionModules(
   projectRoot: string,
   userHome: string,
   broken: Record<string, string> = {},
+  projectAccess: ProjectAccess = createProjectAccess(projectRoot, userHome),
 ): Plugin {
   const roots = discoveryRoots(ultimateRoot, projectRoot, userHome).map((root) =>
     join(root.path, 'extensions'),
@@ -56,9 +58,16 @@ export function extensionModules(
         importer,
         (file) => this.resolve(file, importer, { ...options, skipSelf: true }),
         async (name) =>
-          (await discoverExtensions(ultimateRoot, projectRoot, userHome)).find(
-            (entry) => entry.name === name && !entry.error,
-          )?.target,
+          (
+            await discoverExtensions(
+              ultimateRoot,
+              projectRoot,
+              userHome,
+              false,
+              undefined,
+              projectAccess,
+            )
+          ).find((entry) => entry.name === name && !entry.error)?.target,
       )
       if (named) return named
       if (
@@ -85,14 +94,22 @@ export function extensionModules(
     async load(id) {
       if (id.split('?')[0] === join(ultimateRoot, 'web/src/index.css')) {
         // Tailwind skips a git-ignored symlinked extension inside a root, so its target is a source of its own.
-        const linked = (await discoverExtensions(ultimateRoot, projectRoot, userHome))
+        const linked = (
+          await discoverExtensions(
+            ultimateRoot,
+            projectRoot,
+            userHome,
+            false,
+            undefined,
+            projectAccess,
+          )
+        )
           .filter(
             (entry) => entry.source !== 'builtin' && !entry.error && entry.target !== entry.path,
           )
           .map((entry) => entry.target)
         const scanned = roots.filter(
-          (root, index) =>
-            existsSync(root) && (index !== 2 || useProjectSetup(projectRoot, userHome)),
+          (root, index) => existsSync(root) && (index !== 2 || projectAccess.trusted()),
         )
         const sources = [
           ...[...scanned, ...linked].map((root) => `@source ${JSON.stringify(root)};\n`),
@@ -116,9 +133,16 @@ export function extensionModules(
         )
       }
       if (id !== resolved) return undefined
-      const facets = (await discoverExtensions(ultimateRoot, projectRoot, userHome)).filter(
-        (entry) => entry.enabled && entry.files.includes('web.tsx'),
-      )
+      const facets = (
+        await discoverExtensions(
+          ultimateRoot,
+          projectRoot,
+          userHome,
+          false,
+          undefined,
+          projectAccess,
+        )
+      ).filter((entry) => entry.enabled && entry.files.includes('web.tsx'))
       const entries = facets.map(
         (entry) =>
           `${JSON.stringify(join(entry.path, 'web.tsx'))}: ${

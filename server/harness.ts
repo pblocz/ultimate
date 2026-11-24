@@ -15,6 +15,7 @@ import { UiState } from './ui-state.ts'
 import { listModels } from './models.ts'
 import { guardToolArguments, modelTrace } from './tool-arguments.ts'
 import { readFamilies } from '../lib/families-settings.ts'
+import { createProjectAccess, loadProjectIdentity } from './project-setup.ts'
 import { callTrace } from './trace.ts'
 import { writeProject } from './project.ts'
 import { requestSwap } from './supervisor-protocol.ts'
@@ -128,6 +129,11 @@ export async function prepareHarness(options: HostOptions) {
   const projectRoot = await realpath(options.projectRoot ?? ultimateRoot)
   // ULTIMATE_USER_HOME: where `.ultimate/` user config lives when it is not HOME's (a preview's private copy).
   const { userHome, home } = runtimePaths(projectRoot, options)
+  const projectAccess = createProjectAccess(
+    projectRoot,
+    userHome,
+    await loadProjectIdentity(ultimateRoot),
+  )
   const builds = createBuild(ultimateRoot)
   await mkdir(home, { recursive: true })
   /** The active chapter's files, read again each time storage opens, after a journaled switch finished. */
@@ -164,7 +170,8 @@ export async function prepareHarness(options: HostOptions) {
   }
   /** The default model and thinking level, read when the harness opens, after extensions registered theirs. */
   const preferred = async () => {
-    const family = (await readFamilies(userHome, projectRoot)).families.default
+    const family = (await readFamilies(userHome, projectRoot, undefined, projectAccess)).families
+      .default
     const agent = defaultAgent(await modelRuntime.getAvailable(), settings, family)
     return faux
       ? { ...agent, model: { provider: faux.getModel().provider, modelId: faux.getModel().id } }
@@ -199,6 +206,7 @@ export async function prepareHarness(options: HostOptions) {
     ultimateRoot,
     projectRoot,
     userHome,
+    projectAccess,
     builds,
     build: builds.current,
     home,

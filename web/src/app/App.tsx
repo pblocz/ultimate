@@ -23,7 +23,7 @@ import { useShortcuts } from './keyboard.ts'
 import { CommandPalette } from './palette.tsx'
 import { Conversation, Header, StatusLine } from './primitives.tsx'
 import { SurfaceContext } from './surface.ts'
-import { TitleBar, projectTitle } from './titlebar.tsx'
+import { TitleBar, WithProjectLabel, projectTitle } from './titlebar.tsx'
 
 /** Records the surface on screen, for the window title, `useUltimate().surface`, and the agent's prompt. */
 function onScreen({ id, title }: { id: string; title: string }) {
@@ -113,19 +113,34 @@ function Surfaces({ surfaces }: { surfaces: readonly SurfaceItem[] }) {
 }
 
 /**
- * The window title: the project's folder first, so tabs of several projects tell apart, then the shown conversation on
+ * The window title: the project's title first, so tabs of several projects tell apart, then the shown conversation on
  * Agent or the surface elsewhere; a dot while the agent works.
  */
-function useDocumentTitle(surface: { id: string; title: string } | undefined) {
+function DocumentTitle({ surface }: { surface: { id: string; title: string } | undefined }) {
+  const system = useSystem()
+  return (
+    <WithProjectLabel system={system}>
+      {(label) => <WindowTitle project={projectTitle(system, label)} surface={surface} />}
+    </WithProjectLabel>
+  )
+}
+
+function WindowTitle({
+  project,
+  surface,
+}: {
+  project: string | undefined
+  surface: { id: string; title: string } | undefined
+}) {
   const { id, busy } = useConversation()
   const label = useConversationSummary(id)?.label
-  const project = projectTitle(useSystem())
   const app = surface && surface.id !== HOME ? surface.title : undefined
   useEffect(() => {
     const shown = app ?? (id === ROOT || id === undefined ? undefined : (label ?? `#${id}`))
     const name = [project ?? 'Ultimate', shown].filter(Boolean).join(' · ')
     document.title = busy ? `● ${name}` : name
   }, [app, label, busy, id, project])
+  return null
 }
 
 /** Command shortcuts, which start with the app. */
@@ -149,7 +164,6 @@ export function App() {
   const home = surfaceItems(records).find((item) => item.id === HOME)
   const shown = useStore((state) => state.ui.surface)
   const viewed = useStore((state) => state.view !== undefined)
-  useDocumentTitle(shown)
   // Overlays sit outside the 100dvh shell, the rail outside any sized panel: a failed item shows in the fixed error
   // stack, not below the shell (#565199: a page one card taller than the window) or as a column squeezing the app.
   const [errors, setErrors] = useState<HTMLDivElement | null>(null)
@@ -180,6 +194,7 @@ export function App() {
   )
   return (
     <TooltipProvider delayDuration={400}>
+      <DocumentTitle surface={shown} />
       <div className="safe-area flex">
         {loaded && !embedded && <Slot errors={errors} name="shell.rail" />}
         <div className="flex min-w-0 flex-1 flex-col">

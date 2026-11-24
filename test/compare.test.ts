@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { compareUrl } from '../lib/compare.ts'
-import { projectKey } from '../lib/project-identity.ts'
+import { projectKey } from '../extensions/project-git/support/github.ts'
 
 it('opens a GitHub compare range on DiffsHub', () => {
   expect(compareUrl('github.com/hazat/ultimate', 'aaa', 'bbb')).toBe(

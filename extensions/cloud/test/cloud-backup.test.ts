@@ -9,7 +9,7 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { backUp, backupPath, classify, Conflict, readBackup } from '../backup.ts'
 import { BackupEvent } from '../refs.ts'
 import { uploadSnapshot } from '../snapshot.ts'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import {
   chapterFiles,
   FIRST_CHAPTER,

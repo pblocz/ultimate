@@ -74,7 +74,12 @@ export async function runCommand(
         return `Model: ${modelName(next.model)}${next.preset ? ` (preset ${next.preset})` : ''}`
       }
       const { configuration } = await conversations.get(id)
-      const { families } = await readFamilies(host.userHome, host.projectRoot)
+      const { families } = await readFamilies(
+        host.userHome,
+        host.projectRoot,
+        undefined,
+        host.projectAccess,
+      )
       const available = (await models.list()).filter((model) => model.available)
       return `Model: ${modelName(configuration.model)}${configuration.preset ? ` (preset ${configuration.preset})` : ''}\nPresets: ${Object.keys(families).join(', ')}\nAvailable models: ${available.map((model) => `${model.provider}/${model.id}`).join(', ') || 'none'}`
     }
@@ -102,6 +107,8 @@ export async function runCommand(
         host.projectRoot,
         host.userHome,
         host.modelRuntime,
+        undefined,
+        host.projectAccess,
       )
       return `Persona: ${configuration.definition ?? 'none'}\nAvailable personas: ${definitions.map(({ name }) => name).join(', ') || 'none'}`
     }

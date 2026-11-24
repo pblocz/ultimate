@@ -2,7 +2,7 @@ import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parsePatchFiles } from '@pierre/diffs'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { FILE_CAP, reviewDiff } from '../../diff.ts'
 import { temp } from '@ultimate/test/helpers.ts'
 

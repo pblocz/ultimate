@@ -1,8 +1,12 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
-import { git } from '../lib/git.ts'
-import { areaOf, landingWeight, weightDelta } from '../lib/token-weight.ts'
+import { git } from '../extensions/project-git/support/run.ts'
+import {
+  areaOf,
+  landingWeight,
+  weightDelta,
+} from '../extensions/project-git/support/token-weight.ts'
 import { temp } from './helpers.ts'
 
 const commit = async (repo: string, files: Record<string, string>) => {

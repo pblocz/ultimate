@@ -10,7 +10,7 @@ import type {
   EntryRecord,
   Tx,
 } from '@earendil-works/pi-durable'
-import { git } from '@ultimate/lib/git.ts'
+import { git } from 'ultimate-project-git-support/run'
 import { shortTitle } from '@ultimate/lib/title.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { WorkspacesApi } from '@ultimate/ext/workspaces/api.ts'
