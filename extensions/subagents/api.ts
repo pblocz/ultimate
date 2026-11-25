@@ -4,7 +4,7 @@
  */
 import type { Context } from '@earendil-works/chord/context'
 import { defineDoc } from '@earendil-works/pi-durable'
-import type { ConversationId, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
+import type { ConversationId, EntryId, JsonObject, TaskId, Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '@ultimate/shared/extension-api.ts'
 import { profileDocument } from '@ultimate/shared/conversation-configuration.ts'
 import { RunsDoc, StandingDoc } from './refs.ts'
@@ -13,6 +13,16 @@ import type { createChild } from './children.ts'
 
 export { Started, StandingDoc } from './refs.ts'
 export type { Destination, DestinationAddress } from './refs.ts'
+
+/** Optional provider-owned details and operations for children. The subagent tool checks ownership first. */
+export const ChildOperations = defineApi<{
+  describe(
+    id: ConversationId,
+    caller: Context,
+  ): Promise<{ workspace: JsonObject; text: string } | undefined>
+  stopped(id: ConversationId, caller: Context): Promise<string>
+  execute(action: string, id: ConversationId, caller: Context): Promise<JsonObject>
+}>()('subagents.child-operations')
 
 /** Each conversation's subagents and pending subagent actions, on the conversation that started them. */
 export const Subagents = defineDoc<{

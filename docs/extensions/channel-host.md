@@ -93,11 +93,18 @@ nothing:
   no `model`, `family` or `thinking` keeps the conversation's model, thinking level and preset.
 - A `preset` sets its model and thinking and keeps the definition and its tools. A direct `model` clears the preset.
   A request with both a `preset` and a `model` is `invalid_input`.
-- An unknown definition or preset is `invalid_input`. A definition with an `isolate` mode other than `none` is
-  `unavailable` when no `ultimate.conversation-isolation` backend supports that mode (`workspaces` supports
-  `worktree`). A definition that needs summary control is `unavailable` when that support is absent.
-- A definition change is a `conflict` on a conversation that is not an ordinary chat, during a run, or on an isolated
-  conversation.
+- An unknown definition or preset is `invalid_input`. A definition with an explicit `isolate` requirement other
+  than `none` is `unavailable` unless the optional `ultimate.persona-application` provider accepts it.
+  `workspaces` accepts `worktree`; without the provider, the chat does not fall back to the shared workspace.
+  A definition that needs summary control is `unavailable` when that support is absent.
+- A definition change is a `conflict` on a conversation that is not an ordinary chat or during a run. The persona
+  provider can also refuse a change in the same transaction. `workspaces` refuses persona changes on chats that
+  already have a worktree, including clearing the persona.
+
+The persona application point (`shared/persona-application.ts`) runs inside the chat creation or configuration
+transaction. It does not run for a model or preset change alone. The provider can also check readiness before input
+admission, outside the transaction. For a worktree chat, `workspaces` waits for its existing preparation task and
+reports setup failure as `unavailable`.
 
 ## History and cursors
 

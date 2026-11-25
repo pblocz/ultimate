@@ -28,7 +28,8 @@ A top-level conversation with a selected definition also follows its instruction
 parent) keep the instructions they started with. When the definition's text differs from the conversation's, the
 hook re-applies only the instructions, so a typed input picks up an updated definition file, for example
 `extensions/coding-workflow/agents/ultimate.md`, as Messages deliveries already did. Model, thinking and tools stay as
-chosen. With worktree support, the text includes the worktree's instructions (`conversations.worktrees`). If the
+chosen. The optional `ultimate.persona-application` provider can preserve its instructions during refresh.
+`workspaces` uses it to keep the checkout instructions. If the
 definition is gone, the hook keeps the configuration and writes a notice. The document keeps a hash of each project context file (`AGENTS.md`) and of the
 clone's `AGENTS.md`, `docs/*.md`, `agents/*.md`, and enabled extensions' `agents/*.md`, and the note names the definition re-applied and the files changed
 since the last run ("Instructions changed: … · Docs changed: …").

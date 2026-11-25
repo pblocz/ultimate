@@ -1,10 +1,16 @@
-import type {
-  ConversationSubject,
-  ConversationWorktree,
-  WorktreeLandResult,
-} from '@ultimate/ext/conversations/types.ts'
+import type { ConversationSubject } from '@ultimate/ext/conversations/types.ts'
 
-export type Workspace = ConversationWorktree
+/** The worktree attached to a conversation. */
+export type Workspace = {
+  path: string
+  branch: string
+  base: string
+  source: string
+  target: string
+  state: 'preparing' | 'ready' | 'failed' | 'removed'
+  error?: string
+  landed?: string
+}
 /** One `workspace submit`, waiting for or being processed by its source's lander. */
 export type QueueEntry = {
   id: string
@@ -122,5 +128,12 @@ export type WorkspaceStats = Record<Workspace['state'], number> & {
 }
 /** Disk the worktrees directory takes: every checkout's blocks, and on btrfs the blocks they share counted once. */
 export type WorkspaceDisk = { bytes: number | null; real: number | null; at: number }
-export type LandResult = WorktreeLandResult
+export type LandResult = {
+  text: string
+  landed?: string
+  commits?: string[]
+  paths?: string[]
+  files?: { path: string; added: number; removed: number }[]
+  needsRestart?: boolean
+}
 export type SubmitResult = { text: string; id: string; position: number; lander: number }

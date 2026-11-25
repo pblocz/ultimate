@@ -34,8 +34,8 @@ extension depending on an optional one. The core layers, lowest first, each depe
    workflow adds the project tree and the @ultimate button.
 
 Where a lower extension needs something a higher one knows, it declares the contract and the higher one fills it:
-server extension points (`conversations.trees`, `conversations.release`, and `conversations.worktrees` from
-conversations, `workspaces.branches` from workspaces, `messages.workflow` from messages, `subagents.workflow` from
+server extension points (`conversations.trees` and `conversations.release` from conversations, `workspaces.branches`
+from workspaces, `messages.workflow` from messages, `subagents.workflow` and `subagents.child-operations` from
 subagents, `onboarding.workflow` from onboarding), web points (`conversations.phase`, `conversations.task`, `conversations.unsummarized`,
 `messages.answers`, `lineage.memory-header`, `workspaces.review`, `subagents.child-badge`, `subagents.child-result`,
 `messages.agent-name`, `onboarding.setup-workflow`, `onboarding.setup-card`, `sidebar.unlisted`), or durable events (`workspaces.landed`,
@@ -43,3 +43,7 @@ subagents, `onboarding.workflow` from onboarding), web points (`conversations.ph
 `coding-workflow` provide points and react to events; the core never imports them. A web point is `definePoint` in the owner's `ui.tsx`,
 rendered with `<Provided>` and filled by `provides` in another facet (see
 [Web points](contracts.md#web-points)).
+
+`workspaces` implements the shared `ultimate.persona-application` point for ordinary chats and children. It also
+implements `subagents.child-operations` for the legacy child tool routes. Neither caller imports `workspaces`. The
+points are direct calls through the extension API table, not durable events.

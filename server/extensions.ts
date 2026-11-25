@@ -23,7 +23,7 @@ import type { ViteDevServer } from 'vite-plus'
 import type { ConversationSummary, ExtensionInfo, SystemInfo } from '../shared/protocol.ts'
 import type { PreparedHost } from './harness.ts'
 import { SourceStatusApi } from '../shared/source-status.ts'
-import { ConversationIsolationApi } from '../shared/conversation-isolation.ts'
+import { PersonaApplication } from '../shared/persona-application.ts'
 import type { ConfigurationServices } from './conversation-configuration.ts'
 import { Metadata } from './metadata.ts'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
@@ -1192,13 +1192,12 @@ export async function loadExtensions(
       providers.get(SourceStatusApi.name)?.value as (typeof SourceStatusApi)['service'],
     // Use the existing provider table; a public conversation operation takes a fresh view after facet reloads.
     configurationServices(this: void): ConfigurationServices {
-      const isolation = providers.get(ConversationIsolationApi.name)?.value as
-        | ConfigurationServices['isolation']
-        | undefined
+      const persona = providers.get(PersonaApplication.name)
+        ?.value as ConfigurationServices['persona']
       const conversations = providers.get('conversations')?.value as
         | { setAutomaticSummaries: ConfigurationServices['summaries'] }
         | undefined
-      return { isolation, summaries: conversations?.setAutomaticSummaries }
+      return { persona, summaries: conversations?.setAutomaticSummaries }
     },
     trace: trace.reader,
     prepared,

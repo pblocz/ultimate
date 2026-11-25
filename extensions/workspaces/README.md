@@ -1,10 +1,19 @@
 # Workspaces
 
 An isolated conversation gets its own Git checkout. Coordinator branches started by @ultimate are isolated by
-default. Subagents reach this extension through the optional `conversations.worktrees` point. Ordinary conversations
-with an `isolate: worktree` persona reach it through the host's `ultimate.conversation-isolation` service
-(`shared/conversation-isolation.ts`), which supports only the `worktree` mode. The web facet provides `ProjectLabel`, so
-the title bar names a branch checkout `<project> #<conversation>`. Uncommitted source changes are not included.
+default. Uncommitted source changes are not included.
+
+- `ultimate.persona-application` (`shared/persona-application.ts`) applies `isolate: worktree` for ordinary chats and
+  child starts. An explicit `isolate: none` stays shared. For an ad hoc child that can write, this provider defaults
+  to a worktree. It adds the checkout instructions and queues the existing `workspaces.prepare` task in the caller's
+  transaction. It preserves the checkout instructions when `prompt` refreshes a persona.
+- `subagents.child-operations` (`extensions/subagents/api.ts`) supplies child status, the stop report, land, and
+  discard. `subagents` still checks ownership and protects against replay.
+- `ProjectLabel` names a branch checkout `<project> #<conversation>` in the title bar.
+
+For an ordinary worktree chat, the provider waits outside the write transaction before admitting channel input. A
+native input that bypasses the channel is refused if the checkout is not ready. A failed setup never falls back to the
+shared workspace.
 
 Isolation needs a Git repository with a checked-out branch and a first commit. Until a project has them, `isolation`
 returns `{ reason }`, an isolated start fails with that reason, and the project has no lander.

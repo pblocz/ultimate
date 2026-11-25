@@ -52,27 +52,6 @@ export type OverviewState = { conversations: Record<string, OverviewRow> }
 
 /** What a conversation is about at one moment: its title, summary and feature, as a record keeps them (a landing). */
 export type ConversationSubject = { title?: string; summary?: string; feature?: string }
-/** An optional Git worktree attached to a conversation, shared by its provider and its consumers. */
-export type ConversationWorktree = {
-  path: string
-  branch: string
-  base: string
-  source: string
-  target: string
-  state: 'preparing' | 'ready' | 'failed' | 'removed'
-  error?: string
-  landed?: string
-}
-/** The result of landing an optional conversation worktree. */
-export type WorktreeLandResult = {
-  text: string
-  landed?: string
-  commits?: string[]
-  paths?: string[]
-  files?: { path: string; added: number; removed: number }[]
-  needsRestart?: boolean
-}
-
 /** Work kept when concluding a conversation, including its owned descendants: why its resources stay. */
 export type KeptWork = {
   id: number

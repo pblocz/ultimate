@@ -4,7 +4,7 @@ import type { Agent, ConversationId, Tx } from '@earendil-works/pi-durable'
 import { discoverAgents, definitionAgent, definitionFamily } from '../lib/agents.ts'
 import { Family, Profile } from '../shared/conversation-configuration.ts'
 import { ChannelError } from '../shared/channel-host.ts'
-import type { ConversationIsolation } from '../shared/conversation-isolation.ts'
+import type { PersonaApplicationService } from '../shared/persona-application.ts'
 import type { PreparedHost } from './harness.ts'
 
 type DefinitionHost = Pick<
@@ -14,7 +14,7 @@ type DefinitionHost = Pick<
 
 /** Existing optional conversation operations, resolved from the extension host for each public mutation. */
 export type ConfigurationServices = {
-  isolation?: ConversationIsolation
+  persona?: PersonaApplicationService
   summaries?: (tx: Tx, id: ConversationId, enabled: boolean) => Promise<void>
 }
 
@@ -58,7 +58,7 @@ export async function prepareDefinition(
     change,
     // Undefined leaves the recorded preset as it is.
     family: keep ? undefined : overrides.model ? null : definitionFamily(definition, change),
-    isolate: definition?.isolate ?? 'none',
+    requirement: definition?.isolate,
   }
 }
 

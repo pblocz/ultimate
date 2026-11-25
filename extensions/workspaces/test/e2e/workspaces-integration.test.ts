@@ -33,8 +33,8 @@ import {
   concludeIn,
   subject,
 } from '@ultimate/ext/conversations/server.ts'
-import { ConversationsApi, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
-import { ConversationIsolationApi } from '@ultimate/shared/conversation-isolation.ts'
+import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
+import { PersonaApplication } from '@ultimate/shared/persona-application.ts'
 import { createConversationHost } from '@ultimate/server/conversation-host.ts'
 import type { ConversationsService } from '@ultimate/ext/conversations/api.ts'
 import { setAutomaticSummaries, Summaries } from '@ultimate/ext/conversations/summary.ts'
@@ -685,7 +685,7 @@ it.concurrent('applies an ordinary conversation definition through the existing 
   const f = await fixture()
   const backend = await createConversationHost(f.prepared, f.opened, {
     configurationServices: () => ({
-      isolation: f.host.want(ConversationIsolationApi),
+      persona: f.host.want(PersonaApplication),
       summaries: setAutomaticSummaries,
     }),
   })
@@ -700,11 +700,15 @@ it.concurrent('applies an ordinary conversation definition through the existing 
     expect(agent.instructions).toContain(`Work only in ${workspace.path}`)
     expect(await readFile(join(agent.cwd!, 'base.txt'), 'utf8')).toBe('base')
     const shared = await backend.channelHost.conversations.create({})
-    const support = f.host.want(WorktreeSupport)!
+    const persona = f.host.want(PersonaApplication)!
     const refreshed = await f.opened.harness.commit(
       async (tx) => ({
-        isolated: await support.instructions(tx, id, 'Updated ordinary worker instructions.'),
-        shared: await support.instructions(
+        isolated: await persona.refreshInstructions!(
+          tx,
+          id,
+          'Updated ordinary worker instructions.',
+        ),
+        shared: await persona.refreshInstructions!(
           tx,
           shared.id as ConversationId,
           'Updated ordinary worker instructions.',
@@ -716,6 +720,18 @@ it.concurrent('applies an ordinary conversation definition through the existing 
       `Updated ordinary worker instructions.\nWork only in ${workspace.path} on ${workspace.branch}, cut from ${workspace.base}. Commit your work on this branch with clear messages. Never push and never touch other checkouts.`,
     )
     expect(refreshed.shared).toBe('Updated ordinary worker instructions.')
+    const selected = await backend.channelHost.conversations.configure(shared.id, {
+      definition: 'worker',
+    })
+    expect(selected.definition).toBe('worker')
+    const sharedId = shared.id as ConversationId
+    await f.service.ready(sharedId, context)
+    const configured = (await f.service.get(sharedId, context))!
+    expect(configured.state).toBe('ready')
+    const configuredAgent = await (await f.opened.harness.conversation(sharedId, context))!.agent(
+      context,
+    )
+    expect(configuredAgent.cwd).toBe(configured.path)
     expect((await backend.channelHost.conversations.get(id)).configuration.definition).toBe(
       'worker',
     )
@@ -728,16 +744,57 @@ it.concurrent('applies an ordinary conversation definition through the existing 
       code: 'conflict',
       message: 'Change an isolated profile in a new conversation',
     })
+    expect((await backend.channelHost.conversations.get(id)).configuration.definition).toBe(
+      'worker',
+    )
+    expect(await (await f.opened.harness.conversation(id, context))!.agent(context)).toMatchObject({
+      cwd: agent.cwd,
+      instructions: agent.instructions,
+      model: agent.model,
+      thinkingLevel: agent.thinkingLevel,
+    })
+  } finally {
+    await backend.close()
+  }
+})
+it.concurrent('does not invoke a model when an ordinary chat checkout fails setup', async () => {
+  const f = await fixture(['echo CHAT_SETUP_FAILURE >&2; exit 1'])
+  const backend = await createConversationHost(f.prepared, f.opened, {
+    configurationServices: () => ({ persona: f.host.want(PersonaApplication) }),
+  })
+  const respond = vi.fn<FauxResponseFactory>(() => fauxAssistantMessage('Unexpected model request'))
+  f.prepared.faux!.setResponses([respond])
+  backend.openAdmission()
+  try {
+    const { id } = await backend.channelHost.conversations.create({ definition: 'worker' })
+    const conversationId = id as ConversationId
+    const conversation = (await f.opened.harness.conversation(conversationId, context))!
+    await expect(
+      backend.channelHost.conversations.submit(id, { text: 'Start immediately' }),
+    ).rejects.toMatchObject({
+      code: 'unavailable',
+      message: expect.stringContaining('CHAT_SETUP_FAILURE'),
+    })
+    await expect(
+      conversation.submit({ type: 'input', content: 'Native input' }, context),
+    ).rejects.toThrow('CHAT_SETUP_FAILURE')
+    await conversation.waitForIdle(context)
+    expect(await f.service.get(conversationId, context)).toMatchObject({
+      state: 'failed',
+      error: expect.stringContaining('CHAT_SETUP_FAILURE'),
+    })
+    expect(respond).not.toHaveBeenCalled()
+    expect(await readFile(join(f.projectRoot, 'base.txt'), 'utf8')).toBe('base')
   } finally {
     await backend.close()
   }
 })
 it.concurrent('rejects an isolation mode its backend does not support before any write', async () => {
   const f = await fixture()
-  const isolation = f.host.want(ConversationIsolationApi)!
+  const persona = f.host.want(PersonaApplication)!
   const backend = await createConversationHost(f.prepared, f.opened, {
     configurationServices: () => ({
-      isolation: { ...isolation, supports: () => false },
+      persona: { ...persona, accepts: () => false },
       summaries: setAutomaticSummaries,
     }),
   })
@@ -759,6 +816,16 @@ it.concurrent.each([
     name: 'writable agent made on the fly',
     args: { label: 'writer', model: 'faux/faux-1', tools: ['read', 'write'] },
     isolated: true,
+  },
+  {
+    name: 'read-only agent made on the fly',
+    args: { label: 'reader', model: 'faux/faux-1', tools: ['read'] },
+    isolated: false,
+  },
+  {
+    name: 'explicit shared workspace for a writable agent made on the fly',
+    args: { label: 'shared writer', model: 'faux/faux-1', tools: ['write'], isolate: 'none' },
+    isolated: false,
   },
   {
     name: 'explicit shared workspace over a worktree definition',

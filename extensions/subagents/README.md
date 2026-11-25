@@ -13,7 +13,7 @@ Delegate bounded work to child conversations with `subagent`, configure them fro
 - `stop {id}` stops the child's current work and pending reporters, even before its run starts. With worktree support,
   it lists the paths left uncommitted in the child's worktree; nothing is committed or deleted.
 - `land {id}` fast-forwards a worktree child's commits into your checkout; `discard {id}` removes its clean, idle
-  checkout and keeps its branch. Both need `conversations.worktrees`. See [workspaces](../workspaces/README.md).
+  checkout and keeps its branch. Both use `subagents.child-operations`, provided by [workspaces](../workspaces/README.md).
 
 Every child belongs to an independent background anchor: foreground is a waiting style, not ownership, and stopping the
 parent does not stop its children. A foreground start, message or wait returns the answer when ready, or yields on
@@ -60,13 +60,15 @@ prompt cache usually covers the shared prefix.
 
 ### Isolates
 
-An isolate is where a child's tools run. `isolate: "none"` uses the parent's directory. Without the optional
-`conversations.worktrees` point, an omitted isolate also uses the parent's directory. `"worktree"` gets a checkout made
-from the parent's committed HEAD, owned by the workspaces extension, with the project's `isolates.worktree.setup`
-commands (see [workspaces](../workspaces/README.md)). If worktree support is absent, an effective `"worktree"` fails
-before the child is created. Isolation is by working
-directory, not a sandbox: absolute paths can still reach other checkouts, and children are instructed to work only in
-their isolate, commit, and never push.
+An isolate is where a child's tools run. The `isolate` argument overrides the definition's setting. `"none"` uses
+the parent's directory. If neither the call nor the definition specifies isolation, the optional
+`ultimate.persona-application` provider can choose a default. `workspaces` does this for writable ad hoc children.
+Without a provider, an omitted requirement uses the parent's directory. An explicit `"worktree"` fails before the
+child is created if no provider accepts it.
+
+For `"worktree"`, [workspaces](../workspaces/README.md) prepares a checkout from the parent's committed HEAD and runs
+the project's `isolates.worktree.setup` commands. Isolation sets the working directory. It is not a sandbox:
+absolute paths can still reach other checkouts.
 
 ## Definitions
 

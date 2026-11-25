@@ -100,7 +100,7 @@ const foundation = {
   shared: [
     'channel-host',
     'conversation-configuration',
-    'conversation-isolation',
+    'persona-application',
     'events',
     'extension-api',
     'protocol',

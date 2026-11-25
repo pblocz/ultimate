@@ -42,6 +42,7 @@ import { readFamilies } from '../lib/families-settings.ts'
 import { refOf } from '../lib/families.ts'
 import { Family, Profile } from '../shared/conversation-configuration.ts'
 import { prepareDefinition, applyDefinition } from './conversation-configuration.ts'
+import { checkPersonaRequirement } from '../shared/persona-application.ts'
 import type { ConfigurationServices } from './conversation-configuration.ts'
 import { expandSkillCommand, projectSkills } from './skills.ts'
 import type { SkillOwner } from './skills.ts'
@@ -432,13 +433,7 @@ export async function createConversationHost(
     }
     const family = change.preset !== undefined ? change.preset : model ? null : profile?.family
     const services = options.configurationServices?.() ?? {}
-    // The mode is persona data: the host knows only that `none` needs no backend.
-    const mode = profile?.isolate ?? 'none'
-    if (mode !== 'none' && !services.isolation?.supports(mode))
-      throw new ChannelError(
-        'unavailable',
-        `${mode.charAt(0).toUpperCase()}${mode.slice(1)} isolation is not available`,
-      )
+    checkPersonaRequirement(services.persona, profile?.requirement)
     if (profile?.definition?.summaries === false && !services.summaries)
       throw new ChannelError('unavailable', 'Conversation summaries support is not available')
     return { fields, profile, family, services }
@@ -449,19 +444,27 @@ export async function createConversationHost(
     id: ConversationId,
     prepared: Awaited<ReturnType<typeof prepareChange>>,
     cwd: string,
+    kind: 'chat-create' | 'chat-configure',
   ) {
     if (prepared.profile) await applyDefinition(tx, id, prepared.profile)
     await configureAgent(tx, id, prepared.fields)
     if (prepared.family !== undefined) (await tx.doc(Family, id)).name = prepared.family
     if (prepared.profile && prepared.services.summaries)
       await prepared.services.summaries(tx, id, prepared.profile.definition?.summaries !== false)
-    if (prepared.profile && prepared.profile.isolate !== 'none')
-      await prepared.services.isolation!.prepare(tx, id, {
-        mode: prepared.profile.isolate,
-        cwd,
-        instructions:
-          typeof prepared.fields.instructions === 'string' ? prepared.fields.instructions : '',
-      })
+    if (prepared.profile)
+      await prepared.services.persona?.apply(
+        tx,
+        id,
+        {
+          kind,
+          definition: prepared.profile.definition,
+          requirement: prepared.profile.requirement,
+          cwd,
+          instructions:
+            typeof prepared.fields.instructions === 'string' ? prepared.fields.instructions : '',
+        },
+        hostContext,
+      )
   }
 
   function validateSource(value: InputSource | undefined): InputSource | undefined {
@@ -663,6 +666,7 @@ export async function createConversationHost(
       const images = validateImages(input.images)
       if (!input.text.trim() && !images.length)
         throw new ChannelError('invalid_input', 'Expected text or images')
+      await options.configurationServices?.().persona?.beforeSubmit?.(conversationId, hostContext)
       const expanded = input.text.startsWith('/skill:')
         ? expandSkillCommand(
             input.text,
@@ -758,7 +762,7 @@ export async function createConversationHost(
               model: base.model,
               thinkingLevel: base.thinkingLevel,
             })
-            await applyChange(tx, created.id, prepared, cwd)
+            await applyChange(tx, created.id, prepared, cwd, 'chat-create')
             Object.assign(await tx.doc(Metadata, created.id), {
               label: 'chat',
               ...(input.title && { title: input.title }),
@@ -795,11 +799,6 @@ export async function createConversationHost(
             thinkingLevel: current.thinkingLevel,
           }
           const prepared = await prepareChange(base, change, true)
-          if (
-            prepared.profile &&
-            (await prepared.services.isolation?.exists(conversationId, hostContext))
-          )
-            throw new ChannelError('conflict', 'Change an isolated profile in a new conversation')
           admit()
           await harness.commit(async (tx) => {
             if (prepared.profile) {
@@ -814,7 +813,13 @@ export async function createConversationHost(
                   'Wait for the current turn before changing its profile',
                 )
             }
-            await applyChange(tx, conversationId, prepared, current.cwd ?? host.projectRoot)
+            await applyChange(
+              tx,
+              conversationId,
+              prepared,
+              current.cwd ?? host.projectRoot,
+              'chat-configure',
+            )
           }, hostContext)
           return readConfiguration(conversationId, await conversation.agent(hostContext))
         }),

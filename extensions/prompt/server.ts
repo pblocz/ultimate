@@ -16,7 +16,7 @@ import type { Context } from '@earendil-works/chord/context'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { agentRoots, discoverAgents } from '@ultimate/lib/agents.ts'
 import { Profile } from '@ultimate/ext/subagents/api.ts'
-import { WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
+import { PersonaApplication } from '@ultimate/shared/persona-application.ts'
 import { BuildDetails } from './api.ts'
 import type { BuildNote, Landing } from './refs.ts'
 
@@ -124,7 +124,9 @@ async function instructionChanges(
   }
   // A typed input refreshes only instructions, not the profile's model or configured tools.
   const text =
-    (await host.want(WorktreeSupport)?.instructions(tx, conversationId, definition.instructions)) ??
+    (await host
+      .want(PersonaApplication)
+      ?.refreshInstructions?.(tx, conversationId, definition.instructions)) ??
     definition.instructions
   const reapplied = (await tx.doc(AgentDoc, conversationId)).instructions !== text
   if (reapplied) await configure(tx, conversationId, { instructions: text })

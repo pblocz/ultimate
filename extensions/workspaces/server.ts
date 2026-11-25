@@ -21,7 +21,8 @@ import { git } from 'ultimate-project-git-support/run'
 import { empty, isolatable, noCommit, noRepository } from 'ultimate-project-git-support/checkout'
 import type { ActionContext } from '@ultimate/server/actions.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
-import { ConversationsApi, Release, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
+import { ConversationsApi, Release } from '@ultimate/ext/conversations/api.ts'
+import { ChildOperations } from '@ultimate/ext/subagents/api.ts'
 import { Branches, WorkspacesApi } from './api.ts'
 import {
   DiskAction,
@@ -35,8 +36,8 @@ import {
 import { githubRepo } from 'ultimate-project-git-support/github'
 import { sweepChecks } from './lander.ts'
 import { Workspaces, workspaces } from './workspaces.ts'
-import { conversationIsolation, subagentWorktrees } from './subagents.ts'
-import { ConversationIsolationApi } from '@ultimate/shared/conversation-isolation.ts'
+import { workspaceChildOperations, workspaceNotReady, workspacePersona } from './subagents.ts'
+import { PersonaApplication } from '@ultimate/shared/persona-application.ts'
 export const order = -200
 export const docs = [Workspaces]
 export const userActions = ['setupGit']
@@ -144,8 +145,8 @@ export default function workspaceExtension(host: ExtensionHost) {
     doc: Workspaces,
     setupGit: () => setupGit(host),
   })
-  host.implement(WorktreeSupport, subagentWorktrees(service))
-  host.implement(ConversationIsolationApi, conversationIsolation(subagentWorktrees(service)))
+  host.implement(ChildOperations, workspaceChildOperations(service))
+  host.implement(PersonaApplication, workspacePersona(service, host))
   // Concluding conversations frees their worktrees, through conversations' extension point.
   host.implement(Release, { release: (ids, caller) => service.release(ids, caller) })
   const resume = () =>
@@ -224,6 +225,14 @@ export default function workspaceExtension(host: ExtensionHost) {
           const index = await api.tx.doc(Workspaces, ROOT_CONVERSATION_ID)
           if (Object.values(index.landerConversations).includes(api.conversationId))
             throw new Error('The lander runs no model; its conversation is the landing log')
+          // Native inputs can bypass ChannelHost. Check state here, but never wait for a task inside this transaction.
+          const own = index.items[String(api.conversationId)]
+          if (
+            own &&
+            own.state !== 'ready' &&
+            (await api.tx.doc(host.metadata, api.conversationId)).label === 'chat'
+          )
+            throw new Error(workspaceNotReady(own))
           return undefined
         },
       }),

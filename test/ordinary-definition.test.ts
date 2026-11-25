@@ -96,11 +96,12 @@ it('preserves model overrides and resolves existing worktree settings without in
   )
   const model = { provider: 'faux', modelId: 'faux-1' }
   const selection = await prepareDefinition(f.prepared, base, 'isolated', { model })
-  expect(selection.isolate).toBe('worktree')
+  expect(selection.requirement).toBe('worktree')
   expect(selection.change.model).toEqual(model)
   expect(selection.family).toBeNull()
   const neutral = await prepareDefinition(f.prepared, base, 'neutral')
-  expect(neutral.isolate).toBe('none')
+  expect(neutral.requirement).toBe('none')
+  expect((await prepareDefinition(f.prepared, base, null)).requirement).toBeUndefined()
   await expect(prepareDefinition(f.prepared, base, 'missing')).rejects.toMatchObject({
     code: 'invalid_input',
   })

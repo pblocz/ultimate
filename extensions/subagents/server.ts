@@ -53,10 +53,22 @@ import { createChild, started } from './children.ts'
 import { defaultDestination, destinationAddress } from './destinations.ts'
 import { implementAction } from '@ultimate/lib/actions.ts'
 import { shortTitle } from '@ultimate/lib/title.ts'
-import { ConversationsApi, Marks, WorktreeSupport } from '@ultimate/ext/conversations/api.ts'
+import { ConversationsApi, Marks } from '@ultimate/ext/conversations/api.ts'
+import {
+  PersonaApplication,
+  checkPersonaRequirement,
+} from '@ultimate/shared/persona-application.ts'
 import type { AgentMarkStyle } from '@ultimate/ext/conversations/refs.ts'
 import { Family, Pin } from '@ultimate/ext/models/api.ts'
-import { Profile, Runs, Standing, Subagents, SubagentsApi, SubagentsWorkflow } from './api.ts'
+import {
+  ChildOperations,
+  Profile,
+  Runs,
+  Standing,
+  Subagents,
+  SubagentsApi,
+  SubagentsWorkflow,
+} from './api.ts'
 import type { SubagentsService } from './api.ts'
 import { definitionRuns, refName, refOf } from '@ultimate/lib/families.ts'
 import { readFamilies } from '@ultimate/lib/families-settings.ts'
@@ -653,12 +665,6 @@ export default function subagents(
 ) {
   // Core services, always on; each handle resolves the current provider at every call.
   const conversations = host.need(ConversationsApi)
-  const worktrees = () => host.want(WorktreeSupport)
-  const requireWorktrees = () => {
-    const support = worktrees()
-    if (!support) throw new Error('Worktree isolation is not available')
-    return support
-  }
   const residentDefinitions = async () =>
     (
       await discoverAgents(
@@ -882,7 +888,6 @@ export default function subagents(
       instructions: [ADHOC, args.instructions?.trim()].filter(Boolean).join('\n\n'),
       family: 'default',
       ...(args.tools ? { tools: args.tools } : {}),
-      isolate: worktrees()?.defaultIsolation(args.tools) ?? 'none',
       summaries: false,
     }
     const chosen = args.family !== undefined || pinned !== undefined || !named
@@ -1195,7 +1200,9 @@ export default function subagents(
             const rows = await Promise.all(
               Object.values(index.agents).map(async (agent) => ({
                 ...agent,
-                workspace: await worktrees()?.get(agent.conversationId, context),
+                workspace: (
+                  await host.want(ChildOperations)?.describe(agent.conversationId, context)
+                )?.workspace,
                 busy:
                   (await api.snapshot(LiveDoc, agent.conversationId, context))?.run !== undefined,
               })),
@@ -1208,13 +1215,15 @@ export default function subagents(
           )
             throw new Error('id must identify a child of this conversation')
           if (args.action === 'land' || args.action === 'discard') {
-            const support = requireWorktrees()
+            const operations = host.want(ChildOperations)
+            if (!operations) throw new Error('Worktree isolation is not available')
             if (await api.memo<boolean>('workspace-operation', context))
               throw new Error('Workspace operation interrupted; call again')
             await api.memo('workspace-operation', true, context)
-            const operation = args.action
             return finish(
-              JSON.stringify(await support[operation](args.id as ConversationId, context)),
+              JSON.stringify(
+                await operations.execute(args.action, args.id as ConversationId, context),
+              ),
             )
           }
           if (args.action === 'start' || args.action === 'message') {
@@ -1242,11 +1251,9 @@ export default function subagents(
             if (definition?.tools?.some((name) => !parent.tools.some((tool) => tool.name === name)))
               throw new Error('Definition tools must be a subset of parent tools')
             const label = definition && (args.agent ? (args.label ?? definition.name) : args.label!)
-            const isolated =
-              definition && (args.isolate ?? definition.isolate ?? 'none') === 'worktree'
-            const warning = isolated
-              ? await requireWorktrees().warning(parent.cwd ?? host.projectRoot)
-              : ''
+            const persona = definition && host.want(PersonaApplication)
+            const requirement = args.isolate ?? definition?.isolate
+            if (definition) checkPersonaRequirement(persona, requirement)
             const task = await api.getTask(api.taskId, context)
             // Pi upstream: @earendil-works/pi-durable@1.6.0 src/harness/tool.ts — internal ToolTaskInput.assistant locates the calling assistant. Drop when ToolExecutionApi exposes the calling assistant entry ID.
             const assistant = (task?.input as { assistant: EntryId } | undefined)?.assistant
@@ -1265,7 +1272,9 @@ export default function subagents(
             const model = definition ? await conversations.summaryModel() : undefined
             const action = await api.commit(async (tx) => {
               const state = await tx.doc(Subagents, api.conversationId)
-              if (state.actions[api.callId]) return { ...state.actions[api.callId] }
+              if (state.actions[api.callId])
+                return { ...state.actions[api.callId], note: undefined }
+              let note: string | void = undefined
               let conversationId = args.id as ConversationId
               if (definition) {
                 await conversations.requestSummary(
@@ -1308,11 +1317,19 @@ export default function subagents(
                   background: args.background === true,
                   reported: [],
                 }
-                if (isolated)
-                  await requireWorktrees().prepare(tx, child.id, {
+                note = await persona?.apply(
+                  tx,
+                  child.id,
+                  {
+                    kind: 'child-start',
+                    adhoc: args.agent === undefined,
+                    definition,
+                    requirement,
                     cwd: parent.cwd ?? host.projectRoot,
                     instructions: definition.instructions,
-                  })
+                  },
+                  context,
+                )
               }
               const reporter = await tx.createTask(
                 Reporter,
@@ -1326,12 +1343,12 @@ export default function subagents(
               )
               const createdAction = { conversationId, reporter }
               state.actions[api.callId] = createdAction
-              return createdAction
+              return { ...createdAction, note }
             }, context)
-            const isolate = await worktrees()?.get(action.conversationId, context)
-            const isolateInfo = isolate
-              ? `\nIsolate: ${isolate.path}\nBranch: ${isolate.branch}${warning}`
-              : ''
+            const status = await host
+              .want(ChildOperations)
+              ?.describe(action.conversationId, context)
+            const isolateInfo = `${status?.text ?? ''}${action.note ?? ''}`
             const background =
               index.agents[String(action.conversationId)]?.background ?? args.background === true
             const info = details(action.conversationId, background)
@@ -1450,11 +1467,8 @@ export default function subagents(
               await host.harness().abortTask(run.taskId, context)
               await api.waitForTask(run.taskId, context)
             }
-            const uncommitted = (await worktrees()?.uncommitted(id, context)) ?? { files: [] }
-            return finish(
-              `Stopped ${id}.${uncommitted.files.length ? `\nLeft uncommitted in ${uncommitted.path}: ${uncommitted.files.join(', ')}` : ''}`,
-              info,
-            )
+            const report = await host.want(ChildOperations)?.stopped(id, context)
+            return finish(`Stopped ${id}.${report ?? ''}`, info)
           }
           const reporters = Object.values(index.actions).flatMap((action) =>
             action.conversationId === id ? [action.reporter] : [],
