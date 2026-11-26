@@ -67,7 +67,7 @@ async function openCard() {
     const last = transcript.messages.at(-1)!
     return last.role === 'user' && last.content === 'ask'
       ? fauxAssistantMessage(
-          [fauxToolCall('message', { to: 'user', text: 'The preview is ready.', questions })],
+          [fauxToolCall('ask_user', { text: 'The preview is ready.', questions })],
           {
             stopReason: 'toolUse',
           },

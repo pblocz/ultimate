@@ -212,8 +212,7 @@ async function fixture() {
       })
     }
     if (answer === 'QUESTION')
-      return call('message', {
-        to: 'user',
+      return call('ask_user', {
         text: 'Which approach?',
         questions: [
           {

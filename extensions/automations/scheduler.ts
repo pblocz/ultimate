@@ -187,7 +187,7 @@ export function scheduler(
         a.script.state = 'stopped'
         a.script.error = reason
       }
-      const event = await host.emit(tx, Escalated, { id: a.id, reason })
+      const event = await host.emit(tx, Escalated, { id: a.id, name: a.name, reason })
       await deliver(tx, a, event.id, 'escalated', reason)
       return { id: a.id }
     }

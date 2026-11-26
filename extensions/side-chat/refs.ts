@@ -10,6 +10,8 @@ export type SideChat = {
 export type SideChatIndex = {
   sides: { id: number; at: number; openedAt: number; ended?: 'discarded' | 'injected' }[]
 }
+export type SideChatAutomation = { side: number; id: string; change: 'created' | 'subscribed to' }
+
 export type SideChatSummary = {
   side: number
   at: number

@@ -116,7 +116,7 @@ it.concurrent('gates project resources, remembers choices, and applies onboardin
     expect(log.events).toEqual(expect.arrayContaining(['board.sent']))
     expect(
       server.extensions.info().find((entry) => entry.name === 'messages')?.server?.tools,
-    ).toContainEqual({ name: 'message', description: expect.stringMatching(/\S/) })
+    ).toContainEqual({ name: 'agent_message', description: expect.stringMatching(/\S/) })
     expect(
       (await post(server, '/api/extensions/onboarding/actions/details', { args: { name: 'nope' } }))
         .data.error,

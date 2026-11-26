@@ -43,7 +43,13 @@ export function recoveryModel(pending: boolean): FauxResponseFactory {
     const recipient = /^START_PENDING_MESSAGE #(\d+)$/.exec(user)?.[1]
     if (recipient)
       return fauxAssistantMessage(
-        [fauxToolCall('message', { to: `#${recipient}`, text: 'PENDING_QUESTION', reply: true })],
+        [
+          fauxToolCall('agent_message', {
+            to: `#${recipient}`,
+            text: 'PENDING_QUESTION',
+            reply: true,
+          }),
+        ],
         { stopReason: 'toolUse' },
       )
     if (

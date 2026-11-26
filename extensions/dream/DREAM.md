@@ -94,7 +94,7 @@ You coordinate the dream. You change nothing: no code, no memory, no settings. Y
    - a proposed name for the next chapter;
    - the proposals as one `Decisions:` block, one numbered item per proposal (`(a) do it; (b) skip.`), each naming its
      id, then `My picks:`.
-4. When @ultimate answers "ask the user", ask them with one card (`message {to: 'user', questions}`), the three
+4. When @ultimate answers "ask the user", ask them with one card (`ask_user {text, questions}`), the three
    learned lines first in its text and @ultimate's picks marked `recommended`; the answer wakes you, and @ultimate
    reads it too. Report it in one line.
 

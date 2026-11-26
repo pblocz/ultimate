@@ -40,7 +40,7 @@ export type Message = {
   entry?: EntryId
   answer?: EntryId
   error?: string
-  /** The tool call that sent it: `message`'s or `branch`'s own id, `<script>/<n>` for a nested codemode call. */
+  /** The tool call that sent it: the message tool's or `branch`'s own id, `<script>/<n>` for a nested codemode call. */
   call?: string
   /** Images forwarded with it: the sender's entry that holds them, attached to the recipient's input on delivery. */
   images?: { entry: EntryId; count: number }
@@ -96,7 +96,7 @@ export type MessagesService = {
     device?: Device,
     settlement?: { via: Via; reason: string; fromLabel: string },
   ): Promise<number>
-  /** Admit through the same receipts, address rules, image checks, and delivery task as the message tool. */
+  /** Admit through the same receipts, address rules, image checks, and delivery task as the message tools. */
   dispatch(
     from: number | 'user',
     input: Parameters<typeof send>[2],
@@ -135,8 +135,8 @@ export const MessagesApi = defineApi<MessagesService>()('messages')
 export type MessagesWorkflowService = {
   /** The workflow's primary conversation inside this transaction; absent means no primary privilege. */
   primary(tx: Tx): Promise<ConversationId | undefined>
-  /** Refuse a model's user-directed message unless the workflow grants its existing permission. */
-  authorizeUserMessage(from: number | 'user', ctx: Context): Promise<void>
+  /** Whether this conversation holds the workflow's branch or standing coordinator permission. */
+  canMessageUser(tx: Tx, from: ConversationId): Promise<boolean>
   /** The workflow starter, distinct from a child's direct parent. */
   starter(id: number | 'user', ctx: Context): Promise<number | undefined>
   /** A branch reply still needs its starter's answer. */
@@ -177,5 +177,10 @@ export type MessagesWorkflowService = {
 }
 /** Optional coding rules; their absence never authorizes user actions. */
 export const MessagesWorkflow = defineApi<MessagesWorkflowService>()('messages.workflow')
+
+/** Optional permission to ask from an ordinary user-created chat, independent of Coding. */
+export const UserQuestionPermission = defineApi<{
+  canAsk(tx: Tx, from: ConversationId): Promise<boolean>
+}>()('messages.user-question-permission')
 
 export const tier = 'core'

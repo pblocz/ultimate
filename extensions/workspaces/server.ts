@@ -213,10 +213,12 @@ export default function workspaceExtension(host: ExtensionHost) {
     hooks: [
       hook(ToolTask, {
         beforeTool: async (call, api, caller) => {
-          // `message` never touches the checkout, and it is how a conversation reports that its workspace is gone.
-          if (call.name === 'message') return undefined
+          // These tools do not need the checkout and can report that it is gone.
+          if (['agent_message', 'ask_user', 'report_user'].includes(call.name)) return undefined
           const reason = await service.unavailable(api.conversationId, caller)
-          return reason ? { block: `${reason}. \`message\` still works, to report it.` } : undefined
+          return reason
+            ? { block: `${reason}. You can still use \`agent_message\` to report it.` }
+            : undefined
         },
       }),
       // The lander conversation is its log: no model runs there.

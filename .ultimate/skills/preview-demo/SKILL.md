@@ -54,7 +54,7 @@ Please start three coordinators in parallel, one each, all small: (1) dark mode 
 
 Then the follow-ups that fit the flow under test, for example:
 
-1. From @ultimate, with the search branch's number from its card: `Ask the search branch (#<id>) via a codemode script that calls message to it (reply: true) whether the search is case-insensitive. Tell me its answer when it comes.`
+1. From @ultimate, with the search branch's number from its card: `Ask the search branch (#<id>) via a codemode script that calls agent_message (reply: true) whether the search is case-insensitive. Tell me its answer when it comes.`
 2. Typed into a branch's conversation: `Also make the search case-insensitive.`
 3. `Sort the recipes alphabetically and keep the order when searching.`
 

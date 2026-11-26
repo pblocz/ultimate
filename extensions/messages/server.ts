@@ -1,11 +1,8 @@
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
-import { bool, obj, opt, str } from '@earendil-works/pi-schema'
 import {
   defineExtension,
-  defineTool,
   GenerationTask,
   hook,
-  LiveDoc,
   ROOT_CONVERSATION_ID,
   section,
 } from '@earendil-works/pi-durable'
@@ -14,14 +11,12 @@ import type { ActionContext } from '@ultimate/server/actions.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { Messages, MessagesApi, MessagesWorkflow } from './api.ts'
-import { imagesParameter } from '@ultimate/lib/entries.ts'
-import { gist, openQuestion, openQuestionsNote, questionsParameter } from './questions.ts'
+import { gist, openQuestion, openQuestionsNote } from './questions.ts'
+import { messageTools } from './tools.ts'
 import { callerOf } from './caller.ts'
 import { CallerAction, SettleAction } from './refs.ts'
 import type { Via } from './refs.ts'
 import { implementAction } from '@ultimate/lib/actions.ts'
-import { isOwed } from '@ultimate/lib/message-state.ts'
-import { actingAs } from '@ultimate/lib/acting-as.ts'
 import { SCAN_PAGE } from './images.ts'
 import { parentOf, senderName } from './addresses.ts'
 import { delivery } from './delivery.ts'
@@ -212,100 +207,16 @@ export default function messages(host: ExtensionHost) {
     ],
     sections: [
       section('messages', async (input, ctx) => {
-        if (!input.agent.tools.some((tool) => tool.name === 'message')) return undefined
+        if (!input.agent.tools.some((tool) => tool.name === 'agent_message')) return undefined
         const parent = await parentOf(host, input.conversationId, ctx)
         if (parent !== undefined)
-          return `Use message only to update #${parent}, the conversation that started you, while you work; your final answer reaches it anyway. One-way updates (reply: false) reach #${parent} as notes it reads with its next input; ask with reply: true when you need its answer to continue.`
+          return `Use agent_message only to update #${parent}, the conversation that started you, while you work; your final answer reaches it anyway. One-way updates (reply: false) reach #${parent} as notes it reads with its next input; ask with reply: true when you need its answer to continue.`
         const workflow = host.want(MessagesWorkflow)
         if (workflow) return workflow.instructions(input.conversationId, ctx)
         const agents = await host.need(SubagentsApi).residents(ctx)
-        return `Use message to contact #id or @name. Messages wake their recipient; its answer returns as a reply and wakes you. End your turn instead of waiting. A one-way message (reply: false) gets no answer; use reply: true when you need one. Inputs identify their sender; answer here and your answer is sent to the sender automatically; do not use message to reply. A message to an agent whose message you still owe an answer becomes that answer and ends your run; use it only to attach images.\n${agents.map((a) => `@${a.name} — ${a.description}`).join('\n')}`
+        return `Use agent_message to contact #id or @name. Messages wake their recipient; its answer returns as a reply and wakes you. End your turn instead of waiting. A one-way message (reply: false) gets no answer; use reply: true when you need one. Inputs identify their sender; answer here to reply automatically. An agent_message to an agent you still owe an answer becomes that answer and ends your run; use it only to attach images.\n${agents.map((a) => `@${a.name} — ${a.description}`).join('\n')}`
       }),
     ],
-    tools: [
-      defineTool({
-        name: 'message',
-        description:
-          'Send a message to #id or @name; it returns immediately. A busy recipient gets it after its current run, or during it with steer: true. Workflow rules may set a different default. images forwards screenshots or other images from your conversation, to an agent or to the user. To an agent or the user whose message you owe an answer, it is that answer (with its images and questions). One to an agent ends your run; one to the user ends it too, unless a reply or report still needs your answer. Sent from codemode or beside other calls in its tool round, it never ends the run.',
-        parameters: obj({
-          to: str(),
-          text: str({ minLength: 1 }),
-          reply: opt(bool()),
-          steer: opt(bool()),
-          images: opt(imagesParameter),
-          questions: opt(questionsParameter),
-        }),
-        // The task-scoped receipt deduplicates admission; the memo returns the same id on replay.
-        replay: 'safe',
-        async execute(input, api, ctx) {
-          // A temporary copy cannot use main's privilege to message the user.
-          const from =
-            input.to === 'user' ? api.conversationId : await actingAs(host, api.conversationId, ctx)
-          const id =
-            (await api.memo<number>('message-id', ctx)) ??
-            (await api.memo(
-              'message-id',
-              await send(host, from, { ...input, imagesFrom: api.conversationId }, ctx, {
-                taskId: api.taskId,
-                callId: api.callId,
-              }),
-              ctx,
-            ))
-          const sent = (await host
-            .harness()
-            .snapshot(Messages, ROOT_CONVERSATION_ID, ctx))!.messages.find(
-            (message) => message.id === id,
-          )
-          // It answered a message the recipient is waiting on: the answer is given, so the run ends here. A message to
-          // the user answers theirs too, but shows as their message below; the check after it ends the run.
-          if (sent?.re !== undefined && sent.to !== 'user')
-            return {
-              output: [
-                {
-                  type: 'text',
-                  text: `Sent as your answer to message ${sent.re}.`,
-                },
-              ],
-              control: { terminate: true as const },
-            }
-          if (from !== api.conversationId && input.reply !== false && sent) {
-            await host.want(MessagesWorkflow)?.sideChatMessage({
-              from,
-              conversation: api.conversationId,
-              to: sent.to,
-              text: input.text,
-              requestId: `sidechat:message:${api.taskId}:${api.callId}`,
-            })
-          }
-          if (input.to !== 'user')
-            return { output: [{ type: 'text', text: `Message ${id} sent.` }] }
-          // End after a user-directed answer unless another read reply is due. Queued replies get their own turn.
-          // Pi ends a run only when every call terminates; nested codemode calls never end it.
-          // The workflow can also keep a run open for a report it read (#570368).
-          const inputs =
-            (await host.harness().snapshot(LiveDoc, api.conversationId, ctx))?.run?.inputs ?? []
-          const read = (
-            await Promise.all(
-              inputs.map(async (s) => (await host.harness().submission(s, ctx))?.status(ctx)),
-            )
-          ).flatMap((s) => (s?.type === 'input' && s.entry !== undefined ? [s.entry] : []))
-          const owed = await host
-            .harness()
-            .commit(
-              async (tx) =>
-                (await tx.doc(Messages, ROOT_CONVERSATION_ID)).messages.some(
-                  (m) => m.to === api.conversationId && isOwed(m),
-                ) ||
-                (await host.want(MessagesWorkflow)?.awaitsReport(tx, api.conversationId, read)) ===
-                  true,
-              ctx,
-            )
-          return {
-            output: [{ type: 'text', text: `Message ${id} sent.` }],
-            ...(owed ? {} : { control: { terminate: true as const } }),
-          }
-        },
-      }),
-    ],
+    tools: messageTools(host),
   })
 }

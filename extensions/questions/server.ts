@@ -1,7 +1,7 @@
 import { defineExtension, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context, withAbortSignal } from '@earendil-works/chord/context'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
-import { Messages, MessagesApi } from '@ultimate/ext/messages/api.ts'
+import { Messages, MessagesApi, UserQuestionPermission } from '@ultimate/ext/messages/api.ts'
 import type { Question } from '@ultimate/ext/messages/api.ts'
 import { implementAction } from '@ultimate/lib/actions.ts'
 import { openQuestion as open } from '@ultimate/lib/message-state.ts'
@@ -106,5 +106,17 @@ export const actions = {
 export default function questionsExtension(host: ExtensionHost) {
   // Core, always on; resolved where it is called, declared here so the catalogue lists it.
   host.need(MessagesApi)
+  host.implement(UserQuestionPermission, {
+    canAsk: async (tx, from) => {
+      const conversation = await tx.conversation(from)
+      return (
+        from !== ROOT_CONVERSATION_ID &&
+        !!conversation &&
+        !conversation.owner &&
+        !conversation.parent &&
+        (await tx.doc(host.metadata, from)).label === 'chat'
+      )
+    },
+  })
   return defineExtension({ name: 'questions' })
 }

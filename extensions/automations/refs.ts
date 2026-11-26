@@ -1,5 +1,6 @@
 /** Automations: durable triggers, actions, runs and script lifecycle events. Browser-safe. */
 import { actionRef } from '@ultimate/shared/extension-api.ts'
+import type { AutomationEscalation } from '@ultimate/shared/automation-escalation.ts'
 import { defineEvent } from '@ultimate/shared/events.ts'
 import type {
   Automation,
@@ -62,6 +63,10 @@ export const EscalateAction = actionRef<Id & { reason: string }, Automation>(
   'automations',
   'escalate',
 )
+/** A new automation was recorded. `caller` is the actual conversation, before attribution. */
+export const Created = defineEvent<{ id: string; caller?: number }>('automations.created')
+/** A subscriber was added or its mode changed. `caller` is the actual conversation. */
+export const Subscribed = defineEvent<{ id: string; caller?: number }>('automations.subscribed')
 /** A trigger fired; fire is its lifetime count. */
 export const Fired = defineEvent<{ id: string; text: string; fire: number }>('automations.fired')
 /** Supervised executable started. */
@@ -73,4 +78,4 @@ export const Exited = defineEvent<{ id: string; code: number | null; signal?: st
 /** Recurring script printed DONE and exited 0. */
 export const Done = defineEvent<{ id: string; text?: string }>('automations.done')
 /** Watcher could not recover its script, or a trigger exceeded its hourly fire cap. */
-export const Escalated = defineEvent<{ id: string; reason: string }>('automations.escalated')
+export const Escalated = defineEvent<AutomationEscalation>('automations.escalated')

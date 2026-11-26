@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { fauxProvider, fauxAssistantMessage, fauxText } from '@earendil-works/pi-ai/providers/faux'
-import { configure, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
+import { configure, defineExtension, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import type { JsonValue } from '@earendil-works/chord/json'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -17,6 +17,10 @@ import type { SubagentsService } from '@ultimate/ext/subagents/api.ts'
 import { createChild } from '@ultimate/ext/subagents/children.ts'
 import automations, { actions, Automations } from '../server.ts'
 import messages from '@ultimate/ext/messages/server.ts'
+import { subscribeToEscalations } from '@ultimate/ext/supercoordinator/escalations.ts'
+import { escalationNotice } from '@ultimate/shared/automation-escalation.ts'
+import { notifications } from '../delivery.ts'
+import { Escalated } from '../refs.ts'
 import type { Automation } from '../types.ts'
 import { IDLE_TICK } from '../triggers.ts'
 import { temp, eventHost, until, apis } from '@ultimate/test/helpers.ts'
@@ -27,7 +31,7 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
-async function fixture(workflow = true) {
+async function fixture(alerts = false, failOpen = false) {
   const root = await temp('ultimate-triggers-')
   const prepared = await prepareHarness({
     ultimateRoot: root,
@@ -37,12 +41,12 @@ async function fixture(workflow = true) {
   })
   let opened: OpenHost
   const events = eventHost(() => opened.harness, 'automations')
+  const alertsHost = eventHost(() => opened.harness, 'supercoordinator')
   const resources = new Map<string, unknown>()
   let opener: () => Promise<void>
   let closer: () => Promise<void>
   let fail = false
   let rolledBack = false
-  const escalate = vi.fn<() => Promise<undefined>>(async () => undefined)
   const host = {
     ...prepared,
     ...events,
@@ -77,8 +81,13 @@ async function fixture(workflow = true) {
   }
   host.provided.set('subagents', {
     residents: async () => [],
+    coordinator: async () => ({
+      name: 'ultimate',
+      id: (await opened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate,
+    }),
     standing: async (name: string) => {
       if (name !== 'ultimate') return undefined
+      if (failOpen) throw new Error('Cannot open coordinator')
       return opened.harness.commit(async (tx) => {
         const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
         return (index.ultimate ??= target)
@@ -88,7 +97,13 @@ async function fixture(workflow = true) {
       createChild(host, tx, options),
   })
   prepared.registry.install(messages(host as unknown as ExtensionHost))
-  if (workflow) host.provided.set('automations.workflow', { escalate })
+  if (alerts) {
+    const task = subscribeToEscalations({
+      ...host,
+      react: alertsHost.react,
+    } as unknown as ExtensionHost)
+    prepared.registry.install(defineExtension({ name: 'supercoordinator', tasks: [task] }))
+  }
   prepared.registry.install(automations(host as unknown as ExtensionHost))
   const answer = () => {
     prepared.faux!.appendResponses([answer])
@@ -103,7 +118,9 @@ async function fixture(workflow = true) {
   }, context)
   await opener!()
   await events.start()
+  await alertsHost.start()
   closes.push(async () => {
+    await alertsHost.stop()
     await events.stop()
     await closer!()
     await opened.close()
@@ -136,7 +153,17 @@ async function fixture(workflow = true) {
     startEvents: events.start,
     stopEvents: events.stop,
     usage,
-    escalate,
+    stopAlerts: alertsHost.stop,
+    startAlerts: alertsHost.start,
+    async restart() {
+      await alertsHost.stop()
+      await events.stop()
+      await closer!()
+      await opened.close()
+      opened = await prepared.open()
+      await opener!()
+      await events.start()
+    },
     get harness() {
       return opened.harness
     },
@@ -493,12 +520,12 @@ const floodTriggers: { kind: string; trigger: Record<string, JsonValue> }[] = [
   { kind: 'context', trigger: { condition: { metric: 'context', of: '@ultimate', above: 80 } } },
 ]
 it.each(
-  floodTriggers.flatMap((trigger) => [true, false].map((workflow) => ({ ...trigger, workflow }))),
+  floodTriggers.flatMap((trigger) => [true, false].map((alerts) => ({ ...trigger, alerts }))),
 )(
-  'pauses the seventh $kind fire and notifies subscribers (workflow: $workflow)',
-  async ({ trigger, workflow }) => {
+  'pauses the seventh $kind fire and notifies subscribers (extra alerts: $alerts)',
+  async ({ trigger, alerts }) => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    const f = await fixture(workflow)
+    const f = await fixture(alerts)
     const a = (await f.action('create', {
       name: 'Flood',
       ...trigger,
@@ -507,16 +534,107 @@ it.each(
     expect(await f.record(a.id)).toMatchObject({ fires: 6, enabled: false })
     expect(
       (await f.host.eventLog.recent({ events: [defineEvent('automations.escalated')] }))[0].data,
-    ).toEqual({ id: a.id, reason: 'Fired more than 6 times in an hour; paused' })
+    ).toEqual({ id: a.id, name: 'Flood', reason: 'Fired more than 6 times in an hour; paused' })
     await until(async () => {
       const target = (await f.harness.conversation(f.target, context))!
       return (await target.context(context)).entries.some((e) => e.kind === 'automations.escalated')
     })
-    expect(f.escalate).toHaveBeenCalledTimes(workflow ? 1 : 0)
     vi.setSystemTime(Date.now() + 3600001)
     await f.action('run', { id: a.id })
     expect((await f.record(a.id)).fires).toBe(7)
     expect((await f.record(a.id)).recentFires).toHaveLength(1)
+  },
+)
+
+async function escalationEntries(f: Awaited<ReturnType<typeof fixture>>) {
+  const target = (await f.harness.conversation(f.target, context))!
+  return (await target.context(context)).entries.filter((e) => e.kind === 'automations.escalated')
+}
+
+it.each([
+  { extraFirst: true, address: 'number' },
+  { extraFirst: false, address: 'name' },
+  { extraFirst: false, address: 'both' },
+])(
+  'deduplicates $address escalation after restart (extra first: $extraFirst)',
+  async ({ extraFirst, address }) => {
+    const f = await fixture(true)
+    await f.stopAlerts()
+    const sub = (await f.action('create', {
+      name: 'Overlap',
+      schedule: 'every 1d',
+      subscribers:
+        address === 'number'
+          ? [f.target]
+          : address === 'name'
+            ? ['@ultimate']
+            : ['@ultimate', f.target],
+    })) as Automation
+    const reason = 'Needs attention'
+    const data = { id: sub.id, name: sub.name, reason }
+    const delivery = notifications(f.host as unknown as ExtensionHost, async () => undefined)
+    const event = await f.harness.commit(async (tx) => {
+      const emitted = await f.host.emit(tx, Escalated, data)
+      if (!extraFirst) await delivery.deliver(tx, sub, emitted.id, 'escalated', reason)
+      return emitted
+    }, context)
+    if (extraFirst) await f.startAlerts()
+    await until(async () => (await escalationEntries(f)).length === 1)
+    const request = escalationNotice(data, event.id).requestId
+    const receipt = () =>
+      f.harness.commit((tx) => tx.submissionByRequest(f.target, request), context)
+    const first = await receipt()
+    expect(first?.type).toBe('input')
+    await f.restart()
+    if (extraFirst)
+      await f.harness.commit(
+        (tx) => delivery.deliver(tx, sub, event.id, 'escalated', reason),
+        context,
+      )
+    await f.startAlerts()
+    await until(() =>
+      f.harness.commit(async (tx) => {
+        const tasks = (await tx.scanTasks({}, 100)).items.filter(
+          (task) =>
+            task.kind === 'ultimate.automation-delivery' ||
+            task.kind === 'supercoordinator.automation-alert',
+        )
+        return tasks.length === 2 && tasks.every((task) => task.state.status === 'terminal')
+      }, context),
+    )
+    expect((await receipt())?.id).toBe(first?.id)
+    expect((await escalationEntries(f)).map((entry) => entry.data)).toEqual([
+      { id: sub.id, name: sub.name, text: reason },
+    ])
+  },
+)
+
+it('opens the coordinator on demand for an escalation without subscribers', async () => {
+  const f = await fixture(true)
+  const binding = () => f.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)
+  expect((await binding())?.ultimate).toBeUndefined()
+  const sub = (await f.action('create', {
+    name: 'No subscriber',
+    schedule: 'every 1d',
+    prompt: 'Check status',
+  })) as Automation
+  expect(sub.subscribers).toEqual([])
+  await f.emit('automations.escalated', { id: sub.id, name: sub.name, reason: 'Needs attention' })
+  await until(async () => (await escalationEntries(f)).length === 1)
+  expect((await binding())?.ultimate).toBe(f.target)
+})
+
+it.each([false, true])(
+  'keeps subscriber delivery when the extra recipient is absent or fails (fails: %s)',
+  async (fails) => {
+    const f = await fixture(fails, fails)
+    const sub = (await f.action('create', {
+      name: 'Subscriber',
+      schedule: 'every 1d',
+    })) as Automation
+    for (let i = 0; i < 7; i++) await f.action('run', { id: sub.id })
+    await until(async () => (await escalationEntries(f)).length === 1)
+    expect((await f.record(sub.id)).enabled).toBe(false)
   },
 )
 
@@ -552,7 +670,7 @@ it('counts only fires that start a run toward the hourly cap', async () => {
   expect(paused.runs.filter((r) => r.status === 'skipped')).toHaveLength(10)
   expect(
     (await f.host.eventLog.recent({ events: [defineEvent('automations.escalated')] }))[0].data,
-  ).toEqual({ id: a.id, reason: 'Fired more than 6 times in an hour; paused' })
+  ).toEqual({ id: a.id, name: 'Deploy', reason: 'Fired more than 6 times in an hour; paused' })
 })
 
 it('lists ten event definitions and validates trigger inputs and kind changes', async () => {

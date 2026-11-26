@@ -42,7 +42,7 @@ async function fixture(onRequest?: (text: string, home: string) => Promise<void>
   await mkdir(join(home, '.ultimate/agents'), { recursive: true })
   await writeFile(
     join(home, '.ultimate/agents/dice.md'),
-    '---\nname: dice\ndescription: Dice\nresident: true\ntools: [message]\n---\nAnswer concisely.',
+    '---\nname: dice\ndescription: Dice\nresident: true\ntools: [agent_message]\n---\nAnswer concisely.',
   )
   await writeFile(
     join(root, '.ultimate/settings.json'),
@@ -80,7 +80,7 @@ async function fixture(onRequest?: (text: string, home: string) => Promise<void>
           stopReason: 'toolUse',
         })
       if (last.role === 'user' && text.startsWith('SEND '))
-        return fauxAssistantMessage([fauxToolCall('message', JSON.parse(text.slice(5)))], {
+        return fauxAssistantMessage([fauxToolCall('agent_message', JSON.parse(text.slice(5)))], {
           stopReason: 'toolUse',
         })
       return fauxAssistantMessage(
@@ -413,7 +413,7 @@ it.concurrent('refreshes standing definitions for numeric-address deliveries', a
   const dice = await f.subagents.standing('dice', context)
   await writeFile(
     join(f.home, '.ultimate/agents/dice.md'),
-    '---\nname: dice\ndescription: Dice\nresident: true\ntools: [message]\n---\nEdited numeric recipient.',
+    '---\nname: dice\ndescription: Dice\nresident: true\ntools: [agent_message]\n---\nEdited numeric recipient.',
   )
   await ask(
     f.server,
@@ -572,7 +572,7 @@ it.concurrent('switches a conversation whose pinned model lost its login to its 
   const f = await fixture()
   await writeFile(
     join(f.home, '.ultimate/agents/dice.md'),
-    '---\nname: dice\ndescription: Dice\nresident: true\nmodel: faux/faux-think\ntools: [message]\n---\nAnswer concisely.',
+    '---\nname: dice\ndescription: Dice\nresident: true\nmodel: faux/faux-think\ntools: [agent_message]\n---\nAnswer concisely.',
   )
   const dice = await f.subagents.standing('dice', context)
   // The model it ran on lost its login (rog, 2026-10-25: conversations stuck on OpenRouter after its logout).

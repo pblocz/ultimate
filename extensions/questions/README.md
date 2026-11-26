@@ -1,7 +1,6 @@
 # Questions
 
-Answer cards for questions to the user from @ultimate and branches. One thing asks: a reply-expected message to the user
-that carries `questions`. The asker's `message { to: 'user', text, questions }` declares them; messages validates them at the tool
+Answer cards for questions to the user. One thing asks: an `ask_user { text, questions }` call. It declares them; messages validates them at the tool
 boundary (`extensions/messages/questions.ts`) and stores them on the message, and the card renders exactly what was
 declared. No model reads the text, and nothing is extracted. Final answers never ask: the agents' instructions put
 every decision in such a message.
@@ -26,7 +25,14 @@ type Question = {
 The tool refuses, naming the question: no questions, a choice or multi with fewer than two options or repeated labels
 or keys, an option that is "Something else"/"Other" (the card adds it), a scale without an ascending range of at most
 10 steps, and repeated question texts or refs. Fields that do not apply to a kind are dropped, text is trimmed.
-`questions` goes only with a reply-expected message to `user`.
+`questions` goes only with `ask_user`.
+
+## Who can ask
+
+The active standing coordinator and branches can ask through the Coding rules. This extension also provides
+`messages.user-question-permission`: an ordinary user-created chat can ask, with or without Coding. The rule reads the
+`chat` label and the conversation record. A conversation with an owner or a parent cannot use it. Side chats and
+automation runs cannot use it.
 
 A question stays open until the user answers it (its card, or a Reply to that message) or dismisses it, or @ultimate
 settles it for them from what they said in its chat (messages' `settle`; the card then reads "@ultimate answered for
@@ -36,7 +42,7 @@ with a line listing it by its questions (see [Messages](../messages/README.md)).
 
 ## Card
 
-Under the outgoing `message` card in the asker's transcript, through messages’ `MessageAnswers` point. One question is
+Under the outgoing `ask_user` card in the asker's transcript, through messages’ `MessageAnswers` point. One question is
 open at a time; the others fold to a line with their answer (`1b drop them`) or “not answered”, and a dot per question
 shows progress. Kinds: `choice` (one option), `multi` (any), `confirm` (Yes/No), `scale` (numbered steps with end
 labels) and `text` (a field); options offer “Something else…” with an inline field, and an option's Markdown `preview`

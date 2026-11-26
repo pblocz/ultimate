@@ -68,7 +68,7 @@ export type LaneCall = {
 export type LaneRun = { start: string; end?: string; ok: boolean; calls: LaneCall[]; more?: number }
 /**
  * Where a lane was started: the tool call in its parent's lane that did it (`call`, its trace id) and when it started.
- * `inferred` when no event names the call and it is the parent's last `subagent`, `branch` or `message` call before
+ * `inferred` when no event names the call and it is the parent's last `subagent`, `branch` or `agent_message` call before
  * the lane's first call.
  */
 export type LaneSpawn = { call?: string; at: string; inferred?: true }

@@ -39,8 +39,7 @@ it('runs through an answered question without an error where the Notifications a
   server.host.faux!.setResponses([
     fauxAssistantMessage(
       [
-        fauxToolCall('message', {
-          to: 'user',
+        fauxToolCall('ask_user', {
           text: 'One decision.',
           questions: [{ text: 'Go?', kind: 'confirm', ref: '1' }],
         }),

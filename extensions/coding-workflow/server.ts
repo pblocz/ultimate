@@ -11,7 +11,6 @@ import {
 import type { ConversationId, GenerationResult, TaskId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { actingAs } from '@ultimate/lib/acting-as.ts'
-import { AutomationsWorkflow } from '@ultimate/ext/automations/api.ts'
 import { LineageApi } from '@ultimate/ext/lineage/api.ts'
 import { MessagesApi, MessagesWorkflow, Started } from '@ultimate/ext/messages/api.ts'
 import { OnboardingWorkflow } from '@ultimate/ext/onboarding/api.ts'
@@ -48,42 +47,13 @@ export default function codingWorkflow(host: ExtensionHost) {
     starter: (id, ctx) => starterOf(host, id, ctx),
     working: (tx, id) => working(tx, id),
   })
-  host.implement(AutomationsWorkflow, {
-    escalate: async (from, input, ctx) => {
-      const coordinator = await coordinatorOf(ctx)
-      if (!coordinator) return undefined
-      const to = coordinator.id === undefined ? `@${coordinator.name}` : `#${coordinator.id}`
-      const requestId = `automations:${input.id}:${input.event}:ultimate`
-      await host
-        .need(MessagesApi)
-        .send(from, { to, text: input.text, reply: false }, requestId, ctx)
-      return coordinator.id ?? (await coordinatorOf(ctx))?.id
-    },
-    note: async (input) => {
-      await host
-        .need(LineageApi)
-        .leaveNote(
-          input.to,
-          `Side chat #${input.from} ${input.action === 'create' ? 'created' : 'subscribed to'} automation ${input.automation}.`,
-          { from: input.from, requestId: input.requestId },
-        )
-    },
-  })
   host.implement(MessagesWorkflow, {
     primary: async (tx) => (await coordinatorOf(BACKGROUND_CONTEXT, tx))?.id,
     starter: (id, ctx) => starterOf(host, id, ctx),
     replyAwaits: async (tx, from, to) => (await tx.doc(Started, from as ConversationId)).by === to,
-    authorizeUserMessage: async (from, ctx) => {
-      const coordinator = await coordinatorOf(ctx)
-      const parent = from === 'user' ? undefined : await host.need(MessagesApi).parent(from, ctx)
-      const starter = parent ?? (await starterOf(host, from, ctx))
-      if (from !== coordinator?.id && !(parent === undefined && starter !== undefined)) {
-        const allowed = coordinator ? `@${coordinator.name} and branches` : 'branches'
-        throw new Error(
-          `Only ${allowed} message the user; send this to the conversation that started you.`,
-        )
-      }
-    },
+    canMessageUser: async (tx, from) =>
+      (await coordinatorOf(BACKGROUND_CONTEXT, tx))?.id === from ||
+      (await tx.doc(Started, from)).by !== undefined,
     validateRecipient: async (tx, id) => {
       const roots = host.doc('lineage.roots')
       const tally = host.doc('lineage.tally')
@@ -137,7 +107,7 @@ export default function codingWorkflow(host: ExtensionHost) {
         starter === undefined
           ? ''
           : ` #${starter} started you: when you stop with nothing under way (no subagent, landing or reply pending), your final answer goes to it and wakes it; while work is under way it arrives as a note, and so do your one-way messages to it.`
-      return `Use message to contact #id or @name. ${allowed} may message user. Messages wake their recipient; its answer returns as a reply and wakes you. End your turn instead of waiting. A one-way message (reply: false) gets no answer; use reply: true when you need one. Inputs identify their sender; answer here and your answer is sent to the sender automatically; do not use message to reply. A message to an agent whose message you still owe an answer becomes that answer and ends your run; use it only to attach images.${upward}\n${agents.map((a) => `@${a.name} — ${a.description}`).join('\n')}`
+      return `Use agent_message to contact #id or @name. ${allowed} can ask_user and report_user. Ordinary chats can ask_user when Questions is enabled. Messages wake their recipient; its answer returns as a reply and wakes you. End your turn instead of waiting. A one-way message (reply: false) gets no answer; use reply: true when you need one. Inputs identify their sender; answer here to reply automatically. An agent_message to an agent you still owe an answer becomes that answer and ends your run; use it only to attach images.${upward}\n${agents.map((a) => `@${a.name} — ${a.description}`).join('\n')}`
     },
     sideChatMessage: async (input) => {
       await host

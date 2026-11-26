@@ -170,8 +170,8 @@ async function fixture(
       name: 'test-writing',
       tools: [
         defineTool({
-          // Stands in for the messages extension's tool: the gate lets `message` through by name.
-          name: 'message',
+          // Stands in for the messages extension's tool: the gate lets `agent_message` through by name.
+          name: 'agent_message',
           description: 'Tell another conversation something; never touches the checkout',
           parameters: obj({}),
           async execute() {
@@ -2708,7 +2708,7 @@ it.concurrent('a conversation whose checkout is gone can still message', async (
       await git(workspace.source, 'worktree', 'remove', workspace.path)
       return fauxAssistantMessage(fauxToolCall('write_commit', {}), { stopReason: 'toolUse' })
     },
-    fauxAssistantMessage(fauxToolCall('message', {}), { stopReason: 'toolUse' }),
+    fauxAssistantMessage(fauxToolCall('agent_message', {}), { stopReason: 'toolUse' }),
     fauxAssistantMessage('reported'),
   ])
   await f.call(id, 'write_commit')
@@ -2718,10 +2718,10 @@ it.concurrent('a conversation whose checkout is gone can still message', async (
     .map((entry) => entry.model?.[0])
   expect(results).toHaveLength(2)
   const [blocked, sent] = results
-  // Every tool is blocked, with a reason that names the way out; `message` goes through.
+  // Every tool is blocked, with a reason that names the way out; `agent_message` goes through.
   expect(blocked?.role === 'toolResult' && blocked.isError).toBe(true)
   expect(JSON.stringify(blocked)).toContain('Workspace checkout is missing or unregistered:')
-  expect(JSON.stringify(blocked)).toContain('`message` still works')
+  expect(JSON.stringify(blocked)).toContain('You can still use `agent_message`')
   expect(sent?.role === 'toolResult' && sent.isError).toBe(false)
   expect(JSON.stringify(sent)).toContain('Message 1 sent.')
   expect(f.writes).toBe(0)

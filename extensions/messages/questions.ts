@@ -1,5 +1,5 @@
 /**
- * The `questions` an agent passes with a message to the user: the `message` tool's schema for them, and the checks
+ * The `questions` an agent passes with a message to the user: the `ask_user` schema for them, and the checks
  * the schema cannot express. Rejected questions come back to the agent as the tool's error, so a card never shows a
  * question it cannot answer.
  */
@@ -23,7 +23,7 @@ const optionSchema = obj({
   recommended: opt(bool({ description: 'Your pick.' })),
   preview: opt(str({ description: 'Markdown shown beside the option.' })),
 })
-/** The `questions` parameter of the `message` tool. */
+/** The `questions` parameter of `ask_user`. */
 export const questionsParameter = arr(
   obj({
     text: str({ minLength: 1 }),
@@ -41,8 +41,9 @@ export const questionsParameter = arr(
     placeholder: opt(str()),
   }),
   {
+    minItems: 1,
     description:
-      'With to: user, the decisions the message asks, shown as its answer card: choice (one option), multi (any), confirm (yes/no), text (typed), scale (min–max with end labels). The card adds "Something else…" and a note field itself.',
+      'The questions shown on the answer card: choice (one option), multi (any), confirm (yes/no), text (typed), scale (min–max with end labels). The card adds "Something else…" and a note field itself.',
   },
 )
 

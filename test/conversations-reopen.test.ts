@@ -94,7 +94,13 @@ it('a message, and one sent by an automation run, resume a concluded recipient',
       return transcript.messages.at(-1)?.role === 'toolResult'
         ? fauxAssistantMessage('Sent.')
         : fauxAssistantMessage(
-            [fauxToolCall('message', { to: `#${target}`, text: 'Check this.', reply: false })],
+            [
+              fauxToolCall('agent_message', {
+                to: `#${target}`,
+                text: 'Check this.',
+                reply: false,
+              }),
+            ],
             { stopReason: 'toolUse' },
           )
     }

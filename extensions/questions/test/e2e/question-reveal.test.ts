@@ -46,8 +46,7 @@ async function setup() {
       return fauxAssistantMessage(
         [
           fauxText(`Here is my assessment. ${'It weighs both ways. '.repeat(20)}`),
-          fauxToolCall('message', {
-            to: 'user',
+          fauxToolCall('ask_user', {
             text: `${last.content}: one decision before I go on.`,
             questions: [
               {

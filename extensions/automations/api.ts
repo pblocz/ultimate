@@ -1,6 +1,5 @@
 /** Automations: resume, pause, run and inspect scheduled, event, context or supervised script triggers. */
-import type { Context } from '@earendil-works/chord/context'
-import type { ConversationId, Tx } from '@earendil-works/pi-durable'
+import type { Tx } from '@earendil-works/pi-durable'
 import { defineApi } from '@ultimate/shared/extension-api.ts'
 import type { Automation, AutomationListItem, CreateArgs } from './types.ts'
 export type { Destination } from './types.ts'
@@ -25,25 +24,4 @@ export type AutomationsService = {
 }
 /** Optional automation service. */
 export const AutomationsApi = defineApi<AutomationsService>()('automations')
-export type AutomationsWorkflowService = {
-  /** Send an extra coordinator alert, returning its recipient so the ordinary subscriber loop can avoid duplicates. */
-  escalate(
-    from: ConversationId,
-    input: { id: string; event: number | string; text: string },
-    ctx: Context,
-  ): Promise<ConversationId | undefined>
-  /** Record the current side-chat action note without making lineage a requirement of ordinary automation calls. */
-  note(
-    input: {
-      from: ConversationId
-      to: ConversationId
-      action: 'create' | 'subscribe'
-      automation: string
-      requestId: string
-    },
-    ctx: Context,
-  ): Promise<void>
-}
-/** Optional coordinator alerts and side-chat notes; ordinary schedules need no provider. */
-export const AutomationsWorkflow = defineApi<AutomationsWorkflowService>()('automations.workflow')
-export { Fired, Started, Exited, Done, Escalated } from './refs.ts'
+export { Created, Subscribed, Fired, Started, Exited, Done, Escalated } from './refs.ts'

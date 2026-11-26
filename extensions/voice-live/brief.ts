@@ -55,8 +55,7 @@ function said(entry: EntryRecord) {
       if (part.type === 'text' && part.text.trim()) text = part.text
       if (
         part.type === 'toolCall' &&
-        part.name === 'message' &&
-        part.arguments.to === 'user' &&
+        (part.name === 'ask_user' || part.name === 'report_user') &&
         typeof part.arguments.text === 'string'
       )
         text = part.arguments.text

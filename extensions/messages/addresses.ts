@@ -1,19 +1,19 @@
 /** Who a message is from and to: resolving addresses, naming senders, and a subagent's parent. */
 import type { Context } from '@earendil-works/chord/context'
 import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import type { ConversationId } from '@earendil-works/pi-durable'
+import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { Standing, Subagents, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { MessagesWorkflow } from './api.ts'
 import type { Remote } from './refs.ts'
 /** The conversation that started `id` as a subagent, which is the only one it may message. */
-export async function parentOf(host: ExtensionHost, id: number, ctx: Context) {
-  const owner = (await host.harness().commit((tx) => tx.conversation(id as ConversationId), ctx))
-    ?.owner?.conversationId
+export async function parentIn(tx: Tx, id: number) {
+  const owner = (await tx.conversation(id as ConversationId))?.owner?.conversationId
   if (owner === undefined) return undefined
-  return (await host.harness().snapshot(Subagents, owner, ctx))?.agents[String(id)]
-    ? owner
-    : undefined
+  return (await tx.doc(Subagents, owner)).agents[String(id)] ? owner : undefined
+}
+export async function parentOf(host: ExtensionHost, id: number, ctx: Context) {
+  return host.harness().commit((tx) => parentIn(tx, id), ctx)
 }
 export async function senderName(host: ExtensionHost, id: number | 'user', ctx: Context) {
   if (id === 'user') return 'user'

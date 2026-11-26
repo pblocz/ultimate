@@ -137,7 +137,7 @@ export async function notifyFixture(reopen?: string) {
         stopReason: 'toolUse',
       })
     if (text.startsWith('SEND '))
-      return fauxAssistantMessage([fauxToolCall('message', JSON.parse(text.slice(5)))], {
+      return fauxAssistantMessage([fauxToolCall('agent_message', JSON.parse(text.slice(5)))], {
         stopReason: 'toolUse',
       })
     if (text === 'HOLD')

@@ -3,7 +3,7 @@ with `extensions.enable: ["push"]` in user or project settings.
 
 ## What pushes
 
-- **A question waiting on you:** any reply-expected `message` to the user, titled by the asking conversation, the
+- **A question waiting on you:** any `ask_user` question, titled by the asking conversation, the
   question as its text. It has an inline **Reply** (Chrome's text action) and, when every question has a recommended
   answer (or is a yes/no confirmation), **Approve**, which sends those answers. Both call `questions/answer` from the
   service worker without opening the app; a failure replaces the notification with the reason. Answering on any card

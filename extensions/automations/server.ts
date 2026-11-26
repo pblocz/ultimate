@@ -30,9 +30,11 @@ import { writeJson } from '@ultimate/lib/json-file.ts'
 import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { MessagesApi } from '@ultimate/ext/messages/api.ts'
 import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
-import { AutomationsApi, AutomationsWorkflow } from './api.ts'
+import { AutomationsApi } from './api.ts'
 import {
   CreateAction,
+  Created,
+  Subscribed,
   DeleteAction,
   DescribeAction,
   ListAction,
@@ -444,6 +446,7 @@ function backend(host: ExtensionHost) {
     args: Args,
     prepared: Prepared,
     caller?: number,
+    actualCaller = caller,
   ): Promise<{ result: JsonValue; effect?: Effect }> {
     const state = await tx.doc(Automations)
     if (args.action === 'list')
@@ -487,6 +490,7 @@ function backend(host: ExtensionHost) {
         })
         sub.script!.state = 'writing'
         await deliver(tx, sub, 'create', 'writing', sub.script!.ask)
+        await host.emit(tx, Created, { id: sub.id, caller: actualCaller })
         return { result: sub }
       }
       const id = `A${state.next++}`
@@ -517,6 +521,7 @@ function backend(host: ExtensionHost) {
       }
       state.automations[id] = sub
       await deliver(tx, sub, 'create', 'writing', sub.script!.ask)
+      await host.emit(tx, Created, { id, caller: actualCaller })
       return { result: sub }
     }
     const id = validId(args.id)
@@ -529,11 +534,15 @@ function backend(host: ExtensionHost) {
       const target = prepared.subscriber!
       if (args.mode === 'result' && !sub.prompt)
         throw new Error('Result subscriptions require a prompt')
+      const subscribed = sub.subscribers.includes(target)
+      const wasResult = sub.resultSubscribers?.includes(target) ?? false
       sub.subscribers = [...new Set([...sub.subscribers, target])]
       const results = (sub.resultSubscribers ?? []).filter((s) => s !== target)
       if (args.mode === 'result') results.push(target)
       if (results.length) sub.resultSubscribers = results
       else delete sub.resultSubscribers
+      if (!subscribed || wasResult !== (args.mode === 'result'))
+        await host.emit(tx, Subscribed, { id, caller: actualCaller })
     } else if (args.action === 'unsubscribe') {
       sub.subscribers = sub.subscribers.filter((s) => s !== prepared.subscriber)
       pruneResultSubscribers(sub)
@@ -749,6 +758,7 @@ function backend(host: ExtensionHost) {
     args: Args,
     prepared: Awaited<ReturnType<typeof prepare>>,
     caller?: number,
+    actualCaller = caller,
   ): Promise<Change> {
     if (args.action === 'events') return { result: json(TRIGGER_EVENTS) }
     const state = await tx.doc(Automations)
@@ -761,7 +771,7 @@ function backend(host: ExtensionHost) {
         throw new Error(`The automation for key ${args.key} was deleted meanwhile; create it again`)
     }
     if (args.action === 'create' && args.ask !== undefined)
-      return changeScript(tx, args, prepared, caller)
+      return changeScript(tx, args, prepared, caller, actualCaller)
     const id = args.action === 'create' ? `A${state.next++}` : required(args.id, 'id')
     if (args.action === 'create') {
       const now = Date.now()
@@ -796,7 +806,7 @@ function backend(host: ExtensionHost) {
       ['subscribe', 'unsubscribe'].includes(args.action) ||
       (a.script && args.action !== 'update')
     )
-      return changeScript(tx, args, prepared, caller)
+      return changeScript(tx, args, prepared, caller, actualCaller)
     if (args.action === 'escalate') throw new Error('escalate requires a script trigger')
     if (args.action === 'log') throw new Error('log requires a script trigger')
     if (
@@ -901,6 +911,7 @@ function backend(host: ExtensionHost) {
         },
       )
     }
+    if (args.action === 'create') await host.emit(tx, Created, { id, caller: actualCaller })
     return { result: json(a), ...(abort ? { abort } : {}), ...(effect ? { effect } : {}) }
   }
   async function apply(receipt: Partial<Change>) {
@@ -1161,22 +1172,13 @@ export default function automations(host: ExtensionHost) {
             const prepared = await api.prepare(args, caller)
             receipt = await tool.commit(async (tx) => {
               const saved = await tx.doc(Receipts, tool.taskId)
-              saved[tool.callId] ??= json(await api.change(tx, args, prepared, caller))
+              saved[tool.callId] ??= json(
+                await api.change(tx, args, prepared, caller, tool.conversationId),
+              )
               return json(saved[tool.callId])
             }, context)
           }
           await api.apply(receipt)
-          if (caller !== tool.conversationId)
-            await host.want(AutomationsWorkflow)?.note(
-              {
-                from: tool.conversationId,
-                to: caller,
-                action: args.action as 'create' | 'subscribe',
-                automation: (receipt.result as Automation).id,
-                requestId: `sidechat:automation:${tool.taskId}:${tool.callId}`,
-              },
-              context,
-            )
           return tool.memo(
             'result',
             { output: [{ type: 'text' as const, text: concise(receipt.result!) }] },

@@ -13,8 +13,8 @@ Question, answer, and failure sounds follow the default conversation. Landing so
 
 Only the primary standing agent sounds, read from the root's documents:
 
-- **Needs input:** any reply-expected `message` to the user (`messages`), from @ultimate or a branch.
-- **Finished:** its one-way `message` to the user, or its answer to your typed input.
+- **Needs input:** any `ask_user` question (`messages`), from @ultimate or a branch.
+- **Finished:** its `report_user` update, or its answer to your typed input.
 - **Failed:** its run ended in an error (`ultimate.conversation-overview`); a stop or a reset does not.
 - **Landed:** a submission landed on the project's target branch (the `workspaces.landed` event), from any branch.
 

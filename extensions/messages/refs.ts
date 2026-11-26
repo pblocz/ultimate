@@ -22,7 +22,7 @@ export type Remote = {
 }
 
 /**
- * One question an agent asks the user with a message, as the `message` tool's `questions` argument declares it: the
+ * One question an agent asks the user with a message, as the `ask_user` tool's `questions` argument declares it: the
  * answer card renders exactly this. `ref` is the number the message gives it ("2") and an option's `key` its letter
  * ("a"), so an answer can name them. An option's `preview` is Markdown shown beside it (a diff, a sketch); `scale`
  * bounds a numbered rating with its end labels; `placeholder` hints a typed answer.
@@ -56,7 +56,7 @@ export type Message = {
   entry?: number
   answer?: number
   error?: string
-  /** The tool call that sent it: `message`'s own id, or `<script>/<n>` for a nested codemode call. */
+  /** The tool call that sent it: the message tool's own id, or `<script>/<n>` for a nested codemode call. */
   call?: string
   /** Images forwarded with it: the sender's entry that holds them, attached to the recipient's input on delivery. */
   images?: { entry: number; count: number }

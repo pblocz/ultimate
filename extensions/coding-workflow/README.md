@@ -36,7 +36,6 @@ Generic extensions must not import this extension's implementation. They use the
 
 - `messages.workflow` in `extensions/messages/api.ts`.
 - `subagents.workflow` in `extensions/subagents/api.ts`.
-- `automations.workflow` in `extensions/automations/api.ts`.
 
 The stored `board.started` document stays in `messages/api.ts`, so old records keep their kind and fields.
 

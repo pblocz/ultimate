@@ -55,6 +55,7 @@ const facets = {
     'refs',
     'send',
     'server',
+    'tools',
   ],
   automations: [
     'api',
@@ -98,6 +99,7 @@ const foundation = {
     'watch-roots',
   ],
   shared: [
+    'automation-escalation',
     'channel-host',
     'conversation-configuration',
     'persona-application',

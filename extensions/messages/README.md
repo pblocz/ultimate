@@ -6,12 +6,25 @@ The default conversation uses the primary sender colour. Old answers retain the 
 
 ## Messaging
 
-`message { to, text, reply?: true, steer?, images?, questions? }` returns the message id at once. Address a
-conversation as `#123` or `123`, a standing agent as `@name`, or `user`.
+Three tools send messages. Each returns the message ID at once. There is no `message` tool.
 
-- **Who may message whom.** Without `coding-workflow`, no conversation may message `user`. With it, only @ultimate
-  and branches may do so. A subagent may message only its parent, so its work reaches the user through its parent.
-  Automation runs and other top-level conversations may message any agent. Self-messages and unknown conversations are
+| Tool | Arguments | Use |
+| --- | --- | --- |
+| `agent_message` | `{ to, text, reply?: true, steer?, images? }` | Send to another conversation. Address it as `#123` or as a standing agent `@name`. |
+| `ask_user` | `{ text, questions, images? }` | Ask the user structured questions. The answer wakes the asker. |
+| `report_user` | `{ text, images? }` | Write a one-way update to the user. It opens no question and starts no Inbox item. |
+
+Use a normal final answer for a normal chat reply. Automatic branch reports and landing cards keep their own routes.
+
+- **Who may message whom.** `send.ts` checks permission in the admission transaction, also for Codemode calls.
+  - The active standing coordinator and branches can use `ask_user` and `report_user`. `coding-workflow` supplies
+    this rule through `messages.workflow` (`canMessageUser`).
+  - An ordinary user-created chat can use `ask_user`. `questions` supplies this rule through
+    `messages.user-question-permission`. The rule reads trusted records: the `chat` label, no owner, and no parent.
+  - A subagent can send only to its parent. Its user-facing calls fail and go nowhere else.
+  - Side chats, automation runs, and other owned conversations cannot reach the user. A side chat cannot use the
+    permission of its main conversation.
+  - Automation runs and other top-level conversations can send `agent_message` to any agent. Self-messages and unknown conversations are
   refused. With `coding-workflow`, tallies are also refused (use `note`). The workspaces lander takes no model input.
   An unknown standing name lists the valid ones.
 - **Delivery.** An idle recipient wakes. A busy one gets a follow-up after its current run, or steering with
@@ -56,13 +69,13 @@ message to @ultimate open; @ultimate messaging or concluding it clears that.
 
 ### Messages to the user
 
-A message to `user` shows in the sender's transcript and starts no run. For @ultimate it is its answer: the run ends
+`ask_user` and `report_user` write a message to `user`. The message shows in the sender's transcript and starts no run. For @ultimate it is its answer: the run ends
 without restating it, unless a reply-enabled message it has read is still open or a branch whose reply or report the
 run read still waits for its answer: the run goes on to its final answer, which routing sends there. While a user's message it has read is
 open, @ultimate's message to the user answers it and, with `questions`, stays open itself, so it can ask one card after
 another.
 
-A reply-expected message to the user stays open, and its sender shows as awaiting reply, until the user answers that
+An `ask_user` message stays open, and its sender shows as awaiting reply, until the user answers that
 message: a Reply with `re` (the answer card or a typed Reply). The delivered input reads `Answer to message N:` before
 the reply, so an asker with several cards open never guesses which one it answers; a spoken (voice) reply answers no
 card while several are open. Dismissing it closes it with a one-way note to the sender. A branch's question also puts an attention pointer (`board.asked`) in @ultimate's conversation, and the user's
@@ -126,7 +139,8 @@ exposes `send`, a one-way message from a conversation, and `answer`, the user's 
 
 Server side, imported in one direction (`log`, `images`, `addresses`, `questions` → `delivery` → `send`):
 
-- `server.ts`: wiring: the `message` tool, prompt section, hooks, thin actions and `MessagesApi`.
+- `server.ts`: wiring: the prompt section, hooks, thin actions and `MessagesApi`.
+- `tools.ts`: the `agent_message`, `ask_user`, and `report_user` tools.
 - `send.ts`: `send()`, validation, receipts, and turning a message to a sender you owe into that answer.
 - `delivery.ts`: the `board.delivery` task, its `deliver` and `reply` phases.
 - `addresses.ts`: resolving `to`, sender names, and a subagent's parent.
@@ -142,7 +156,7 @@ passive `board.notice` task. Both use `messages.workflow` or `MessagesApi`; gene
 There is no Messages surface: everything renders in transcripts. Every sender has a stable accent (`accent.tsx`).
 
 - **Cards:** typed messages and replies render as compact cards with Source / Return navigation, showing reply or
-  one-way and the delivery mode. A `message` call renders as an outgoing card with its live state; a `branch` call as a
+  one-way and the delivery mode. An `agent_message`, `ask_user`, or `report_user` call renders as an outgoing card with its live state; a `branch` call as a
   branch-start card. Final answers name where they went, or "not sent".
 - **Compact mode** (@ultimate's conversation): tool calls and thinking fold into “worked · N steps” rows, while
   messages, branch starts, workspace outcomes, setup cards and answers stay. Its messages to you are bubbles in its

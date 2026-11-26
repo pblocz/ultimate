@@ -429,7 +429,7 @@ export function StretchSummary({ rows, steps, working, entries }: CompactSummary
 }
 
 /**
- * The `message` tool as the message it sent; a failed call keeps the generic card with its error. In compact mode, a message
+ * A message tool as the message it sent; a failed call keeps the generic card with its error. In compact mode, a message
  * to you is a bubble.
  */
 export function MessageCall({ call, core }: { call: ToolCallView; core: ReactNode }) {
@@ -446,7 +446,7 @@ export function MessageCall({ call, core }: { call: ToolCallView; core: ReactNod
     reply?: boolean
     steer?: boolean
   }
-  const recipient = message?.to ?? (to === 'user' ? 'user' : undefined)
+  const recipient = message?.to ?? (call.name === 'agent_message' ? undefined : 'user')
   const toUser = recipient === 'user'
   if (toUser && sender !== undefined)
     return (

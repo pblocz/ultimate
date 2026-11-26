@@ -193,12 +193,7 @@ export function backgroundRow(
   const message = entry.model?.[0]
   if (entry.kind !== 'pi.assistant' || message?.role !== 'assistant') return false
   if (calls.length)
-    return calls.every(
-      (call) =>
-        call.name === 'branch' ||
-        (call.name === 'message' &&
-          (call.arguments as { to?: unknown } | undefined)?.to !== 'user'),
-    )
+    return calls.every((call) => call.name === 'branch' || call.name === 'agent_message')
   if (message.stopReason !== 'stop') return false
   if (routedTo(log?.messages ?? [], entry).length) return true
   const answered = answeredMessages(log?.messages ?? [], entry.conversationId, entry.id)
@@ -228,9 +223,7 @@ export function threadRow(
   if (calls.length)
     return calls.some(
       (call) =>
-        scriptMessaged(call, log) ||
-        (call.name === 'message' &&
-          (call.arguments as { to?: unknown } | undefined)?.to === 'user'),
+        scriptMessaged(call, log) || call.name === 'ask_user' || call.name === 'report_user',
     )
   // An answer, or a run that failed: both are for the user to read.
   const message = entry.model?.[0]

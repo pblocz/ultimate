@@ -7,6 +7,7 @@ import { configure, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
 import type { ConversationId } from '@earendil-works/pi-durable'
 import { context, prepareHarness } from '../server/harness.ts'
 import type { OpenHost } from '../server/harness.ts'
+import { Metadata } from '../server/metadata.ts'
 import type { ExtensionHost } from '../server/extensions.ts'
 import type { ActionContext } from '../server/actions.ts'
 import messagesExtension, {
@@ -57,7 +58,7 @@ const decisions: Question[] = [
   { text: 'Name', kind: 'text', ref: '5' },
 ]
 
-async function fixture() {
+async function fixture(coding = true) {
   const home = await temp('ultimate-messages-questions-')
   const prepared = await prepareHarness({
     home,
@@ -74,6 +75,7 @@ async function fixture() {
   closers.push(async () => void (await events.stop()))
   const host = {
     ...prepared,
+    metadata: Metadata,
     userHome: home,
     projectSettings: async () => ({}),
     harness: () => opened.harness,
@@ -104,7 +106,7 @@ async function fixture() {
   services.set('workspaces', { doc: Workspaces })
   services.set('conversations', { concludedIn: async () => new Set() })
   prepared.registry.install(messagesExtension(host))
-  prepared.registry.install(codingWorkflow(host))
+  if (coding) prepared.registry.install(codingWorkflow(host))
   prepared.registry.install(questionsExtension(host))
   const observed: string[] = []
   /** Runs with each input the agent reads, as an agent's tool calls would during its turn. */
@@ -116,7 +118,7 @@ async function fixture() {
     observed.push(text)
     await heard?.(text)
     if (last.role === 'user' && text.startsWith('SEND '))
-      return fauxAssistantMessage([fauxToolCall('message', JSON.parse(text.slice(5)))], {
+      return fauxAssistantMessage([fauxToolCall('ask_user', JSON.parse(text.slice(5)))], {
         stopReason: 'toolUse',
       })
     return fauxAssistantMessage([fauxText('Sent.')])
@@ -158,9 +160,8 @@ async function fixture() {
     const conversation = (await opened.harness.conversation(id, context))!
     return (await conversation.submit({ type: 'input', content }, context)).wait(context)
   }
-  /** @ultimate's `message` call with `args`; the message it sent, or the tool's error. */
   const ask = async (id: ConversationId, args: Record<string, unknown>) => {
-    await type(id, `SEND ${JSON.stringify({ to: 'user', ...args })}`)
+    await type(id, `SEND ${JSON.stringify(args)}`)
     await settled()
     const call = (await entries(id)).findLast((entry) => entry.kind === 'pi.tool-result')
     const result = call?.model?.[0] as unknown as
@@ -207,6 +208,32 @@ async function fixture() {
   }
 }
 
+it.each([true, false])('answers an ordinary chat with Coding enabled: %s', async (coding) => {
+  const f = await fixture(coding)
+  const agent = await f.opened.root.agent(context)
+  const ordinary = await f.opened.harness.commit(async (tx) => {
+    const { id } = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+    await configure(tx, id, { model: agent.model, tools: agent.tools })
+    ;(await tx.doc(Metadata, id)).label = 'chat'
+    return id
+  }, context)
+  const other = await f.ultimate()
+  const { error, message } = await f.ask(ordinary, {
+    text: 'Choose a test.',
+    questions: [decisions[0]],
+  })
+  expect(error).toBeUndefined()
+  await f.answer({
+    messageId: message!.id,
+    answers: [{ question: decisions[0].text, answer: 'all of it' }],
+  })
+  await f.settled()
+  expect(
+    (await f.entries(ordinary)).filter((entry) => entry.kind === 'board.message'),
+  ).toHaveLength(1)
+  expect((await f.entries(other)).filter((entry) => entry.kind === 'board.message')).toEqual([])
+})
+
 describe('questions on a message', () => {
   it('are stored as the tool validated them, only on reply-expected messages to the user', async () => {
     const f = await fixture()
@@ -215,7 +242,7 @@ describe('questions on a message', () => {
     expect(sent.error).toBeUndefined()
     expect(sent.message).toMatchObject({ state: 'delivered', questions: decisions })
     const oneWay = await f.ask(id, { text: 'FYI', reply: false, questions: decisions })
-    expect(oneWay.error).toContain('reply-expected message to the user')
+    expect(oneWay.error).toContain('reply')
     expect(oneWay.message?.text).toBe('Decide these.')
     // To a conversation, never: questions are the user's card.
     const other = await f.opened.harness.createConversation(
@@ -223,7 +250,7 @@ describe('questions on a message', () => {
       context,
     )
     const toConversation = await f.ask(id, { to: `#${other.id}`, text: 'Hi', questions: decisions })
-    expect(toConversation.error).toContain('reply-expected message to the user')
+    expect(toConversation.error).toContain('to')
     expect((await f.log()).messages.filter((m) => m.questions)).toHaveLength(1)
   })
 
@@ -234,7 +261,7 @@ describe('questions on a message', () => {
       const { error } = await f.ask(id, { text: 'Decide.', questions })
       expect(error).toContain(reason)
     }
-    await refused([], 'at least one question')
+    await refused([], 'questions')
     await refused(
       [{ text: 'One?', kind: 'choice', options: [{ label: 'only' }] }],
       'question 1 needs at least two options',
@@ -333,7 +360,7 @@ describe('questions on a message', () => {
     ).rejects.toThrow('These questions are no longer open')
   })
 
-  it('sends a note on its own, and free text for a message without questions', async () => {
+  it('sends a note on its own, and accepts a direct text reply to a question', async () => {
     const f = await fixture()
     const id = await f.ultimate()
     const { message } = await f.ask(id, { text: 'Decide these.', questions: decisions })
@@ -345,8 +372,12 @@ describe('questions on a message', () => {
     expect((await f.log()).messages.find((m) => m.re === message!.id)?.text).toBe(
       'Later, after the demo.',
     )
-    const plain = (await f.ask(id, { text: 'What should the tab be called?' })).message!
-    expect(plain.questions).toBeUndefined()
+    const plain = (
+      await f.ask(id, {
+        text: 'Name the tab.',
+        questions: [{ text: 'What should the tab be called?', kind: 'text' }],
+      })
+    ).message!
     await expect(f.answer({ messageId: plain.id, text: '  ' })).rejects.toThrow('Invalid answers')
     await expect(f.answer({ messageId: plain.id, text: 'x', note: 'y' })).rejects.toThrow(
       'Invalid answers',
@@ -396,7 +427,12 @@ describe('questions on a message', () => {
     const id = await f.ultimate()
     const first = (await f.ask(id, { text: 'Keep it running?', questions: [decisions[2]] }))
       .message!
-    const second = (await f.ask(id, { text: 'Which layout?' })).message!
+    const second = (
+      await f.ask(id, {
+        text: 'Which layout?',
+        questions: [{ text: 'Which layout?', kind: 'text' }],
+      })
+    ).message!
     const before = (await f.entries(id)).filter((entry) => entry.kind === 'pi.assistant').length
     const { id: note } = await f.dismiss(first.id)
     await f.settled()

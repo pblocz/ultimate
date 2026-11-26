@@ -56,7 +56,7 @@ const answer = (request: Parameters<FauxResponseFactory>[0]) => {
   const to = /^SEND (.+)$/.exec(user)?.[1]
   if (to)
     return fauxAssistantMessage(
-      [fauxToolCall('message', { to, text: 'Ordinary question', reply: true })],
+      [fauxToolCall('agent_message', { to, text: 'Ordinary question', reply: true })],
       { stopReason: 'toolUse' },
     )
   return fauxAssistantMessage(`Answer: ${user}`)

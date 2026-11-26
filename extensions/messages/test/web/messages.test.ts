@@ -246,8 +246,8 @@ describe("background in @ultimate's compact transcript", () => {
 
   it('takes in branches and messages to agents, but not a message to you or an answer to you', () => {
     const branch = { id: 'b', name: 'branch', arguments: {} }
-    const toAgent = { id: 'tell', name: 'message', arguments: { to: '#5' } }
-    const toUser = { id: 'ask', name: 'message', arguments: { to: 'user' } }
+    const toAgent = { id: 'tell', name: 'agent_message', arguments: { to: '#5' } }
+    const toUser = { id: 'ask', name: 'ask_user', arguments: {} }
     expect(
       backgroundRow(
         row('pi.assistant', undefined, said('toolUse'), [branch, toAgent]),
@@ -268,8 +268,8 @@ describe("background in @ultimate's compact transcript", () => {
   })
 
   it('reads as the thread only what you and @ultimate say to each other', () => {
-    const toUser = { id: 'ask', name: 'message', arguments: { to: 'user' } }
-    const toAgent = { id: 'tell', name: 'message', arguments: { to: '#5' } }
+    const toUser = { id: 'ask', name: 'ask_user', arguments: {} }
+    const toAgent = { id: 'tell', name: 'agent_message', arguments: { to: '#5' } }
     const empty = { messages: [], next: 1 }
     expect(threadRow(row('pi.user'), messagesLog)).toBe(true)
     expect(threadRow(row('board.message', { from: 'user' }), messagesLog)).toBe(true)
@@ -304,7 +304,7 @@ describe("background in @ultimate's compact transcript", () => {
   })
 
   it('names who each row was with', () => {
-    const toAgent = { id: 'tell', name: 'message', arguments: { to: '#5' } }
+    const toAgent = { id: 'tell', name: 'agent_message', arguments: { to: '#5' } }
     expect(counterparts(row('board.reply', { from: 4 }), messagesLog)).toEqual([4])
     expect(counterparts(row('lineage.note', { source: 'lander' }), messagesLog)).toEqual(['lander'])
     expect(counterparts(row('workspaces.lander-report'), messagesLog)).toEqual(['lander'])

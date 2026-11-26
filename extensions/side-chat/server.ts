@@ -9,13 +9,14 @@ import {
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { defineEvent } from '@ultimate/shared/events.ts'
 import { implementAction } from '@ultimate/lib/actions.ts'
 import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
 import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import type { ResponseReceipt } from '@ultimate/ext/conversations/summary.ts'
 import type { SummaryModel } from '@ultimate/ext/conversations/summary-model.ts'
 import { DiscardAction, InjectAction, OpenAction, SideChatDoc, SideChatsDoc } from './refs.ts'
-import type { SideChat, SideChatIndex, SideChatSummary } from './refs.ts'
+import type { SideChat, SideChatAutomation, SideChatIndex, SideChatSummary } from './refs.ts'
 
 export const Side = defineDoc<Partial<SideChat>>({
   kind: SideChatDoc.kind,
@@ -354,7 +355,7 @@ export function tracksEffect(name: string, args: Record<string, unknown>) {
   if (name === 'automation') return !['list', 'runs', 'log'].includes(String(args.action))
   return [
     'branch',
-    'message',
+    'agent_message',
     'note',
     'notify',
     'remember',
@@ -375,10 +376,72 @@ export function sideReminder(side: number, main: number, at: Date) {
   ].join('\n')
 }
 
-export default (host: ExtensionHost) =>
-  defineExtension({
+export default function sideChat(host: ExtensionHost) {
+  // Match facts by name so Side chat can load without the Automations folder.
+  const created = defineEvent<{ id: string; caller?: number }>('automations.created')
+  const subscribed = defineEvent<{ id: string; caller?: number }>('automations.subscribed')
+  const note = defineTask<
+    SideChatAutomation & { to: number; event: number },
+    { phase: 'submit' },
+    null
+  >({
+    name: 'sidechat.automation-note',
+    version: 1,
+    initial: () => ({ phase: 'submit' }),
+    phases: {
+      submit: async (task, runtime, ctx) => {
+        const { to, event, ...data } = task.input
+        const target = await host.harness().conversation(to as ConversationId, ctx)
+        await runtime.commit(async (tx) => {
+          if (target && (await tx.conversation(target.id)))
+            await target.submit(tx, {
+              type: 'write',
+              requestId: `sidechat:automation:${event}`,
+              entry: {
+                kind: 'sidechat.automation',
+                data,
+                model: [
+                  {
+                    role: 'user',
+                    content: `Side chat #${data.side} ${data.change} automation ${data.id}.`,
+                    timestamp: Date.now(),
+                  },
+                ],
+              },
+            })
+          return terminal
+        }, ctx)
+      },
+    },
+    abort: (_task, runtime, ctx) =>
+      runtime.commit(() => ({ status: 'terminal', outcome: { status: 'aborted' } }), ctx),
+  })
+  host.react('automation-notes', [created, subscribed], async (tx, event) => {
+    const { id, caller } = event.data
+    if (caller === undefined || !(await tx.conversation(caller as ConversationId))) return
+    const { of } = await tx.doc(Side, caller as ConversationId)
+    if (of === undefined || !(await tx.conversation(of as ConversationId))) return
+    const change: SideChatAutomation['change'] = created.is(event) ? 'created' : 'subscribed to'
+    // The task commits with the cursor. It can open the target handle outside this transaction.
+    await tx.createTask(
+      note,
+      {
+        to: of,
+        side: caller,
+        event: event.id,
+        id,
+        change,
+      },
+      {
+        conversationId: of as ConversationId,
+        ownership: { kind: 'conversation' },
+        background: true,
+      },
+    )
+  })
+  return defineExtension({
     name: 'side-chat',
-    tasks: [Start, endTask(host)],
+    tasks: [Start, endTask(host), note],
     hooks: [
       hook(GenerationTask, {
         beforeInput: async (_input, { tx, conversationId }) => {
@@ -419,3 +482,4 @@ export default (host: ExtensionHost) =>
       }),
     ],
   })
+}

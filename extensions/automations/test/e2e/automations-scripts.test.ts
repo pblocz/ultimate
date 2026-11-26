@@ -7,7 +7,7 @@ import { basename, join, resolve } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { JsonValue } from '@earendil-works/chord/json'
 import type { ConversationId } from '@earendil-works/pi-durable'
-import { Messages } from '@ultimate/ext/messages/api.ts'
+import { Standing } from '@ultimate/ext/subagents/api.ts'
 import { launchHandshake, Automations } from '../../server.ts'
 import { Done, Exited } from '../../refs.ts'
 import type { Automation, AutomationListItem } from '../../types.ts'
@@ -138,7 +138,7 @@ it('starts a prompt run from script FIRE with its payload', async () => {
   expect(await record()).toMatchObject({ fires: 1, enabled: false, script: { state: 'done' } })
 })
 
-it('delivers FIRE once, investigates exits only in the owning agent, recovers, and escalates through Messages', async () => {
+it('delivers FIRE once, investigates exits only in the owning agent, recovers, and alerts the subscriber and coordinator', async () => {
   const { root, userHome, home, options, app: initial } = await fixture()
   let app = initial
   // This test repairs scripts by hand. The watcher has no successful turn that can escalate the script.
@@ -224,14 +224,17 @@ it('delivers FIRE once, investigates exits only in the owning agent, recovers, a
   await invoke('escalate', { id: third.id, reason: 'No access to the remote system' })
   await until(async () => (await entries(caller.id, 'automations.escalated')).length === 1)
   expect(await get(third.id)).toMatchObject({ enabled: false, script: { state: 'failed' } })
-  const messages = (await app.harness.snapshot(Messages, 1 as ConversationId, context))!.messages
-  expect(
-    messages.filter(
-      (m) =>
-        m.from === third.script!.conversationId &&
-        m.text.includes('No access to the remote system'),
-    ),
-  ).toHaveLength(1)
+  const coordinator = async () =>
+    (await app.harness.snapshot(Standing, 1 as ConversationId, context))?.ultimate
+  await until(async () => {
+    const id = await coordinator()
+    return id !== undefined && (await entries(id, 'automations.escalated')).length === 1
+  })
+  expect((await entries((await coordinator())!, 'automations.escalated'))[0].data).toEqual({
+    id: third.id,
+    name: 'Watch',
+    text: 'No access to the remote system',
+  })
   await invoke('delete', { id: third.id })
   expect((await app.harness.snapshot(Automations, context))!.automations[third.id]).toBeUndefined()
   expect(

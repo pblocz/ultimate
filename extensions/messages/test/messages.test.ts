@@ -286,10 +286,23 @@ async function fixture(
       return fauxAssistantMessage([fauxToolCall('branch', JSON.parse(command.slice(7)))], {
         stopReason: 'toolUse',
       })
-    if (last.role === 'user' && command.startsWith('SEND '))
-      return fauxAssistantMessage([fauxToolCall('message', JSON.parse(command.slice(5)))], {
-        stopReason: 'toolUse',
-      })
+    if (last.role === 'user' && command.startsWith('SEND ')) {
+      const { to, reply, questions, ...args } = JSON.parse(command.slice(5))
+      const call =
+        to !== 'user'
+          ? fauxToolCall('agent_message', {
+              to: String(to).replace(/^(?=\d)/, '#'),
+              reply,
+              ...args,
+            })
+          : reply === false
+            ? fauxToolCall('report_user', args)
+            : fauxToolCall('ask_user', {
+                ...args,
+                questions: questions ?? [{ text: args.text, kind: 'text' }],
+              })
+      return fauxAssistantMessage([call], { stopReason: 'toolUse' })
+    }
     if (last.role === 'user' && (text === 'HOLD' || text.includes('\nHOLD')))
       return fauxAssistantMessage([fauxToolCall('hold', {})], { stopReason: 'toolUse' })
     if (last.role === 'user' && text.startsWith('Message from') && text.includes('NOANSWER'))
@@ -299,10 +312,9 @@ async function fixture(
       return fauxAssistantMessage([fauxToolCall('hold', {})], { stopReason: 'toolUse' })
     // @ultimate answers a branch's reply with only a message to the user.
     if (last.role === 'user' && text.startsWith('Reply from #') && text.includes('TELLUSER'))
-      return fauxAssistantMessage(
-        [fauxToolCall('message', { to: 'user', text: 'Correction', reply: false })],
-        { stopReason: 'toolUse' },
-      )
+      return fauxAssistantMessage([fauxToolCall('report_user', { text: 'Correction' })], {
+        stopReason: 'toolUse',
+      })
     // @ultimate (#1) answers a branch's reply or report only to weigh in: any other final answer would go down to it.
     const fromBranch = /^(Reply|Message) from #(\d+)/.exec(text)
     if (
@@ -457,7 +469,7 @@ it('does not grant user actions when the workflow is absent', async () => {
   const f = await fixture(undefined, undefined, false)
   await expect(
     f.service().send(1, { to: 'user', text: 'Not authorized', reply: false }, 'denied', context),
-  ).rejects.toThrow('Messaging the user is not available')
+  ).rejects.toThrow('cannot report to the user')
   await expect(
     actions.settle(
       { messageId: 1, text: 'Not authorized' },
@@ -733,7 +745,7 @@ it('refuses messages to the user from non-branch conversations other than @ultim
   await until(async () => (await replies(f)).length === 1)
   expect((await f.log())!.messages).toHaveLength(2)
   expect(f.observed.join('\n')).toContain(
-    'Only @ultimate and branches message the user; send this to the conversation that started you.',
+    'This conversation cannot ask the user. Send this to the conversation that started you.',
   )
   await f.send('user', 'Relayed update')
   expect((await f.log())!.messages.at(-1)).toMatchObject({
@@ -918,13 +930,13 @@ it('lets a subagent message only the conversation that started it', async () => 
         }
       return id
     }, context)
-  const send = async (from: ConversationId, to: string) => {
+  const send = async (from: ConversationId, to: string, reply = false) => {
     const conversation = await f.opened.harness.conversation(from, context)
     await (
       await conversation!.submit(
         {
           type: 'input',
-          content: 'SEND ' + JSON.stringify({ to, text: `To ${to}`, reply: false }),
+          content: 'SEND ' + JSON.stringify({ to, text: `To ${to}`, reply }),
         },
         context,
       )
@@ -933,18 +945,19 @@ it('lets a subagent message only the conversation that started it', async () => 
 
   const workerId = await child(true)
   await send(workerId, 'user')
+  await send(workerId, 'user', true)
   await send(workerId, `#${f.recipient.id}`)
   await send(workerId, '#1')
-  expect(f.observed.filter((text) => text.includes('message only #1'))).toHaveLength(1)
+  expect(f.observed.filter((text) => text.includes('message only #1'))).toHaveLength(3)
   expect((await f.log())!.messages.map((m) => [m.from, m.to])).toEqual([[workerId, 1]])
   const view = await (await f.opened.harness.conversation(workerId, context))!.context(context)
-  expect(JSON.stringify(view.entries)).toContain('Use message only to update #1')
+  expect(JSON.stringify(view.entries)).toContain('Use agent_message only to update #1')
 
   // An owned conversation that is no subagent cannot bypass @ultimate either.
   const run = await child(false)
   await send(run, 'user')
   expect((await f.log())!.messages).toHaveLength(1)
-  expect(f.observed.join('\n')).toContain('Only @ultimate and branches message the user')
+  expect(f.observed.join('\n')).toContain('cannot report to the user')
 })
 it('refuses self, unknown ids, tally roots and unknown names with valid names', async () => {
   const f = await fixture()
@@ -1137,11 +1150,12 @@ it('keeps sequential and parallel message calls distinct within one codemode scr
             'codemode',
             {
               code: `
-          await tools.message({to: 'user', text: 'Sequential 1'});
-          await tools.message({to: 'user', text: 'Sequential 2'});
+          if (Object.hasOwn(tools, 'message')) throw new Error('Unexpected message tool');
+          await tools.report_user({text: 'Sequential 1'});
+          await tools.report_user({text: 'Sequential 2'});
           await Promise.all([
-            tools.message({to: 'user', text: 'Parallel 1'}),
-            tools.message({to: 'user', text: 'Parallel 2'})
+            tools.report_user({text: 'Parallel 1'}),
+            tools.report_user({text: 'Parallel 2'})
           ]);
         `,
             },
@@ -1150,7 +1164,7 @@ it('keeps sequential and parallel message calls distinct within one codemode scr
         ],
         { stopReason: 'toolUse' },
       ),
-      fauxAssistantMessage([fauxToolCall('message', { to: 'user', text: 'Direct' }, { id: 'm' })], {
+      fauxAssistantMessage([fauxToolCall('report_user', { text: 'Direct' }, { id: 'm' })], {
         stopReason: 'toolUse',
       }),
       fauxAssistantMessage('Complete'),
@@ -1178,7 +1192,11 @@ it('keeps sequential and parallel message calls distinct within one codemode scr
         .map((m) => m.call)
         .toSorted(),
     ).toEqual(['script/3', 'script/4'])
-    expect(log?.messages.at(-1)).toMatchObject({ text: 'Direct', call: 'm' })
+    expect(log?.messages.at(-1)).toMatchObject({ text: 'Direct', call: 'm', reply: false })
+    expect((await server.root.agent(context)).tools.map((tool) => tool.name)).not.toContain(
+      'message',
+    )
+    expect(log?.messages.every((message) => !message.reply)).toBe(true)
     // The script's nested messages could not end the run; the direct message did, before 'Complete'.
     const view = await server.root.context(context)
     expect(view.entries.at(-1)?.kind).toBe('pi.tool-result')

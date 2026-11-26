@@ -394,7 +394,7 @@ export function supervisor(
     sub.script!.state = 'failed'
     sub.script!.error = reason
     sub.updatedAt = Date.now()
-    const event = await host.emit(tx, Escalated, { id: sub.id, reason })
+    const event = await host.emit(tx, Escalated, { id: sub.id, name: sub.name, reason })
     await deliver(tx, sub, event.id, 'escalated', reason)
   }
   async function finish(

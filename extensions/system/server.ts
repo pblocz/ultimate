@@ -314,7 +314,7 @@ async function messages(host: ExtensionHost, since: number, until: number) {
 }
 
 /** Tool calls that start others: the nearest one before a child's start stands for its spawn when no event says. */
-const SPAWNING = new Set(['subagent', 'branch', 'message'])
+const SPAWNING = new Set(['subagent', 'branch', 'agent_message'])
 
 /**
  * The tool call of conversation `conversation` that call `id` of trace `trace` ran in: the call itself or its nearest

@@ -4,7 +4,7 @@ import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { MessagesApi } from '@ultimate/ext/messages/api.ts'
 import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
-import { AutomationsWorkflow } from './api.ts'
+import { escalationNotice } from '@ultimate/shared/automation-escalation.ts'
 import type { Automation, Subscriber } from './types.ts'
 
 export type Delivery = {
@@ -41,48 +41,36 @@ export function notifications(
           )
           return
         }
-        let coordinator: ConversationId | undefined
-        if (kind === 'escalated') {
-          try {
-            coordinator = await host
-              .want(AutomationsWorkflow)
-              ?.escalate(
-                (sub.script?.conversationId ?? ROOT_CONVERSATION_ID) as ConversationId,
-                { id: sub.id, event, text: content },
-                ctx,
-              )
-          } catch (error) {
-            // Phase 2: an extra coordinator alert must not prevent ordinary subscriber delivery.
-            console.warn(`Automation ${sub.id}: coordinator alert failed`, error)
-          }
-        }
+
         for (const target of targets) {
           let id = target as ConversationId
           if (typeof target === 'string') {
-            // Pin the resolved result target before submit. If @name moves, replay still uses the same inbox.
-            const key = `result-target:${target}`
-            const saved = kind === 'finished' ? await runtime.memo(key, ctx) : undefined
+            // Pin result and escalation targets. If @name moves, replay still uses the same inbox.
+            const pin = kind === 'finished' || kind === 'escalated'
+            const key = `${kind === 'finished' ? 'result' : 'escalation'}-target:${target}`
+            const saved = pin ? await runtime.memo(key, ctx) : undefined
             id =
               typeof saved === 'number'
                 ? (saved as ConversationId)
                 : await host.need(SubagentsApi).standing(target.slice(1), ctx)
-            if (kind === 'finished' && saved === undefined) await runtime.memo(key, id, ctx)
+            if (pin && saved === undefined) await runtime.memo(key, id, ctx)
           }
-          if (kind === 'escalated' && id === coordinator) continue
           // Preserve the existing rule for legacy lander subscribers, which accept no input.
           if ((await runtime.snapshot(host.metadata, id, ctx))?.label === 'lander') continue
           const conversation = await runtime.conversation(id, ctx)
           if (!conversation) throw new Error(`Automation ${sub.id}: conversation #${id} is missing`)
           await host.need(MessagesApi).notify(
             conversation,
-            {
-              text: content,
-              requestId: `automations:${sub.id}:${event}:${target}`,
-              entry: {
-                kind: `automations.${kind}`,
-                data: { id: sub.id, name: sub.name, text },
-              },
-            },
+            kind === 'escalated'
+              ? escalationNotice({ id: sub.id, name: sub.name, reason: text }, event)
+              : {
+                  text: content,
+                  requestId: `automations:${sub.id}:${event}:${target}`,
+                  entry: {
+                    kind: `automations.${kind}`,
+                    data: { id: sub.id, name: sub.name, text },
+                  },
+                },
             ctx,
           )
         }
@@ -109,7 +97,7 @@ export function notifications(
             const result = sub.resultSubscribers?.includes(target) ?? false
             return kind === 'finished' ? result : kind !== 'fired' || !result
           })
-    if (!targets.length && kind !== 'escalated') return
+    if (!targets.length) return
     await tx.createTask(
       Deliver,
       {

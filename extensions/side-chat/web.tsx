@@ -37,7 +37,7 @@ import { useDefaultConversation } from '@ultimate/ext/subagents/ui.tsx'
 import { UnderUltimate, Unlisted } from '@ultimate/ext/sidebar/ui.tsx'
 import { createEndings, endings, frontSide, openSides, togglesSideMode } from './logic.ts'
 import { DiscardAction, InjectAction, OpenAction, SideChatDoc, SideChatsDoc } from './refs.ts'
-import type { SideChatIndex, SideChatSummary } from './refs.ts'
+import type { SideChatAutomation, SideChatIndex, SideChatSummary } from './refs.ts'
 import { useSideChatFront as useFront } from './ui.tsx'
 
 // ---- state ---------------------------------------------------------------------------------------------------------
@@ -509,6 +509,28 @@ function SummaryCard({ entry }: { entry: EntryRecord }) {
   )
 }
 
+function AutomationNote({ entry }: { entry: EntryRecord }) {
+  const { side, id, change } = entry.data as SideChatAutomation
+  const { switchConversation } = useUltimate()
+  return (
+    <Card data-side-chat-automation={id}>
+      <div className="flex items-center gap-2 px-3 py-2 font-mono text-[11px] text-muted-foreground">
+        <GitForkIcon className="size-3.5 shrink-0 text-brand" />
+        <button
+          type="button"
+          className="cursor-pointer text-foreground hover:underline"
+          onClick={() => switchConversation(side)}
+        >
+          Side chat #{side}
+        </button>
+        <span>
+          {change} automation {id}
+        </span>
+      </div>
+    </Card>
+  )
+}
+
 // ---- sidebar: open side chats under @ultimate ----------------------------------------------------------------------
 
 /** Rows for @ultimate's open side chats; clicking one brings it to the front, or parks it when it already is. */
@@ -570,6 +592,6 @@ function useSideIds(main: number | undefined): ReadonlySet<number> {
 export default defineWebExtension({
   composer: SideComposer,
   slots: { 'conversation.overlay': [Stage] },
-  entries: { 'sidechat.summary': SummaryCard },
+  entries: { 'sidechat.summary': SummaryCard, 'sidechat.automation': AutomationNote },
   provides: [provide(UnderUltimate, useSideRows), provide(Unlisted, useSideIds)],
 })

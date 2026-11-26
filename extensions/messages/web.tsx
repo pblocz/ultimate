@@ -146,12 +146,19 @@ export default defineWebExtension({
     'board.open': () => null,
     'pi.assistant': CompactAnswer,
   },
-  tools: { message: MessageCall, branch: BranchCall },
+  tools: {
+    agent_message: MessageCall,
+    ask_user: MessageCall,
+    report_user: MessageCall,
+    branch: BranchCall,
+  },
   compact: {
     when: (conversation, docs) =>
       ultimateCompact(conversation, docs[StandingDoc.kind], docs[CoordinatorDoc.kind]?.name),
     tools: [
-      'message',
+      'agent_message',
+      'ask_user',
+      'report_user',
       'branch',
       'workspace',
       // A script that messaged you stays visible, so its messages show as bubbles, even when it was interrupted.

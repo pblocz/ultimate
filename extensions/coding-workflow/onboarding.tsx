@@ -131,7 +131,8 @@ const spokeSince = (transcript: readonly EntryRecord[], entry: EntryRecord) =>
       message.content.some(
         (block) =>
           (block.type === 'text' && block.text.trim()) ||
-          (block.type === 'toolCall' && block.name === 'message'),
+          (block.type === 'toolCall' &&
+            (block.name === 'ask_user' || block.name === 'report_user')),
       )
     )
   })

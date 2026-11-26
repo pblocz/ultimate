@@ -9,6 +9,8 @@ This optional extension supplies the standing coordinator. Its default standing 
 - The `subagents.workflow` provider: the standing name, on-demand start, and the saved binding.
 - The `supercoordinator.binding` document, which keeps the last bound conversation ID.
 - The passive branch question notes: a reactor and the `board.notice` task (`questions.ts`, `notice.ts`).
+- The extra automation escalation alert: the `automation-alerts` reactor and the
+  `supercoordinator.automation-alert` task (`escalations.ts`).
 - The title-bar wordmark and phone button, **Talk to @ultimate** (`subagents.ultimate`, `mod+0`), and
   **Debug with @ultimate** (`ErrorReport`).
 
@@ -23,6 +25,15 @@ supplies its standing address. Without the provider, there is no implicit defaul
 events carry IDs and an outcome, not text. The reactor reads the bounded message log for the text. If a message was
 pruned, the note names only the message ID and the outcome. A note is a passive write. It does not start or steer a
 model turn. Without a bound coordinator, the reactor writes nothing and creates no conversation.
+
+## Automation escalation alerts
+
+The reactor matches `automations.escalated` by name, so this extension loads without the Automations folder. For each
+new event it creates one task in the reactor transaction. The task resolves the active role through
+`SubagentsApi.coordinator`. If the role has no bound conversation, the task opens it on demand. The task pins the
+recipient, then submits `escalationNotice` from `shared/automation-escalation.ts`. A subscriber with the same
+conversation uses the same request ID, so it gets one input. If the role has moved or the conversation is gone, the
+task writes nothing. A fresh reactor starts after the newest event and does not open a conversation at startup.
 
 ## Disable, removal, and re-enable
 

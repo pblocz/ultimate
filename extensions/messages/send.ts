@@ -1,9 +1,9 @@
 /** `send()`: validating, admitting and logging a message, and starting its delivery. */
 import type { Context } from '@earendil-works/chord/context'
 import { defineDoc, ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
-import type { ConversationId, EntryId, TaskId } from '@earendil-works/pi-durable'
+import type { ConversationId, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
-import { Messages, MessageSent, MessagesWorkflow } from './api.ts'
+import { Messages, MessageSent, MessagesWorkflow, UserQuestionPermission } from './api.ts'
 import type { ImagesRef, Question } from './api.ts'
 import type { Via } from './refs.ts'
 import { checkQuestions, openQuestion } from './questions.ts'
@@ -12,7 +12,7 @@ import { UserInputEvent } from '@ultimate/shared/events.ts'
 import type { Device } from '@ultimate/shared/events.ts'
 import { resolveImages } from './images.ts'
 import { append } from './log.ts'
-import { parentOf, resolve, senderName } from './addresses.ts'
+import { parentIn, resolve, senderName } from './addresses.ts'
 import { delivery } from './delivery.ts'
 
 // The receipt commits with the message, closing the gap before api.memo records its id.
@@ -33,6 +33,13 @@ const Requests = defineDoc<{ ids: Record<string, number> }>({
   fork: 'initial',
   initial: () => ({ ids: {} }),
 })
+
+async function checkParent(tx: Tx, from: number | 'user', to: string) {
+  const parent = from === 'user' ? undefined : await parentIn(tx, from)
+  if (parent !== undefined && to.replace(/^#/, '') !== String(parent))
+    throw new Error(`Subagents can message only #${parent}. Your final answer reaches it anyway.`)
+  return parent
+}
 
 export async function send(
   host: ExtensionHost,
@@ -91,20 +98,13 @@ export async function send(
   // The primary agent's messages to a busy conversation almost always steer it: new scope, a decision, a stop.
   const steer = input.steer ?? (from !== 'user' && from === primaryId)
   // Checked before resolving, which may create a standing agent's conversation.
-  const parent = from === 'user' ? undefined : await parentOf(host, from, ctx)
-  const starter = parent ?? (await workflow?.starter(from, ctx))
-  if (input.to === 'user') {
-    if (!workflow) throw new Error('Messaging the user is not available')
-    await workflow.authorizeUserMessage(from, ctx)
-  }
+  if (input.to.startsWith('@'))
+    await host.harness().commit((tx) => checkParent(tx, from, input.to), ctx)
+  const starter = await workflow?.starter(from, ctx)
   if (!input.text.trim()) throw new Error('Message text must not be empty')
   if (input.questions !== undefined && (input.to !== 'user' || input.reply === false))
     throw new Error('questions go only with a reply-expected message to the user')
   const questions = input.questions === undefined ? undefined : checkQuestions(input.questions)
-  if (parent !== undefined && input.to.replace(/^#/, '') !== String(parent))
-    throw new Error(
-      `Subagents report to the conversation that started them: message only #${parent}. Your final answer reaches it anyway.`,
-    )
   const to = await resolve(host, input.to, from, ctx)
   const fromLabel = options.fromLabel ?? (await senderName(host, from, ctx))
   const toLabel = await senderName(host, to, ctx)
@@ -117,8 +117,24 @@ export async function send(
     if (requestId !== undefined && requests?.ids[requestId] !== undefined)
       return requests.ids[requestId]
     if (callId !== undefined && receipt?.ids[callId] !== undefined) return receipt.ids[callId]
-    if (input.to === 'user' && !host.want(MessagesWorkflow))
-      throw new Error('Messaging the user is not available')
+    const parent = await checkParent(tx, from, input.to)
+    if (to === 'user') {
+      if (from === 'user') throw new Error('The user cannot message themselves')
+      const id = from as ConversationId
+      const caller = await tx.conversation(id)
+      const workflowGrant =
+        !!caller && !caller.owner && (await host.want(MessagesWorkflow)?.canMessageUser(tx, id))
+      const questionGrant =
+        !workflowGrant &&
+        !!caller &&
+        !caller.owner &&
+        questions !== undefined &&
+        (await host.want(UserQuestionPermission)?.canAsk(tx, id))
+      if (!workflowGrant && !questionGrant)
+        throw new Error(
+          `This conversation cannot ${questions === undefined ? 'report to' : 'ask'} the user. Send this to the conversation that started you.`,
+        )
+    }
     if (answerId !== undefined) {
       const original = (await tx.doc(Messages, ROOT_CONVERSATION_ID)).messages.find(
         (m) => m.id === answerId,
@@ -137,7 +153,7 @@ export async function send(
       for (const m of (await tx.doc(Messages, ROOT_CONVERSATION_ID)).messages)
         if (openQuestion(m) && m.id === input.re) m.state = input.dismiss ? 'dismissed' : 'answered'
     let re = input.re
-    if (from !== 'user' && input.reply !== false) {
+    if (from !== 'user' && (to === 'user' || input.reply !== false)) {
       const log = await tx.doc(Messages, ROOT_CONVERSATION_ID)
       // Only a message the agent has read is owed; one still queued is unread and gets its own turn.
       const pending = log.messages.find((m) => m.to === from && m.from === to && isOwed(m))
@@ -229,7 +245,7 @@ export async function send(
         {
           message,
           steer,
-          note: options.note ?? (starter === to && input.reply === false),
+          note: options.note ?? ((parent ?? starter) === to && input.reply === false),
           fromLabel,
           toLabel,
         },

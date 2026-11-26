@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { awaitWithContext } from '@earendil-works/chord/context'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -48,8 +48,15 @@ const textOf = (content: unknown): string =>
       ? content[0].text
       : JSON.stringify(content)
 
-async function fixture() {
+async function fixture(disable: string[] = []) {
   const home = await temp('ultimate-sidechat-')
+  if (disable.length) {
+    await mkdir(join(home, '.ultimate'), { recursive: true })
+    await writeFile(
+      join(home, '.ultimate/settings.json'),
+      JSON.stringify({ extensions: { disable } }),
+    )
+  }
   const server = await fauxServer({ ultimateRoot, home, userHome: home })
   servers.push(server)
   const standing = await post(server, '/api/extensions/subagents/actions/standing', {
@@ -158,7 +165,7 @@ describe('side chats', () => {
           ...(messages.hooks ?? []),
           hook(ToolTask, {
             beforeTool: async (call) => {
-              if (call.name === 'message') {
+              if (call.name === 'report_user') {
                 entered = true
                 await f.hold.promise
               }
@@ -171,7 +178,7 @@ describe('side chats', () => {
     const running = await (await f.server.harness.conversation(f.main, context))!.submit(
       {
         type: 'input',
-        content: `CALL ${JSON.stringify({ name: 'message', args: { to: 'user', text: 'holding main' } })}`,
+        content: `CALL ${JSON.stringify({ name: 'report_user', args: { text: 'holding main' } })}`,
       },
       context,
     )
@@ -179,7 +186,7 @@ describe('side chats', () => {
     const unfinished = (await entries(f.server, f.main)).at(-1)!
     expect(unfinished.kind).toBe('pi.assistant')
     expect(unfinished.model?.[0].content).toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: 'toolCall', name: 'message' })]),
+      expect.arrayContaining([expect.objectContaining({ type: 'toolCall', name: 'report_user' })]),
     )
     const side = await f.open()
     const doc = await f.server.harness.snapshot(Side, side, context)
@@ -258,7 +265,7 @@ describe('side chats', () => {
 
   it('includes terminal tool results and ignores completed generations inside an unfinished run', async () => {
     const f = await fixture()
-    await f.call(f.main, 'message', { to: 'user', text: 'finished tool-terminated turn' })
+    await f.call(f.main, 'report_user', { text: 'finished tool-terminated turn' })
     const closing = (await entries(f.server, f.main)).at(-1)!
     expect(closing.model?.[0].role).toBe('toolResult')
     const first = await f.open()
@@ -287,7 +294,7 @@ describe('side chats', () => {
   it('tracks only the specified tool/actions before execution, including failures, and persists effects across reopen', async () => {
     for (const name of [
       'branch',
-      'message',
+      'agent_message',
       'note',
       'notify',
       'remember',
@@ -325,11 +332,9 @@ describe('side chats', () => {
     expect(JSON.stringify(await entries(f.server, side))).toContain(
       'Added 1 for user: from the side',
     )
-    await f.call(side, 'message', { to: 'user', text: 'must fail' })
+    await f.call(side, 'report_user', { text: 'must fail' })
     expect((await f.server.harness.snapshot(Side, side, context))!.effects).toBe(true)
-    expect(JSON.stringify(await entries(f.server, side))).toContain(
-      'Only @ultimate and branches message the user',
-    )
+    expect(JSON.stringify(await entries(f.server, side))).toContain('cannot report to the user')
     expect((await f.action('discard', { id: side })).data.error).toMatch(/has effects/)
     servers.splice(servers.indexOf(f.server), 1)
     await f.server.close()
@@ -359,7 +364,7 @@ describe('side chats', () => {
       (entry) => entry.kind === 'lineage.note',
     )!
     expect(note.data).toMatchObject({ from: f.main, text: 'a note' })
-    await f.call(side, 'message', { to: `#${target.id}`, text: 'one question', reply: true })
+    await f.call(side, 'agent_message', { to: `#${target.id}`, text: 'one question', reply: true })
     await until(async () => {
       const board = (await f.server.harness.snapshot(Messages, ROOT_CONVERSATION_ID, context))!
       return board.messages.some((message) => message.from === target.id && message.to === f.main)
@@ -377,17 +382,15 @@ describe('side chats', () => {
         JSON.stringify(entry.data).includes(`Side chat #${side} messaged`),
     )
     expect(provenance).toHaveLength(1)
-    await f.call(side, 'message', { to: '@ultimate', text: 'self' })
+    await f.call(side, 'agent_message', { to: '@ultimate', text: 'self' })
     expect(JSON.stringify(await entries(f.server, side))).toContain('You cannot message yourself')
-    await f.call(side, 'message', { to: 'user', text: 'user' })
-    expect(JSON.stringify(await entries(f.server, side))).toContain(
-      'Only @ultimate and branches message the user',
-    )
+    await f.call(side, 'ask_user', { text: 'user', questions: [{ text: 'Go?', kind: 'confirm' }] })
+    expect(JSON.stringify(await entries(f.server, side))).toContain('cannot ask the user')
   })
 
   it.each([
-    ['message', 'latest'],
-    ['message', 'entry'],
+    ['agent_message', 'latest'],
+    ['agent_message', 'entry'],
     ['branch', 'latest'],
     ['branch', 'entry'],
   ] as const)(
@@ -637,20 +640,49 @@ describe('side chats', () => {
     expect(created.subscribers).toEqual([f.main])
     expect(created.script!.error).toContain('The watcher stopped while the script was writing')
     expect(created.script!.pid).toBeUndefined()
-    expect(
-      (await entries(f.server, f.main)).filter(
-        (entry) =>
-          entry.kind === 'lineage.note' &&
-          JSON.stringify(entry.data).includes(`Side chat #${side} created automation A2`),
-      ),
-    ).toHaveLength(1)
-    expect(
-      (await entries(f.server, f.main)).filter(
-        (entry) =>
-          entry.kind === 'lineage.note' &&
-          JSON.stringify(entry.data).includes(`Side chat #${side} subscribed`),
-      ),
-    ).toHaveLength(1)
+    const notes = async () =>
+      (await entries(f.server, f.main)).filter((entry) => entry.kind === 'sidechat.automation')
+    await until(async () => (await notes()).length === 2)
+    expect((await notes()).map((entry) => entry.data)).toEqual([
+      { side, change: 'subscribed to', id: 'A1' },
+      { side, change: 'created', id: 'A2' },
+    ])
+  })
+
+  it('notes committed changes without Coding or Lineage and does not start a turn', async () => {
+    const f = await fixture(['coding-workflow', 'lineage', 'recall', 'voice-live'])
+    const side = await f.open()
+    const runs = async () =>
+      (await entries(f.server, f.main)).filter((entry) => entry.kind === 'pi.assistant').length
+    const before = await runs()
+    const create = {
+      action: 'create',
+      name: 'Periodic task',
+      schedule: 'every 1d',
+      prompt: 'Check the state',
+      key: 'side-job',
+    }
+    await f.call(side, 'automation', create)
+    const ledger = (await f.server.harness.snapshot(Automations, context))!
+    const { id } = Object.values(ledger.automations).find((item) => item.key === create.key)!
+    await f.call(side, 'automation', { action: 'subscribe', id })
+    await f.call(side, 'automation', { action: 'subscribe', id, mode: 'result' })
+    await f.call(side, 'automation', { action: 'subscribe', id, mode: 'result' })
+    await f.call(side, 'automation', create)
+    await f.call(side, 'automation', { action: 'subscribe', id: 'A999' })
+    const notes = async () =>
+      (await entries(f.server, f.main)).filter((entry) => entry.kind === 'sidechat.automation')
+    await until(async () => (await notes()).length >= 3)
+    expect((await notes()).map((entry) => entry.data)).toEqual([
+      { side, id, change: 'created' },
+      { side, id, change: 'subscribed to' },
+      { side, id, change: 'subscribed to' },
+    ])
+    expect(await runs()).toBe(before)
+    await f.call(f.main, 'automation', { ...create, key: 'main-job' })
+    expect(await notes()).toHaveLength(3)
+    const result = (await f.server.harness.snapshot(Automations, context))!.automations[id]
+    expect(result.resultSubscribers).toEqual([f.main])
   })
 
   it('discards without writing main, concludes, refuses repeated end and later input, and refuses inject without summaryModel', async () => {

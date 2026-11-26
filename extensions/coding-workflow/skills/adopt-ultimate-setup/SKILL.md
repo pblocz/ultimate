@@ -12,7 +12,7 @@ they change.
 
 ## 1. Tour
 
-Read `.ultimate/settings.json` and every file in `.ultimate/agents/`. In one `message {to: 'user', text, questions}`,
+Read `.ultimate/settings.json` and every file in `.ultimate/agents/`. In one `ask_user {text, questions}`,
 explain each piece in one or two plain lines: what it is, why Ultimate has it, and what it would be here. End with one
 multi-select question listing the pieces below, plus **None, thanks**.
 

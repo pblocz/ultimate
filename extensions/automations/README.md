@@ -24,7 +24,8 @@ Exactly one per automation:
   makes the first FIRE finish the automation. A recurring script may print `DONE [text]` and exit 0 to stop cleanly.
   Any other unplanned exit wakes only the watcher, to repair or escalate. The third failure in a row (a FIRE or an hour
   of running resets the count), or a watcher whose turn ends mid-repair, escalates instead: the script stops as
-  `failed`, and subscribers get `automations.escalated`. With `coding-workflow`, @ultimate also receives a message.
+  `failed`, and subscribers get `automations.escalated`. With `supercoordinator`, the active coordinator also gets the
+  same input. See [Escalation alerts](#escalation-alerts).
   Pausing stops the watcher's turn and its queued inputs, deleting also concludes it, and briefs or failures still on
   their way to a stopped automation's watcher are dropped. A watcher cannot create automations, nor resume one its owner
   paused.
@@ -79,7 +80,25 @@ fire in UTC and from now (`next: 2026-11-20T13:00:00Z, in 18h`), so a wrong day 
   (default 50, at most 2000); `subscribe {id, to?, mode?}` / `unsubscribe {id, to?}` (default the caller); `escalate {id, reason}`;
   `delete` keeps files and conversations.
 
-Lifecycle events: `automations.started`, `.fired` `{id, text, fire}`, `.done`, `.exited`, `.escalated`.
+Lifecycle events: `automations.started`, `.fired` `{id, text, fire}`, `.done`, `.exited`, `.escalated`
+`{id, name, reason}`.
+
+Change events: `automations.created` and `automations.subscribed`, each `{id, caller?}`. Automations emits them in
+the commit that records a new automation, a new subscriber, or a changed subscriber mode. `caller` is the actual
+calling conversation, before side-chat attribution. A keyed create that returns an existing record, a receipt replay,
+or an unchanged subscription emits nothing. The events carry no prompt, script, or secret.
+
+## Escalation alerts
+
+Automations decides when to escalate and emits `automations.escalated`. It delivers the input to the saved subscribers
+as before. It has no optional workflow point and does not choose an extra recipient.
+
+`supercoordinator` reacts to the event and sends the same input to the active standing coordinator. Both paths use
+`escalationNotice` (`shared/automation-escalation.ts`): the same text, entry, and request ID
+`automations:<id>:<event>:escalated`. Pi Durable deduplicates the request ID for each recipient conversation. Thus a
+coordinator that is also a subscriber, by number or by `@name`, gets one input. Each path pins its resolved recipient in
+its task before it submits. Without `supercoordinator`, the subscribers still get the alert. A failure of the extra
+alert does not stop subscriber delivery.
 
 ## Script files
 
