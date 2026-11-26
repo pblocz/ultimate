@@ -1,6 +1,6 @@
 /**
  * The ordinary web application without the coding modules: an explicit inventory of the core folders and the generic
- * extensions, copied into a temporary source root. Workspaces, lineage, coding-workflow and dream are absent, with no
+ * extensions, copied into a temporary source root. Workspaces, lineage, coding-workflow, supercoordinator and dream are absent, with no
  * API-only copies, so an import of them fails instead of falling back to the original source.
  */
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -38,7 +38,13 @@ export const ordinaryExtensions = [
   'theme',
   'web',
 ]
-export const omittedExtensions = ['workspaces', 'lineage', 'coding-workflow', 'dream']
+export const omittedExtensions = [
+  'workspaces',
+  'lineage',
+  'coding-workflow',
+  'supercoordinator',
+  'dream',
+]
 
 /** Copy the inventory into a new folder under `parent`, trusted, with the repository's dependencies linked. */
 export async function ordinarySource(parent: string) {

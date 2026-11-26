@@ -29,7 +29,7 @@ async function fixture() {
       join(path, '.ultimate/settings.json'),
       JSON.stringify({
         onboarding: false,
-        extensions: { disable: ['update', 'dream', 'coding-workflow'] },
+        extensions: { disable: ['update', 'dream', 'coding-workflow', 'supercoordinator'] },
       }),
     )
   }

@@ -92,7 +92,15 @@ async function fixture() {
     },
   } as unknown as ExtensionHost
   // Messages’ core dependencies: no standing agents to list, no worktrees, no concluded conversations.
-  services.set('subagents', { residents: async () => [] } satisfies Partial<SubagentsService>)
+  services.set('subagents', {
+    residents: async () => [],
+    coordinator: async (ctx, tx) => ({
+      name: 'ultimate',
+      id: tx
+        ? (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+        : (await opened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate,
+    }),
+  } satisfies Partial<SubagentsService>)
   services.set('workspaces', { doc: Workspaces })
   services.set('conversations', { concludedIn: async () => new Set() })
   prepared.registry.install(messagesExtension(host))

@@ -27,7 +27,7 @@ it('distinguishes unsupported channel delivery from malformed configuration', ()
   expect(() => destinationAddress(null)).toThrow('destination must be an object')
 })
 
-it('reads the current user and trusted project settings before the optional coding fallback', async () => {
+it('reads the current user and trusted project settings before the optional coordinator fallback', async () => {
   const home = await temp('ultimate-default-destination-settings-')
   try {
     const notices: string[] = []
@@ -42,9 +42,9 @@ it('reads the current user and trusted project settings before the optional codi
     expect(await resolve()).toBeUndefined()
     services.implement(SubagentsWorkflow, {
       onDemand: () => true,
-      coordinatorName: () => 'ultimate',
+      coordinatorName: () => 'alternate',
     })
-    expect(await resolve()).toBe('@ultimate')
+    expect(await resolve()).toBe('@alternate')
     await mkdir(join(home, '.ultimate'))
     await writeFile(
       join(home, '.ultimate/settings.json'),

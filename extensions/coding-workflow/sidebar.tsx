@@ -42,15 +42,16 @@ import {
   emptyMessages,
   stateTone,
   stateWord,
+  waitingOnUser,
 } from '@ultimate/ext/messages/ui.tsx'
 import { InFlight, inFlight, MemoryRow, stillOpen, useMemorySummary } from './root.tsx'
 import type { Flight } from './root.tsx'
 import { Landed, useLandings } from './landed.tsx'
 import { MEMORY_SURFACE, useOpenMemory, useRoots } from '@ultimate/ext/lineage/ui.tsx'
-import { StandingDoc, talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
+import { StandingDoc, talkToCoordinator, useCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import type { KeptWork } from '@ultimate/ext/conversations/types.ts'
 import { LanderState } from './lander.tsx'
-import { StandingPhase, WaitingOnUser } from './ultimate.tsx'
+import { StandingPhase } from './ultimate.tsx'
 import { UnderUltimate, Unlisted, useShell, useSidebarState } from '@ultimate/ext/sidebar/ui.tsx'
 import { topLevelRows } from './listed.ts'
 
@@ -192,19 +193,16 @@ const pinned = (conversation: ConversationSummary) =>
 
 /** The project tree, with owned subagents under each row and earlier/concluded work at the bottom. */
 export function Conversations() {
-  const ultimateId = useDocOf(1, StandingDoc)?.ultimate
+  const ultimateId = useCoordinator()?.id
+  const waiting = waitingOnUser(useDocOf(1, MessagesDoc) ?? emptyMessages)
   return (
-    <WaitingOnUser>
-      {(waiting) => (
-        <Provided input={null} point={ParkedRuns}>
-          {(parked) => (
-            <AllProvided input={ultimateId} point={Unlisted}>
-              {(sets) => <Tree parked={parked ?? none} unlisted={sets} waiting={waiting} />}
-            </AllProvided>
-          )}
-        </Provided>
+    <Provided input={null} point={ParkedRuns}>
+      {(parked) => (
+        <AllProvided input={ultimateId} point={Unlisted}>
+          {(sets) => <Tree parked={parked ?? none} unlisted={sets} waiting={waiting} />}
+        </AllProvided>
       )}
-    </WaitingOnUser>
+    </Provided>
   )
 }
 const none: ReadonlySet<number> = new Set()
@@ -258,7 +256,8 @@ function Tree({
   const topLevel = topLevelRows(conversations, new Set(unlisted.flatMap((set) => [...set])))
   // @ultimate first, then the lander and other standing agents: pinned above the rest and never concluded.
   const standingIds = useDocOf(1, StandingDoc)
-  const ultimateId = standingIds?.ultimate
+  const coordinator = useCoordinator()
+  const ultimateId = coordinator?.id
   const ultimate = topLevel.find((conversation) => conversation.id === ultimateId)
   const agents = topLevel
     .filter((conversation) => pinned(conversation) && conversation.id !== ultimateId)
@@ -343,7 +342,8 @@ function Tree({
     const busy = conversation !== undefined && working.has(conversation.id)
     const latest = Math.max(conversation?.inputAt ?? 0, conversation?.answerAt ?? 0)
     const lander = conversation?.label === 'lander'
-    const isUltimate = conversation === undefined || conversation.id === ultimateId
+    const isUltimate =
+      coordinator !== undefined && (conversation === undefined || conversation.id === ultimateId)
     const shown = conversation !== undefined && conversation.id === shownTop?.id
     // A lander lands without a model run: its dot pulses for the landing too.
     const landing =
@@ -355,11 +355,10 @@ function Tree({
       )
     const name = lander
       ? 'lander'
-      : isUltimate
-        ? 'ultimate'
-        : (Object.entries(standingIds ?? {}).find(([, id]) => id === conversation.id)?.[0] ??
-          conversation.title?.replace(/^@/, '') ??
-          `#${conversation.id}`)
+      : (Object.entries(standingIds ?? {}).find(([, id]) => id === conversation?.id)?.[0] ??
+        conversation?.title?.replace(/^@/, '') ??
+        coordinator?.name ??
+        '')
     const state = conversation
       ? conversationState(
           {
@@ -391,7 +390,7 @@ function Tree({
         onOpen={() =>
           conversation && !isUltimate
             ? actions.switchConversation(conversation.id)
-            : void talkToUltimate(actions)
+            : void talkToCoordinator(actions)
         }
         shown={shown}
       >
@@ -627,7 +626,7 @@ function Tree({
       </Project>
       <nav aria-label="Conversations" className="flex flex-col gap-px">
         <div className="mb-1 border-b border-border/60 pb-1">
-          {ultimate ? tree(ultimate) : standingRow(undefined)}
+          {coordinator && (ultimate ? tree(ultimate) : standingRow(undefined))}
           <AllProvided input={ultimateId} point={UnderUltimate}>
             {(rows) => rows}
           </AllProvided>

@@ -533,7 +533,7 @@ export const actions = {
     if (!latest.merge) throw new Error(latest.refused ?? `${latest.branch} has not diverged`)
     const { head, remoteHead } = await cloneState(gitIn(host.ultimateRoot), host.ultimateRoot)
     const coordinator = host.want(SubagentsWorkflow)?.coordinatorName?.()
-    if (!coordinator) throw new Error('Merge assistance needs the coding-workflow coordinator')
+    if (!coordinator) throw new Error('Merge assistance needs the standing coordinator')
     const id = await host.need(SubagentsApi).standing(coordinator, context)
     const conversation = (await host.harness().conversation(id, context))!
     await conversation.submit(

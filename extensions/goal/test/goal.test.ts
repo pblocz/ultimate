@@ -4,6 +4,7 @@ import { expect, it } from 'vitest'
 import { reminderTask } from '../reminder.ts'
 import goalExtension, { act, actions, end, Goals, openGoal, start, TRIES } from '../server.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 
 const ULTIMATE = 5 as ConversationId
 const screenshot = { type: 'image', data: 'aGk=', mimeType: 'image/png' }
@@ -86,7 +87,10 @@ function fakeHost(tx: ReturnType<typeof fakeTx>) {
   const host = {
     harness: () => ({ commit: (fn: (tx: Tx) => unknown) => fn(tx) }),
     need: () => ({ defaultConversation: () => Promise.resolve(ULTIMATE) }),
-    want: () => service,
+    want: (api: { name: string }) =>
+      api.name === SubagentsApi.name
+        ? { coordinator: async () => ({ name: 'ultimate', id: ULTIMATE }) }
+        : service,
     doc: () => undefined,
     invoke: async () => structuredClone([...ledger.values()]),
   } as unknown as ExtensionHost
@@ -187,7 +191,10 @@ it("notes the open goal on @ultimate's runs only, and lets only @ultimate keep i
   const extension = goalExtension({
     doc: () => undefined,
     need: () => undefined,
-    want: () => undefined,
+    want: (api: { name: string }) =>
+      api.name === SubagentsApi.name
+        ? { coordinator: async () => ({ name: 'ultimate', id: ULTIMATE }) }
+        : undefined,
   } as unknown as ExtensionHost)
   const hooks = extension.hooks![0].handlers as GenerationHooks
   const before = (conversationId: number, kind = 'pi.user') =>

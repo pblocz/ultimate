@@ -1,10 +1,4 @@
-import {
-  defineDoc,
-  defineExtension,
-  GenerationTask,
-  hook,
-  ROOT_CONVERSATION_ID,
-} from '@earendil-works/pi-durable'
+import { defineDoc, defineExtension, GenerationTask, hook } from '@earendil-works/pi-durable'
 import type { ContextView, EntryRecord } from '@earendil-works/pi-durable'
 import type { Message } from '@earendil-works/pi-ai'
 import { estimateMessageTokens } from '@earendil-works/pi-ai/utils/estimate'
@@ -16,7 +10,7 @@ import type { ClassifyQuestion } from '@ultimate/ext/classify/api.ts'
 import { ContextUsageDoc } from '@ultimate/ext/conversations/api.ts'
 import { LineageApi } from '@ultimate/ext/lineage/api.ts'
 import type { MemoryItem } from '@ultimate/ext/lineage/refs.ts'
-import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { RecallDoc } from './refs.ts'
 import type { RecallState } from './refs.ts'
 import { RECALL_ENTRY } from './types.ts'
@@ -114,8 +108,7 @@ export default function recall(host: ExtensionHost) {
           const classify = host.want(ClassifyApi)
           const id = api.conversationId
           if (!classify) return undefined
-          if ((await api.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate !== id)
-            return undefined
+          if ((await host.want(SubagentsApi)?.coordinator(ctx))?.id !== id) return undefined
           // The live context: what compaction removed is gone from it, recalls included.
           const view = await (await host.harness().conversation(id, ctx))!.context(ctx)
           const input = view.entries.findLast(isInput)

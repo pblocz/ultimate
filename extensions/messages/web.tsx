@@ -33,7 +33,7 @@ import { callerOf } from './caller.ts'
 import { OpenMessages } from './open.tsx'
 import { QuestionPointer } from './pointer.tsx'
 import { OffscreenQuestions } from './waiting.tsx'
-import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
+import { CoordinatorDoc, StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
 import { MessagesDoc, CallerAction } from './refs.ts'
 import type { MessagesData } from './refs.ts'
 
@@ -148,7 +148,8 @@ export default defineWebExtension({
   },
   tools: { message: MessageCall, branch: BranchCall },
   compact: {
-    when: (conversation, docs) => ultimateCompact(conversation, docs[StandingDoc.kind]),
+    when: (conversation, docs) =>
+      ultimateCompact(conversation, docs[StandingDoc.kind], docs[CoordinatorDoc.kind]?.name),
     tools: [
       'message',
       'branch',
@@ -156,7 +157,7 @@ export default defineWebExtension({
       // A script that messaged you stays visible, so its messages show as bubbles, even when it was interrupted.
       (call, docs) => scriptMessaged(call, docs.board as MessagesData | null | undefined),
     ],
-    docs: ['board', StandingDoc.kind],
+    docs: ['board', StandingDoc.kind, CoordinatorDoc.kind],
     // Your inputs and @ultimate's messages to you are what you read; everything between recedes into one line.
     thread: (row, docs) => threadRow(row, docs.board as MessagesData | null | undefined),
     summary: StretchSummary,

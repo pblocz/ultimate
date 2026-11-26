@@ -39,7 +39,7 @@ it('supplies bundled definitions only through their enabled owners', async () =>
   const found = await f.discover()
   expect(found.errors).toEqual([])
   const owners = {
-    ultimate: 'coding-workflow',
+    ultimate: 'supercoordinator',
     coordinator: 'coding-workflow',
     worker: 'coding-workflow',
     designer: 'coding-workflow',
@@ -57,7 +57,7 @@ it('supplies bundled definitions only through their enabled owners', async () =>
   await writeFile(
     join(f.userHome, '.ultimate/settings.json'),
     JSON.stringify({
-      extensions: { disable: ['coding-workflow', 'dream', 'automations'] },
+      extensions: { disable: ['supercoordinator', 'coding-workflow', 'dream', 'automations'] },
     }),
   )
   const disabled = await f.discover()

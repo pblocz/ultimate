@@ -27,7 +27,7 @@ A top-level conversation with a selected definition also follows its instruction
 `chat`) or a standing agent such as @ultimate (label `agent`). Forks and children (a conversation with an owner or a
 parent) keep the instructions they started with. When the definition's text differs from the conversation's, the
 hook re-applies only the instructions, so a typed input picks up an updated definition file, for example
-`extensions/coding-workflow/agents/ultimate.md`, as Messages deliveries already did. Model, thinking and tools stay as
+`extensions/supercoordinator/agents/ultimate.md`, as Messages deliveries already did. Model, thinking and tools stay as
 chosen. The optional `ultimate.persona-application` provider can preserve its instructions during refresh.
 `workspaces` uses it to keep the checkout instructions. If the
 definition is gone, the hook keeps the configuration and writes a notice. The document keeps a hash of each project context file (`AGENTS.md`) and of the

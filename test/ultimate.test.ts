@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { afterAll, expect, it, vi } from 'vitest'
 import {
@@ -133,7 +133,7 @@ it.concurrent('refreshes primary instructions without resetting a chosen model o
     context,
   )
   expect((await conversation.agent(context)).tools.map((tool) => tool.name)).toEqual(['read'])
-  const path = join(f.root, 'extensions/coding-workflow/agents/ultimate.md')
+  const path = join(f.root, 'extensions/supercoordinator/agents/ultimate.md')
   await writeFile(path, (await readFile(path, 'utf8')) + '\nUpdated instruction body.\n')
   await ask(f.server, id, 'Use the updated instructions')
   const refreshed = await conversation.agent(context)
@@ -143,10 +143,67 @@ it.concurrent('refreshes primary instructions without resetting a chosen model o
   expect(refreshed.tools.map((tool) => tool.name)).toEqual(['read'])
 })
 
+it.concurrent('adopts the old binding and restores the current conversation after disable and removal', async () => {
+  const f = await fixture()
+  const settings = join(f.home, '.ultimate/settings.json')
+  const enable = (disable: string[]) =>
+    writeFile(settings, JSON.stringify({ extensions: { enable: ['parallel'], disable } }))
+  const binding = async (server: Server) =>
+    (await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate
+  const openStanding = (server: Server) =>
+    post(server, '/api/extensions/subagents/actions/standing', { args: { name: 'ultimate' } })
+
+  expect(await binding(f.server)).toBeUndefined()
+  const previous = await f.server.harness.commit(async (tx) => {
+    const record = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+    ;(await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate = record.id
+    return record.id
+  }, context)
+  await f.server.close()
+  const upgraded = await f.open()
+  expect(await binding(upgraded)).toBe(previous)
+  await upgraded.close()
+
+  await enable(['supercoordinator'])
+  const disabled = await f.open()
+  expect(await binding(disabled)).toBeUndefined()
+  expect((await disabled.harness.conversation(previous, context))?.id).toBe(previous)
+  expect((await openStanding(disabled)).status).not.toBe(200)
+  await disabled.close()
+
+  await enable([])
+  const reenabled = await f.open()
+  expect(await binding(reenabled)).toBeUndefined()
+  expect((await openStanding(reenabled)).data.result).toBe(previous)
+  const replacement = await post(reenabled, '/api/extensions/subagents/actions/replaceStanding', {
+    args: { name: 'ultimate', expected: previous },
+  })
+  expect(replacement.status).toBe(200)
+  const current = replacement.data.result as ConversationId
+  expect(current).not.toBe(previous)
+  await ask(reenabled, current, 'Keep this history')
+  await reenabled.close()
+
+  const provider = join(f.root, 'extensions/supercoordinator')
+  const removedPath = join(f.home, 'removed-provider')
+  await rename(provider, removedPath)
+  const removed = await f.open()
+  expect(await binding(removed)).toBeUndefined()
+  expect((await openStanding(removed)).status).not.toBe(200)
+  expect(JSON.stringify(await entries(removed, current))).toContain('Keep this history')
+  await removed.close()
+
+  await rename(removedPath, provider)
+  const restored = await f.open()
+  expect(await binding(restored)).toBeUndefined()
+  expect((await openStanding(restored)).data.result).toBe(current)
+  expect(JSON.stringify(await entries(restored, current))).toContain('Keep this history')
+})
+
 it.concurrent('ships a resident Ultimate definition with valid tools; standing addresses create recipients and name both sides', async () => {
   const f = await fixture()
   const definition = parseDefinition(
-    await readFile(resolve('extensions/coding-workflow/agents/ultimate.md'), 'utf8'),
+    await readFile(resolve('extensions/supercoordinator/agents/ultimate.md'), 'utf8'),
     'ultimate',
   )
   expect(definition.resident).toBe(true)
@@ -377,7 +434,7 @@ it.concurrent('refreshes standing definitions before delivering automatic replie
     if (text.startsWith('Message from') && text.includes('\nRoll after edit\n'))
       await writeFile(
         join(home, '.ultimate/agents/ultimate.md'),
-        (await readFile(resolve('extensions/coding-workflow/agents/ultimate.md'), 'utf8')) +
+        (await readFile(resolve('extensions/supercoordinator/agents/ultimate.md'), 'utf8')) +
           '\nEdited reply recipient.',
       )
   })
@@ -464,7 +521,7 @@ it.concurrent('re-applies an updated @ultimate definition on a typed input and n
   // The first run records what it saw silently.
   await ask(f.server, ultimate, 'first')
   expect(await notes()).toEqual([])
-  const path = join(f.root, 'extensions/coding-workflow/agents/ultimate.md')
+  const path = join(f.root, 'extensions/supercoordinator/agents/ultimate.md')
   await writeFile(path, (await readFile(path, 'utf8')) + '\nNew rule: delegate extensions.\n')
   await writeFile(join(f.root, 'docs/subagents.md'), 'Changed docs.\n')
   // A typed input, not a Messages delivery, picks up the new definition.
@@ -472,11 +529,11 @@ it.concurrent('re-applies an updated @ultimate definition on a typed input and n
   expect(await instructions()).toContain('New rule: delegate extensions.')
   const [note] = await notes()
   expect(note.data).toEqual({
-    instructions: ['extensions/coding-workflow/agents/ultimate.md'],
+    instructions: ['extensions/supercoordinator/agents/ultimate.md'],
     docs: ['docs/subagents.md'],
   })
   expect(note.model?.[0]?.content).toContain(
-    'Instructions changed: extensions/coding-workflow/agents/ultimate.md',
+    'Instructions changed: extensions/supercoordinator/agents/ultimate.md',
   )
   // The note comes once per change.
   await ask(f.server, ultimate, 'third')
@@ -489,7 +546,7 @@ it.concurrent('re-applies an updated @ultimate definition on a typed input and n
   await ask(f.server, ultimate, 'fourth')
   // Entries come newest first.
   expect((await notes())[0].data).toEqual({
-    instructions: ['extensions/coding-workflow/agents/ultimate.md'],
+    instructions: ['extensions/supercoordinator/agents/ultimate.md'],
     docs: ['docs/worktrees.md (removed)'],
   })
   // Other bundled definitions still count as docs after they move into an extension.

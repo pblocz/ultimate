@@ -10,7 +10,7 @@ import {
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
 import { MemoryHeader } from '@ultimate/ext/lineage/ui.tsx'
-import { StandingDoc, talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
+import { talkToCoordinator, useCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import {
   chapterLabel,
   ChaptersDialog,
@@ -58,7 +58,7 @@ function contextShare(entries: readonly EntryRecord[], window: number) {
  */
 function TimeToDream() {
   const { id, entries, agent } = useConversation()
-  const ultimate = useDocOf(1, StandingDoc)?.ultimate
+  const ultimate = useCoordinator()?.id
   const doc = useDocOf(1, DreamDoc)
   const models = useModels()
   const actions = useUltimate()
@@ -125,7 +125,7 @@ function useDreamButton() {
 /** After a Fall asleep the reloaded page opens @ultimate, where the morning card waits. */
 function WakeUp() {
   const actions = useUltimate()
-  useWakeUp(() => talkToUltimate(actions))
+  useWakeUp(() => talkToCoordinator(actions))
   return null
 }
 

@@ -42,7 +42,7 @@ import { SubmissionLanded, WorkspacesApi } from '@ultimate/ext/workspaces/api.ts
 import type { LandedData } from '@ultimate/ext/workspaces/api.ts'
 import { Branch, Branched, LineageApi, Rooted, Roots } from './api.ts'
 import { ConversationsApi, Trees } from '@ultimate/ext/conversations/api.ts'
-import { Standing, Started } from '@ultimate/ext/subagents/api.ts'
+import { Standing, Started, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { spawn } from 'node:child_process'
 import { CompactAction, ForgetAction, OpenEditorAction, RecentAction, TallyDoc } from './refs.ts'
 import {
@@ -593,8 +593,7 @@ function lineage(host: ExtensionHost) {
           (await (await host.harness().submission(result.submissionId, ctx))?.wait(ctx))
         const placed = result.entryId !== undefined || (written && written.status === 'done')
         // Keyed by the compaction, so a rerun after a crash finds the input it already submitted.
-        const ultimate =
-          (await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate === id
+        const ultimate = (await host.want(SubagentsApi)?.coordinator(ctx))?.id === id
         if (placed)
           await (await host.harness().conversation(id, ctx))!.submit(
             {
@@ -1289,8 +1288,7 @@ export default function lineageExtension(host: ExtensionHost) {
    * `branch` defaults. Undefined for anyone else and while that root has no memories.
    */
   const standingBrief = async (id: ConversationId, ctx: Context) => {
-    const standing = await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
-    if (standing?.ultimate !== id) return undefined
+    if ((await host.want(SubagentsApi)?.coordinator(ctx))?.id !== id) return undefined
     const roots = await rootsOf(host, ctx)
     const root = (await rootOf(host, id, ctx)) ?? (roots.length === 1 ? roots[0] : undefined)
     if (root === undefined) return undefined
@@ -1415,7 +1413,7 @@ export default function lineageExtension(host: ExtensionHost) {
           if (compaction.reason === 'manual')
             await host.harness().commit(async (tx) => {
               const id = api.conversationId
-              if ((await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate !== id) return
+              if ((await host.want(SubagentsApi)?.coordinator(ctx, tx))?.id !== id) return
               const receipt = await tx.doc(WokenReceipt, id, String(api.taskId), null)
               if (receipt.task !== undefined) return
               receipt.task = await tx.createTask(
@@ -1571,7 +1569,7 @@ export default function lineageExtension(host: ExtensionHost) {
               )
             if (await liveTask(tx, id, CompactionTask.definition.name))
               throw new Error('Already compacting')
-            const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate === id
+            const ultimate = (await host.want(SubagentsApi)?.coordinator(ctx, tx))?.id === id
             const created = await admitCompaction(tx, id, instructions)
             if (!ultimate)
               (await tx.doc(WokenReceipt, id, String(created), null)).task = await tx.createTask(
@@ -1650,10 +1648,11 @@ export default function lineageExtension(host: ExtensionHost) {
         // Not replay-safe (the default): an interrupted call is never rerun, so a batch commits at most once.
         async execute({ root, ops }, api, ctx) {
           // Deferred only hides it: a branch can still find it with tool_search, so the caller is checked here.
-          const standing = await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
-          if (standing?.ultimate !== api.conversationId)
+          const role = await host.want(SubagentsApi)?.coordinator(ctx)
+          if (!role) throw new Error('Writing project memory needs the standing coordinator')
+          if (role.id !== api.conversationId)
             throw new Error(
-              'Only @ultimate writes project memory; tell @ultimate what to remember (message, reply: false).',
+              `Only @${role.name} writes project memory; tell it what to remember (message, reply: false).`,
             )
           const id = await memoryRoot(api.conversationId, root, ctx)
           const summary = await api.commit((tx) => applyMemoryOps(tx, id, ops), ctx)

@@ -26,7 +26,7 @@ import {
 } from '@/sdk'
 import type { EntryRecord } from '@/sdk'
 import { OpenAction, SideChatsDoc, useSideChatFront } from '@ultimate/ext/side-chat/ui.tsx'
-import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
+import { useCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import { BusyBlocker, chapterLabel, Refusal, switchChapter, useBusyElsewhere } from './chapters.tsx'
 import type { Seed } from './types.ts'
 
@@ -110,7 +110,7 @@ function Carried({ counts }: { counts: Seed['counts'] }) {
 
 /** The check that I woke up well, followed to its side chat's ending; Discard leads back to the chapter before. */
 function Awake({ data }: { data: ChapterEntry }) {
-  const ultimate = useDocOf(1, StandingDoc)?.ultimate
+  const ultimate = useCoordinator()?.id
   const index = useDocOf(ultimate, SideChatsDoc) ?? undefined
   const conversations = useConversations()
   const [, setFront] = useSideChatFront()

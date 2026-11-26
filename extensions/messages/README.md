@@ -132,8 +132,8 @@ Server side, imported in one direction (`log`, `images`, `addresses`, `questions
 - `addresses.ts`: resolving `to`, sender names, and a subagent's parent.
 - `images.ts`, `questions.ts`, `log.ts`: forwarded images, questions and the `board.open` line, the bounded log.
 
-`coding-workflow` owns `branch.ts`, `route.ts`, and `notice.ts`. It uses `messages.workflow` and
-`MessagesApi`; generic message files do not import it.
+`coding-workflow` owns `branch.ts` and `route.ts`, and emits the branch question events. `supercoordinator` owns the
+passive `board.notice` task. Both use `messages.workflow` or `MessagesApi`; generic message files import neither.
 
 `api.ts` and `refs.ts` are the contract; `caller.ts` is shared with the browser; the `.tsx` files are the UI.
 

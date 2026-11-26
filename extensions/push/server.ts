@@ -11,7 +11,7 @@ import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import type { OverviewState } from '@ultimate/ext/conversations/types.ts'
 import { Messages, MessageSent } from '@ultimate/ext/messages/api.ts'
 import { SecretsApi } from '@ultimate/ext/secrets/api.ts'
-import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { SubmissionLanded } from '@ultimate/ext/workspaces/api.ts'
 import { newKey, publicKey, sendPush } from './push.ts'
 import { KeyAction, PresentAction, SubscribeAction, TestAction, UnsubscribeAction } from './refs.ts'
@@ -104,7 +104,7 @@ export default function pushExtension(host: ExtensionHost) {
         (each) => each.id === data.message,
       )
       if (!message) return
-      const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+      const ultimate = (await host.want(SubagentsApi)?.coordinator(context, tx))?.id
       const title = host.conversations().find((each) => each.id === data.from)?.title
       const push = questionPush(message, ultimate, title)
       if (push) deliver(host, push)

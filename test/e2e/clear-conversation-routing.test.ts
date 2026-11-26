@@ -28,7 +28,9 @@ it('keeps admitted work on the old ID and routes future named deliveries to the 
     join(user, '.ultimate/settings.json'),
     JSON.stringify({
       summaryModel: 'unavailable/test',
-      extensions: { disable: ['coding-workflow', 'dream', 'telegram', 'update'] },
+      extensions: {
+        disable: ['coding-workflow', 'supercoordinator', 'dream', 'telegram', 'update'],
+      },
     }),
   )
   await writeFile(

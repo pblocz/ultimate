@@ -18,7 +18,10 @@ export async function defaultDestinationFixture() {
       join(home, '.ultimate/settings.json'),
       JSON.stringify({
         summaryModel: 'unavailable/test',
-        extensions: { disable: ['coding-workflow'], enable: ['voice-live', 'push', 'keep-warm'] },
+        extensions: {
+          disable: ['coding-workflow', 'supercoordinator'],
+          enable: ['voice-live', 'push', 'keep-warm'],
+        },
         defaultDestination: { kind: 'conversation', address: '@neutral' },
       }),
     )

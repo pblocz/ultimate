@@ -13,7 +13,7 @@ import { readJson } from '@ultimate/lib/json-file.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { AutomationsApi } from '@ultimate/ext/automations/api.ts'
 import type { Automation } from '@ultimate/ext/automations/refs.ts'
-import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { deliver } from './delivery.ts'
 import type { RequestedEntry } from './refs.ts'
 import type { Seed } from './types.ts'
@@ -119,13 +119,19 @@ async function ensureOne(host: ExtensionHost, builtIn: BuiltIn, seed: Seed | und
     return
   }
   // Never made here: on a fresh project the automation follows @ultimate's start.
-  const ultimate = (await harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate
-  if (ultimate === undefined) return
+  const role = await host.want(SubagentsApi)?.coordinator(context)
+  if (role?.id === undefined) return
+  const address = `@${role.name}`
   // A create whose receipt was lost gets the automation it made back from its key, not a second one.
   const created = (await host.invoke(
     'automations',
     'create',
-    { name, condition, subscribers: ['@ultimate'], key: `dream:${doc.definition.kind}` },
+    {
+      name,
+      condition: { ...condition, of: address },
+      subscribers: [address],
+      key: `dream:${doc.definition.kind}`,
+    },
     signal,
   )) as Automation
   if (carried?.enabled === false && created.enabled)
@@ -141,7 +147,7 @@ export async function fired(host: ExtensionHost, tx: Tx, id: string, fire: numbe
   let builtIn: BuiltIn | undefined
   for (const item of BUILT_INS)
     if ((await tx.doc(item.doc, ROOT_CONVERSATION_ID)).id === id) builtIn = item
-  const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+  const ultimate = (await host.want(SubagentsApi)?.coordinator(context, tx))?.id
   if (!builtIn || ultimate === undefined) return
   const automation = await host.want(AutomationsApi)?.read(tx, id)
   const condition = automation?.condition

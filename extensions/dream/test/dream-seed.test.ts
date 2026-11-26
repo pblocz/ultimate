@@ -25,7 +25,7 @@ import dream, { Next } from '../server.ts'
 import { applySeed, buildSeed, SeedState, writeSeed } from '../seed.ts'
 import { CloudApi } from '@ultimate/ext/cloud/api.ts'
 import type { CloudService, LastBackup } from '@ultimate/ext/cloud/api.ts'
-import { temp, until, eventHost } from '@ultimate/test/helpers.ts'
+import { coordinatorStub, temp, until, eventHost } from '@ultimate/test/helpers.ts'
 
 const openedHosts: OpenHost[] = []
 afterEach(async () => {
@@ -85,21 +85,24 @@ async function fixture() {
     },
     react: () => {},
     notice: () => {},
-    want: (api: { name: string }) => (api.name === CloudApi.name ? cloud : undefined),
-    need: () => ({
-      standing: async () =>
-        opened.harness.commit(async (tx) => {
-          const standing = await tx.doc(Standing, ROOT_CONVERSATION_ID)
-          if (!standing.ultimate) {
-            const created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
-            await configure(tx, created.id, {})
-            standing.ultimate = created.id
-          }
-          return standing.ultimate
-        }, context),
-    }),
+    want: (api: { name: string }) =>
+      api.name === CloudApi.name ? cloud : api.name === SubagentsApi.name ? subagents : undefined,
+    need: () => subagents,
     invoke,
   } as unknown as ExtensionHost
+  const subagents = {
+    coordinator: coordinatorStub(() => opened.harness),
+    standing: async () =>
+      opened.harness.commit(async (tx) => {
+        const standing = await tx.doc(Standing, ROOT_CONVERSATION_ID)
+        if (!standing.ultimate) {
+          const created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
+          await configure(tx, created.id, {})
+          standing.ultimate = created.id
+        }
+        return standing.ultimate
+      }, context),
+  }
   prepared.registry.install(automations(host))
   prepared.registry.install(dream(host))
   const open = async () => {

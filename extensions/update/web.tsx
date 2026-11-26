@@ -239,7 +239,7 @@ function Popup({
             {state.ahead === 1 ? 'commit' : 'commits'} of its own, so it can't fast-forward.
             {state.mergeCoordinator
               ? `@${state.mergeCoordinator} can merge origin on a branch and land it once the checks pass.`
-              : 'Merge assistance needs the coding-workflow coordinator.'}
+              : 'Merge assistance needs the standing coordinator.'}
           </div>
         ) : (
           state.refused &&

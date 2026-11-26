@@ -40,7 +40,9 @@ if (phase === 'prepare') {
     join(userHome, '.ultimate/settings.json'),
     JSON.stringify({
       summaryModel: 'unavailable/test',
-      extensions: { disable: ['coding-workflow', 'dream', 'update', 'keep-warm', 'goal'] },
+      extensions: {
+        disable: ['coding-workflow', 'supercoordinator', 'dream', 'update', 'keep-warm', 'goal'],
+      },
     }),
   )
   await writeFile(

@@ -28,7 +28,7 @@ import {
   PAUSE_NAME,
   PauseDoc,
 } from '../built-ins.ts'
-import { apis, eventHost, temp, until } from '@ultimate/test/helpers.ts'
+import { apis, coordinatorStub, eventHost, temp, until } from '@ultimate/test/helpers.ts'
 
 const openedHosts: OpenHost[] = []
 /** The extensions' close callbacks: automations' minute timer stops before its harness closes. */
@@ -60,6 +60,7 @@ async function fixture() {
       [
         'subagents',
         {
+          coordinator: coordinatorStub(() => opened.harness),
           standing: async () =>
             (await opened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))!.ultimate,
         },
@@ -285,7 +286,7 @@ it("marks the branch a dream request's turn started as the dream, and asks @ulti
       context,
     )
   const mark = (id: number, call: number, by: number = f.ultimate) =>
-    f.harness.commit((tx) => branched(tx, { id, by, call, at: 1000 + id }), context)
+    f.harness.commit((tx) => branched(tx, { id, by, call, at: 1000 + id }, f.ultimate), context)
   const dreamOf = async () => (await f.harness.snapshot(Next, ROOT_CONVERSATION_ID, context))?.dream
   // An ordinary branch, with no dream request in its turn, is not a dream.
   await mark(900, await append('pi.assistant', { stopReason: 'toolUse' }))

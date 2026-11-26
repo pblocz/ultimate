@@ -125,13 +125,14 @@ export const stateTone: Partial<Record<ConversationState, string>> = {
 }
 
 /**
- * The primary standing agent's conversation, which uses compact mode with the user: @ultimate's, by the standing
- * agents' index on the root (`StandingDoc`), whatever its title or label.
+ * The active coordinator's conversation, which uses compact mode with the user. It is read from the standing index and
+ * the coordinator role, whatever its title or label.
  */
 export const ultimateCompact = (
   conversation: { id: number },
   standing: Readonly<Record<string, unknown>> | null | undefined,
-) => standing?.ultimate === conversation.id
+  coordinator: unknown,
+) => typeof coordinator === 'string' && standing?.[coordinator] === conversation.id
 
 /**
  * The messages to you that tool call `call` sent, itself or through a script's nested calls, in the order sent (the log

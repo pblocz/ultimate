@@ -110,6 +110,12 @@ export const RunsDoc = docRef<Record<string, Run>>('subagents.runs')
 
 /** `{ [name]: conversationId }` of the standing agents, on conversation 1. */
 export const StandingDoc = docRef<Record<string, number>>('ultimate.standing-agents')
+
+/** The active coordinator's standing name, independent of its current conversation or title. */
+export const CoordinatorDoc = docRef<{ name?: string }>('subagents.coordinator')
+
+/** Open the active coordinator on explicit request; fails if no provider is active. */
+export const OpenCoordinatorAction = actionRef<null, number>('subagents', 'openCoordinator')
 /** The agent definition a conversation selected, if any. */
 export const ProfileDoc = docRef<{ definition?: string; adhoc?: true }>('ultimate.agent-profile')
 

@@ -89,17 +89,15 @@ it.concurrent('asks @ultimate once to merge origin into a diverged clone that is
   expect(JSON.stringify(refused.data)).toContain('The checkout has uncommitted changes')
 })
 
-it.concurrent('refuses merge assistance without the coding workflow and starts no coordinator', async () => {
+it.concurrent('refuses merge assistance without the standing coordinator and starts none', async () => {
   const home = await temp()
   const root = await diverged(home)
-  const server = await serve(home, root, root, ['coding-workflow'])
+  const server = await serve(home, root, root, ['coding-workflow', 'supercoordinator'])
   const before = await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)
   const conversations = server.conversations().length
   const merge = await post(server, '/api/extensions/update/actions/merge', {})
   expect(merge.status).not.toBe(200)
-  expect(JSON.stringify(merge.data)).toContain(
-    'Merge assistance needs the coding-workflow coordinator',
-  )
+  expect(JSON.stringify(merge.data)).toContain('Merge assistance needs the standing coordinator')
   expect(await server.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)).toEqual(before)
   expect(server.conversations()).toHaveLength(conversations)
 })

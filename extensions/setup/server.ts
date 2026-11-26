@@ -24,7 +24,7 @@ import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
 import { HealthApi } from '@ultimate/ext/health/api.ts'
 import type { MemoryDoc, RootsDoc, TallyDoc } from '@ultimate/ext/lineage/refs.ts'
-import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { TailscaleApi } from '@ultimate/ext/tailscale/api.ts'
 import { CheckAction } from './refs.ts'
 import type { SetupIssue } from './refs.ts'
@@ -486,8 +486,8 @@ export default function setup(host: ExtensionHost) {
         // Only the primary agent hears about setup, and only when its warnings change: a per-input note, never a
         // system-prompt section, keeps the prompt cached.
         beforeInput: async (_input, { tx, conversationId }) => {
-          const standing = await tx.doc(Standing, ROOT_CONVERSATION_ID)
-          if (standing.ultimate !== conversationId) return undefined
+          const role = await host.want(SubagentsApi)?.coordinator(BACKGROUND_CONTEXT, tx)
+          if (role?.id !== conversationId) return undefined
           // A check that fails here only skips the note; the status line still shows the setup.
           return noteFor(tx, conversationId, await current(tx).catch(() => undefined), Date.now())
         },

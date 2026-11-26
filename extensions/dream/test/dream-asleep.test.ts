@@ -16,14 +16,14 @@ import { chapterFiles } from '@ultimate/lib/chapters.ts'
 import { readJson, writeJson } from '@ultimate/lib/json-file.ts'
 import { CloudApi } from '@ultimate/ext/cloud/api.ts'
 import type { CloudService } from '@ultimate/ext/cloud/api.ts'
-import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { docs as lineageDocs } from '@ultimate/ext/lineage/server.ts'
 import { Messages } from '@ultimate/ext/messages/api.ts'
 import { Todos } from '@ultimate/ext/todos/server.ts'
 import { actions, Next, userActions } from '../server.ts'
 import type { Sleep } from '../refs.ts'
 import type { Seed } from '../types.ts'
-import { temp } from '@ultimate/test/helpers.ts'
+import { coordinatorStub, temp } from '@ultimate/test/helpers.ts'
 
 const harnesses: Harness[] = []
 afterEach(async () => {
@@ -60,7 +60,10 @@ async function fixture() {
     })),
     lastBackup: vi.fn<CloudService['lastBackup']>(async () => undefined),
   }
-  const services = new Map<unknown, unknown>([[CloudApi, cloud]])
+  const services = new Map<unknown, unknown>([
+    [CloudApi, cloud],
+    [SubagentsApi, { coordinator: coordinatorStub(() => harness) }],
+  ])
   const invoke = vi.fn<(extension: string, action: string) => Promise<[]>>(
     async (extension, action) => {
       expect(action).toBe('list')

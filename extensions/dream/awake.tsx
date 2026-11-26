@@ -7,7 +7,7 @@ import { LoaderCircleIcon, MoonIcon, MoonStarIcon } from 'lucide-react'
 import { useState } from 'react'
 import { api, errorMessage, useDocOf, useUltimate } from '@/sdk'
 import { useConcludedSince } from '@ultimate/ext/conversations/ui.tsx'
-import { talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
+import { talkToCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import { DismissAction, DreamDoc, ReadyAction } from './refs.ts'
 import { dreamStage } from './stage.ts'
 
@@ -55,7 +55,7 @@ export function AwakeSection({ onAct }: { onAct?: () => void }) {
   const ready = () =>
     run(async () => {
       await api.action(ReadyAction, null)
-      await talkToUltimate(actions)
+      await talkToCoordinator(actions)
     })
   return (
     <section
@@ -92,7 +92,7 @@ export function AwakeSection({ onAct }: { onAct?: () => void }) {
             onClick={() => {
               onAct?.()
               // Opening a conversation fails only when @ultimate is unknown; the sidebar row stays as it is then.
-              talkToUltimate(actions).catch(() => undefined)
+              talkToCoordinator(actions).catch(() => undefined)
             }}
             type="button"
           >

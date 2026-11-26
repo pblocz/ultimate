@@ -167,18 +167,28 @@ describe('sender accents', () => {
 describe('@ultimate compact mode', () => {
   const standing = { ultimate: 7, lander: 8 }
   it("is @ultimate's conversation by the standing agents' index, whatever its title or label", () => {
-    expect(ultimateCompact({ id: 7 }, standing)).toBe(true)
+    expect(ultimateCompact({ id: 7 }, standing, 'ultimate')).toBe(true)
     // A rename or relabel changes nothing: the summary's title and label are not read.
     expect(
-      ultimateCompact({ id: 7, title: 'Renamed', label: 'x' } as { id: number }, standing),
+      ultimateCompact(
+        { id: 7, title: 'Renamed', label: 'x' } as { id: number },
+        standing,
+        'ultimate',
+      ),
     ).toBe(true)
   })
   it('excludes other standing agents and conversations titled @ultimate, and waits for the index', () => {
-    expect(ultimateCompact({ id: 8 }, standing)).toBe(false)
+    expect(ultimateCompact({ id: 8 }, standing, 'ultimate')).toBe(false)
     expect(
-      ultimateCompact({ id: 9, title: '@ultimate', label: 'agent' } as { id: number }, standing),
+      ultimateCompact(
+        { id: 9, title: '@ultimate', label: 'agent' } as { id: number },
+        standing,
+        'ultimate',
+      ),
     ).toBe(false)
-    expect(ultimateCompact({ id: 7 }, undefined)).toBe(false)
+    expect(ultimateCompact({ id: 7 }, undefined, 'ultimate')).toBe(false)
+    expect(ultimateCompact({ id: 7 }, standing, undefined)).toBe(false)
+    expect(ultimateCompact({ id: 8 }, standing, 'lander')).toBe(true)
   })
 })
 

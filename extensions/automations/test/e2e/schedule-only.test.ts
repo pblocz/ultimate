@@ -28,13 +28,13 @@ it('runs and recovers ordinary schedules with the supervisor file absent', async
   await writeFile(
     join(userHome, '.ultimate/settings.json'),
     JSON.stringify({
-      extensions: { disable: ['coding-workflow', 'dream', 'goal', 'update'] },
+      extensions: { disable: ['coding-workflow', 'supercoordinator', 'dream', 'goal', 'update'] },
     }),
   )
   for (const path of [
     'extensions/automations/supervisor.ts',
     'extensions/automations/agents/watcher.md',
-    'extensions/coding-workflow/agents/ultimate.md',
+    'extensions/supercoordinator/agents/ultimate.md',
   ])
     await rm(join(source, path))
   const server = await prepareFauxServer({

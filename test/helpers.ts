@@ -7,7 +7,8 @@ export { until } from './until.ts'
 import { join, resolve, sep } from 'node:path'
 import { applyImmutable } from '@earendil-works/chord/delta'
 import type { Op } from '@earendil-works/chord/delta'
-import type { ConversationId, ConversationView, Harness } from '@earendil-works/pi-durable'
+import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
+import type { ConversationId, ConversationView, Harness, Tx } from '@earendil-works/pi-durable'
 import { afterAll, vi } from 'vitest'
 import { ProjectTrustStore } from '@earendil-works/pi-coding-agent'
 import { fauxProvider } from '@earendil-works/pi-ai/providers/faux'
@@ -20,8 +21,20 @@ import type { ServerEvents, SystemInfo } from '../shared/protocol.ts'
 import type { Api } from '../shared/extension-api.ts'
 import type { EventData, EventToken } from '../shared/events.ts'
 import { EventFeed, eventLog } from '../server/events.ts'
-import type { Reactor } from '../server/events.ts'
+import type { Reactor, ReactOptions } from '../server/events.ts'
 import { webFacets } from '../extensions/web/bundle.ts'
+import { Standing } from '../extensions/subagents/api.ts'
+
+/** A test stand-in for `SubagentsApi.coordinator`: the named role and its current standing binding. */
+export const coordinatorStub =
+  (harness: () => Pick<Harness, 'snapshot'>, name = 'ultimate') =>
+  async (ctx: typeof context, tx?: Tx) => {
+    const index = tx
+      ? await tx.doc(Standing, ROOT_CONVERSATION_ID)
+      : await harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
+    const id = index?.[name]
+    return { name, ...(id === undefined ? {} : { id }) }
+  }
 
 vi.mock('@earendil-works/pi-ai/providers/faux', async (importOriginal) => {
   const original = await importOriginal<typeof import('@earendil-works/pi-ai/providers/faux')>()
@@ -73,7 +86,8 @@ export function eventHost(harness: () => Harness, name: string) {
       reactor: string,
       events: readonly T[],
       handler: Reactor<EventData<T>>,
-    ) => void reactors.push(log.reactor(`${name}/${reactor}`, events, handler)),
+      options?: ReactOptions,
+    ) => void reactors.push(log.reactor(`${name}/${reactor}`, events, handler, options)),
     eventLog: log.eventLog,
     start: () => Promise.all(reactors.map((reactor) => reactor.start())),
     stop: () => Promise.all(reactors.map((reactor) => reactor.stop())),

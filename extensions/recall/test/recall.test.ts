@@ -18,7 +18,8 @@ import { ClassifyApi } from '@ultimate/ext/classify/api.ts'
 import type { ClassifyService } from '@ultimate/ext/classify/api.ts'
 import { ContextUsageDoc } from '@ultimate/ext/conversations/api.ts'
 import type { LineageService } from '@ultimate/ext/lineage/api.ts'
-import { Standing } from '@ultimate/ext/subagents/api.ts'
+import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import { coordinatorStub } from '@ultimate/test/helpers.ts'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -66,7 +67,12 @@ async function launch(probabilities: Record<string, number>, percent = 40) {
   registry.install(
     recall({
       harness: () => harness,
-      want: ((api: unknown) => (api === ClassifyApi ? { ask } : undefined)) as never,
+      want: ((api: unknown) =>
+        api === ClassifyApi
+          ? { ask }
+          : api === SubagentsApi
+            ? { coordinator: coordinatorStub(() => harness) }
+            : undefined) as never,
       need: (() => lineage) as never,
     } as never),
   )

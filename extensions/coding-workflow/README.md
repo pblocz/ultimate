@@ -6,12 +6,15 @@ messages, and schedules continue to work when this extension is absent.
 ## What it owns
 
 - The `branch` tool, coordinator selection, branch reports, and answers routed back to branches.
-- The existing `board.route` and `board.notice` task kinds, versions, checkpoints, and request IDs.
+- The existing `board.route` task kind, version, checkpoints, and request IDs.
+- The branch question events in `shared/branch-questions.ts`. They carry IDs and an outcome, not text.
 - The `workspaces.branches` extension point that the Lander uses.
-- Permission for `@ultimate` and branches to message the user and settle questions for the user.
-- Primary-agent notices, side-chat notes, and extra automation escalation messages.
-- On-demand startup of `@ultimate` through `subagents.workflow`, and its name through `coordinatorName()`. Automations, update merge, and review use that name as an optional default.
-- The bundled `ultimate`, `coordinator`, `worker`, `designer`, and `reviewer` definitions in `agents/`.
+- Permission for the standing coordinator and branches to message the user, and for the coordinator to settle questions for the user. It reads the role through `SubagentsApi.coordinator`.
+- Side-chat notes, and extra automation escalation messages when a coordinator is active.
+- The bundled `coordinator`, `worker`, `designer`, and `reviewer` definitions in `agents/`.
+
+The optional `supercoordinator` extension owns the `ultimate` persona, its standing address, the passive question notes,
+and the title-bar entry points. Without it, branches, questions, answers, and reports to the recorded starter still work.
 
 The `messages` extension keeps the web action names. Its thin handlers call `messages.workflow` only after the current
 permission checks. When the workflow is absent, these actions fail before they change state.
@@ -58,15 +61,12 @@ walkthrough command and the `onboarding.start` entry card. These keep their stor
 
 - The project tree in the `sidebar` slot at order 100, below the ordinary conversations (`sidebar.tsx`), and the
   `Seen` overlay that records seen answers.
-- The title bar's ULTIMATE wordmark (`titlebar.brand`) and, on phones, the `@ultimate` button (`titlebar.left`).
-- **Talk to @ultimate** (`subagents.ultimate`, `mod+0`).
-- `ErrorReport`: **Debug with @ultimate** puts an error report into `@ultimate`'s draft, unsent. It replaces the
-  generic report into the selected conversation's draft, because a later extension wins a point.
 - Through `workspaces`: the isolation badge and landing details on child cards (`ChildBadge`, `ChildResult`).
 - Through `messages`: the Lander's name (`AgentName`).
 
 The tree below is this extension's `sidebar.tsx` and the files it uses (`rows.tsx`, `root.tsx`, `landed.tsx`,
-`lander.tsx`, `landings.ts`, `listed.ts`, `summaries.tsx`, `section.tsx`, `work.ts`, `ultimate.tsx`). Rows under
+`lander.tsx`, `landings.ts`, `listed.ts`, `summaries.tsx`, `section.tsx`, `work.ts`, `ultimate.tsx`). The coordinator's
+row appears only while `supercoordinator` provides the role. Rows under
 `@ultimate`'s come from the sidebar's `sidebar.under-ultimate` point. The conversations that `sidebar.unlisted` names
 (the ordinary chats, side chats) are left out of every list here (`listed.ts`).
 
@@ -91,17 +91,17 @@ block's brain) is.
 @ultimate has its own section below the project: its row shows `working`, `idle` or an amber
 `N waiting on you` (reply-enabled messages to you still waiting on your answer, plus one for its current final
 answer when that asks you questions), and the age of its latest
-message. Clicking it opens @ultimate on the Agent surface through `subagents.standing {name: 'ultimate'}`, also before
+message. Clicking it opens @ultimate on the Agent surface through `subagents.openCoordinator`, also before
 its conversation exists. Below it, an Agents group lists the lander first, then the other ownerless top-level standing
 agents (label `agent`) by ID. These rows are never concluded or hidden and show no summary or feature:
 @lander shows its state (`landing` or `idle`), `queue N` while submissions wait,
 and the age of its latest landing (what landed is its Landed section's first row); other agents show `working` or `idle` and the age. Their menu only
 compacts the context; they are never renamed, cleared or concluded.
 
-Beyond a phone the title bar's ULTIMATE wordmark (`titlebar.brand`) opens @ultimate too.
+`supercoordinator` adds the title bar's ULTIMATE wordmark (`titlebar.brand`), which opens @ultimate too.
 @ultimate's mark and line (`waits on you`) are amber while questions wait on you; the Inbox row under it says how many
 and lists them (`extensions/inbox`). On
-phones, where the sidebar is hidden, the title bar's `@ultimate` button (`titlebar.left`) opens @ultimate from every
+phones, where the sidebar is hidden, the title bar's `@ultimate` button (`titlebar.left`, from `supercoordinator`) opens @ultimate from every
 surface instead, with the same mark: its dot pulses while @ultimate works and is amber while questions wait.
 
 Every section of the sidebar folds the same way (`Section`, `section.tsx`): a quiet mono heading with a chevron and

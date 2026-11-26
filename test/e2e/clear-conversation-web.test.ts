@@ -24,7 +24,9 @@ it('clears the open conversation without moving unrelated addresses', async () =
     join(userHome, '.ultimate/settings.json'),
     JSON.stringify({
       summaryModel: 'unavailable/test',
-      extensions: { disable: ['coding-workflow', 'dream', 'telegram', 'update'] },
+      extensions: {
+        disable: ['coding-workflow', 'supercoordinator', 'dream', 'telegram', 'update'],
+      },
     }),
   )
   for (const name of ['ultimate', 'research'])

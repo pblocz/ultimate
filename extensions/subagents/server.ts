@@ -13,6 +13,7 @@ import {
   AssistantEntry,
   configure,
   ToolResultEntry,
+  defineDoc,
   defineExtension,
   defineTask,
   defineTool,
@@ -74,16 +75,27 @@ import { definitionRuns, refName, refOf } from '@ultimate/lib/families.ts'
 import { readFamilies } from '@ultimate/lib/families-settings.ts'
 import {
   ClearConversationAction,
+  CoordinatorDoc,
   DefaultDestinationAction,
   DefinitionAction,
   DefinitionsAction,
   DeleteDefinitionAction,
+  OpenCoordinatorAction,
   SaveDefinitionAction,
   ReplaceStandingAction,
   StandingAction,
 } from './refs.ts'
 
-export const docs = [Subagents, Standing, Profile, Runs]
+const Coordinator = defineDoc({
+  kind: CoordinatorDoc.kind,
+  checkpointWhen: () => false,
+  version: 1,
+  scope: 'conversation',
+  history: 'latest',
+  fork: 'initial',
+  initial: (): { name?: string } => ({}),
+})
+export const docs = [Subagents, Standing, Profile, Runs, Coordinator]
 
 /** The instructions of an agent `subagent start` makes on the fly, before the caller's own. */
 const ADHOC = `You were made for one task: do what your brief asks, and only that. Read the code and the repository instructions it touches first. Never delegate or push. Report problems instead of working around them. Answer with conclusions and their evidence (\`path:line\`, commands with their output), not dumps; say what you could not confirm.`
@@ -411,6 +423,12 @@ export const actions = {
       return {}
     return address === undefined ? {} : { address }
   }),
+  openCoordinator: implementAction(OpenCoordinatorAction, async (_args, { host }) => {
+    const service = host.need(SubagentsApi)
+    const role = await service.coordinator(BACKGROUND_CONTEXT)
+    if (!role) throw new Error('The standing coordinator is unavailable')
+    return service.standing(role.name, BACKGROUND_CONTEXT)
+  }),
   standing: implementAction(StandingAction, async (args, { host }) => {
     const { name } = (args ?? {}) as Record<string, JsonValue>
     if (typeof name !== 'string') throw new Error('name is required')
@@ -695,6 +713,10 @@ export default function subagents(
         .map((definition) => definition.name),
     )
     await host.harness().commit(async (tx) => {
+      const coordinator = await tx.doc(Coordinator, ROOT_CONVERSATION_ID)
+      const active = host.want(SubagentsWorkflow)?.coordinatorName?.()
+      if (active) coordinator.name = active
+      else delete coordinator.name
       const marks = await tx.doc(Marks, ROOT_CONVERSATION_ID)
       for (const name of Object.keys(marks)) delete marks[name]
       for (const definition of definitions)
@@ -707,6 +729,7 @@ export default function subagents(
           if (exists) {
             await conversations.setAutomaticSummaries(tx, id, false)
             await conversations.setStanding(tx, id, true)
+            if (kept.has(name)) await host.want(SubagentsWorkflow)?.saveBinding?.(tx, name, id)
           }
           continue
         }
@@ -757,7 +780,10 @@ export default function subagents(
           return { missing: definitions.map((item) => `@${item.name}`) }
         }
         const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
+        const workflow = host.want(SubagentsWorkflow)
         let id = Object.hasOwn(index, name) ? index[name] : undefined
+        if (id === undefined && expected === undefined)
+          id = await workflow?.restoreBinding?.(tx, name)
         const previous = id !== undefined && (await tx.conversation(id)) ? id : undefined
         if (expected !== undefined && previous !== expected)
           throw new ChannelError(
@@ -789,11 +815,12 @@ export default function subagents(
         if (replacing || previous === undefined) {
           created = await tx.createConversation({ ownership: { kind: 'ownerless' } })
           id = created.id
-          index[name] = id
           if (replacing) await conversations.setStanding(tx, expected, false)
         } else {
           id = previous
         }
+        index[name] = id
+        await workflow?.saveBinding?.(tx, name, id)
         await configure(tx, id, { ...change, cwd: host.projectRoot })
         ;(await tx.doc(Family, id)).name = family
         Object.assign(await tx.doc(host.metadata, id), { label: 'agent', title: `@${name}` })
@@ -813,8 +840,22 @@ export default function subagents(
     return result.id
   }
   const service: SubagentsService = {
+    refreshStanding: pruneRetired,
     destinationAddress,
     defaultDestination: resolveDestination,
+    async coordinator(ctx, tx) {
+      const name = host.want(SubagentsWorkflow)?.coordinatorName?.()
+      if (!name) return undefined
+      const index = tx
+        ? await tx.doc(Standing, ROOT_CONVERSATION_ID)
+        : await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx)
+      const id = index && Object.hasOwn(index, name) ? index[name] : undefined
+      const record =
+        id === undefined
+          ? undefined
+          : await (tx ? tx.conversation(id) : host.harness().conversation(id, ctx))
+      return record ? { name, id } : { name }
+    },
     async defaultConversation(ctx, tx) {
       const address = await resolveDestination()
       let id: ConversationId | undefined

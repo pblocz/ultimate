@@ -3,7 +3,7 @@ import { Fragment, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { api, errorMessage, useDialog, useUltimate } from '@/sdk'
-import { talkToUltimate } from '@ultimate/ext/subagents/ui.tsx'
+import { talkToCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import { StartAction } from './refs.ts'
 import { passLabels } from './moon.tsx'
 import { PASSES } from './types.ts'
@@ -47,7 +47,7 @@ function Body({ onClose }: { onClose: () => void }) {
     try {
       await api.action(StartAction, null)
       onClose()
-      await talkToUltimate(actions)
+      await talkToCoordinator(actions)
     } catch (error) {
       setFailure(errorMessage(error))
     } finally {

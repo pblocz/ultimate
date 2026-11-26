@@ -55,7 +55,10 @@ async function fixture(withToken = true) {
     join(user, '.ultimate/settings.json'),
     JSON.stringify({
       summaryModel: 'unavailable/test',
-      extensions: { enable: ['telegram'], disable: ['web', 'dream', 'coding-workflow'] },
+      extensions: {
+        enable: ['telegram'],
+        disable: ['web', 'dream', 'coding-workflow', 'supercoordinator'],
+      },
       telegram: { allow: ['7', '8'] },
     }),
   )
@@ -217,7 +220,9 @@ async function fixture(withToken = true) {
         join(user, '.ultimate/settings.json'),
         JSON.stringify({
           summaryModel: 'unavailable/test',
-          extensions: { disable: ['telegram', 'web', 'dream', 'coding-workflow'] },
+          extensions: {
+            disable: ['telegram', 'web', 'dream', 'coding-workflow', 'supercoordinator'],
+          },
         }),
       )
     },

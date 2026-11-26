@@ -212,13 +212,7 @@ export async function send(
       reply: message.reply,
       steer,
     })
-    await host.want(MessagesWorkflow)?.posted(tx, message, {
-      answerId,
-      callId,
-      via,
-      dismiss: input.dismiss,
-      primary: primaryId,
-    })
+    await host.want(MessagesWorkflow)?.posted(tx, message, { answerId, dismiss: input.dismiss })
     // The user's answer or dismissal is their input to the asker; the message's `entry` names it once delivered. One
     // @ultimate settled for them is not: their chat input that it came from counted already.
     if (from === 'user' && answerId !== undefined && typeof to === 'number' && !via)

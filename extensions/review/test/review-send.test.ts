@@ -159,7 +159,7 @@ it('keeps known owners and explicit sends without the coding workflow', async ()
   await writeFile(join(project, '.ultimate/settings.json'), '{}')
   await writeFile(
     join(home, '.ultimate/settings.json'),
-    JSON.stringify({ extensions: { disable: ['coding-workflow'] } }),
+    JSON.stringify({ extensions: { disable: ['coding-workflow', 'supercoordinator'] } }),
   )
   const server = await fauxServer({
     ultimateRoot: resolve('.'),

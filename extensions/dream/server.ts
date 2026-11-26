@@ -21,7 +21,11 @@ import {
 } from '@ultimate/lib/chapters.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { CloudApi } from '@ultimate/ext/cloud/api.ts'
-import { Standing, Started as StandingStarted } from '@ultimate/ext/subagents/api.ts'
+import {
+  SubagentsApi,
+  SubagentsWorkflow,
+  Started as StandingStarted,
+} from '@ultimate/ext/subagents/api.ts'
 import { Fired } from '@ultimate/ext/automations/api.ts'
 import { Branched } from '@ultimate/ext/lineage/api.ts'
 import {
@@ -81,8 +85,8 @@ export async function requestOf(tx: Tx, ultimate: number, call: number) {
 export async function branched(
   tx: Tx,
   { id, by, call, at }: { id: number; by?: number; call?: number; at: number },
+  ultimate: number | undefined,
 ) {
-  const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
   if (ultimate === undefined || by !== ultimate || call === undefined) return
   const requested = await requestOf(tx, ultimate, call)
   const doc = await tx.doc(Next, ROOT_CONVERSATION_ID)
@@ -321,9 +325,9 @@ async function fallAsleep(host: ExtensionHost, input: { name?: unknown }) {
   }
 }
 
-const ultimateOf = async (tx: Tx) => {
-  const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
-  if (ultimate === undefined) throw new Error('@ultimate has no conversation yet')
+const ultimateOf = async (host: ExtensionHost, tx: Tx) => {
+  const ultimate = (await host.want(SubagentsApi)?.coordinator(context, tx))?.id
+  if (ultimate === undefined) throw new Error('The standing coordinator has no conversation')
   return ultimate
 }
 
@@ -355,7 +359,7 @@ export const actions = {
   /** The user's Dream button: the same ask a built-in automation's fire brings, as an input that wakes @ultimate. */
   start: implementAction(StartAction, async (_args, { host }) => {
     await host.harness().commit(async (tx) => {
-      const ultimate = await ultimateOf(tx)
+      const ultimate = await ultimateOf(host, tx)
       await deliver(host, tx, ultimate, {
         type: 'input',
         requestId: `dream.requested:${Date.now()}`,
@@ -377,7 +381,7 @@ export const actions = {
       const at = Date.now()
       doc.dream.asked = at
       delete doc.dream.dismissed
-      await deliver(host, tx, await ultimateOf(tx), {
+      await deliver(host, tx, await ultimateOf(host, tx), {
         type: 'input',
         requestId: `dream.ready:${at}`,
         kind: 'dream.ready',
@@ -406,7 +410,7 @@ export const actions = {
       // A new preparation is a new card: the record of an earlier sleep from this chapter goes.
       delete doc.sleep
       // The Fall asleep card, in @ultimate's conversation; a passive write its running turn reads.
-      await deliver(host, tx, await ultimateOf(tx), {
+      await deliver(host, tx, await ultimateOf(host, tx), {
         type: 'write',
         requestId: `dream.prepared:${doc.prepared.at}`,
         kind: 'dream.prepared',
@@ -452,7 +456,10 @@ export default function dream(host: ExtensionHost) {
     'ultimate-started',
     [StandingStarted],
     (_tx, { data }) => {
-      if (data.kind === 'standing' && data.agent === 'ultimate')
+      if (
+        data.kind === 'standing' &&
+        data.agent === host.want(SubagentsWorkflow)?.coordinatorName?.()
+      )
         ensure().catch((error: unknown) => host.notice(String(error)))
     },
     { from: 'now' },
@@ -462,13 +469,17 @@ export default function dream(host: ExtensionHost) {
     from: 'now',
   })
   // The branch a dream request's turn started is the dream; once it is concluded, the user is shown Fall asleep.
-  host.react('dream-branch', [Branched], (tx, event) =>
-    branched(tx, {
-      id: event.data.id,
-      by: event.context?.conversationId,
-      call: event.context?.entryId,
-      at: Date.parse(event.at),
-    }),
+  host.react('dream-branch', [Branched], async (tx, event) =>
+    branched(
+      tx,
+      {
+        id: event.data.id,
+        by: event.context?.conversationId,
+        call: event.context?.entryId,
+        at: Date.parse(event.at),
+      },
+      (await host.want(SubagentsApi)?.coordinator(context, tx))?.id,
+    ),
   )
   return defineExtension({ name: 'dream', tasks: [deliverTask(host)] })
 }

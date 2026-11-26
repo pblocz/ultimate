@@ -157,7 +157,13 @@ export function triggers(
     const state = await host.harness().snapshot(Automations, BACKGROUND_CONTEXT)
     for (const a of Object.values(state?.automations ?? {})) {
       if (closed || !a.enabled || !a.condition || (idle && !a.condition.idleFor)) continue
-      const target = await resolve(a.condition.of)
+      const of = a.condition.of
+      // A passive check does not open a standing conversation. Explicit condition edits still resolve the address.
+      const target = STANDING.test(of)
+        ? (await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, BACKGROUND_CONTEXT))?.[
+            of.slice(1)
+          ]
+        : await resolve(of)
       if (!target || (changed && !changed.has(target))) continue
       await host.harness().commit(async (tx) => {
         const current = (await tx.doc(Automations)).automations[a.id]

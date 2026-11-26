@@ -40,7 +40,7 @@ import {
   StatusAction,
   WalkthroughAction,
 } from '@ultimate/ext/onboarding/ui.tsx'
-import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
+import { useCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import { IsolationAction } from '@ultimate/ext/workspaces/ui.tsx'
 import type { Isolation } from '@ultimate/ext/workspaces/refs.ts'
 
@@ -190,7 +190,7 @@ function Instructions({ text }: { text: string }) {
 /** Above @ultimate's composer until onboarding has run for the project: one click starts it. */
 export function StartComposer({ core, dock }: { core: ReactNode; dock?: boolean }) {
   const id = useConversation((conversation) => conversation.id)
-  const ultimate = useDocOf(1, StandingDoc)?.ultimate
+  const ultimate = useCoordinator()?.id
   if (id === undefined || id !== ultimate) return core
   return (
     <>
@@ -290,7 +290,7 @@ function useGitCard({
 }
 
 export const onboardingProvides: Provision[] = [
-  provide(SetupWorkflow, () => workflow),
+  provide(SetupWorkflow, () => (useCoordinator() ? workflow : undefined)),
   provide(SetupCard, useGitCard),
 ]
 

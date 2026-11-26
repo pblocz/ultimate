@@ -20,7 +20,7 @@ import { implementAction } from '@ultimate/lib/actions.ts'
 import { imagesOf, latestImagesEntry } from '@ultimate/lib/entries.ts'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { AutomationsApi } from '@ultimate/ext/automations/api.ts'
-import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import { deliver, deliverTask } from './delivery.ts'
 import { reminderTask } from './reminder.ts'
 import { EndAction, GoalDoc, ImagesAction, StartAction } from './refs.ts'
@@ -44,7 +44,8 @@ export const docs = [Goals]
 /** A plain copy: the document's overlay is a proxy that structuredClone refuses, and unusable after the commit. */
 const copy = (goal: Goal) => JSON.parse(JSON.stringify(goal)) as Goal
 
-const ultimateOf = async (tx: Tx) => (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+const coordinatorOf = (host: ExtensionHost, tx: Tx) =>
+  host.want(SubagentsApi)?.coordinator(context, tx)
 
 /** The open goal, if any. */
 export async function openGoal(tx: Tx) {
@@ -228,7 +229,8 @@ const reportText = (goal: Goal) =>
  * goal as it is when the input runs, so a start still queued after the user ended the goal grants nothing.
  */
 async function card(host: ExtensionHost, tx: Tx, kind: 'goal.started' | 'goal.report', goal: Goal) {
-  const to = (goal.conversation as ConversationId | undefined) ?? (await ultimateOf(tx))
+  const to =
+    (goal.conversation as ConversationId | undefined) ?? (await coordinatorOf(host, tx))?.id
   if (to === undefined) throw new Error('The goal has no conversation')
   await deliver(host, tx, {
     to,
@@ -313,7 +315,10 @@ export default function goalExtension(host: ExtensionHost) {
         // A per-run note while a goal is open, never a system-prompt section, keeps the prompt cached.
         beforeInput: async (input, { tx, conversationId }) => {
           const goal = await openGoal(tx)
-          if (!goal || (goal.conversation ?? (await ultimateOf(tx))) !== conversationId)
+          if (
+            !goal ||
+            (goal.conversation ?? (await coordinatorOf(host, tx))?.id) !== conversationId
+          )
             return undefined
           const reminded =
             input.kind === 'automations.fired' &&
@@ -360,11 +365,13 @@ export default function goalExtension(host: ExtensionHost) {
           const caller = await actingAs(host, api.conversationId, ctx)
           const result = await api.commit(async (tx) => {
             const goal = await openGoal(tx)
-            const owner = goal?.conversation ?? (await ultimateOf(tx))
+            const role =
+              goal?.conversation === undefined ? await coordinatorOf(host, tx) : undefined
+            const owner = goal?.conversation ?? role?.id
             if (owner !== caller)
               throw new Error(
-                goal?.conversation === undefined
-                  ? 'Only @ultimate keeps the hands-off goal.'
+                role
+                  ? `Only @${role.name} keeps the hands-off goal.`
                   : 'Only the goal conversation keeps this hands-off goal.',
               )
             const acted = await act(tx, caller, args, Date.now())

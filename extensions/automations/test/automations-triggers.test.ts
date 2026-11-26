@@ -77,12 +77,13 @@ async function fixture(workflow = true) {
   }
   host.provided.set('subagents', {
     residents: async () => [],
-    // As the real one: the standing agent's conversation of the moment, the fixture's target before one is recorded.
-    standing: async (name: string) =>
-      name === 'ultimate'
-        ? ((await opened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context))?.ultimate ??
-          target)
-        : undefined,
+    standing: async (name: string) => {
+      if (name !== 'ultimate') return undefined
+      return opened.harness.commit(async (tx) => {
+        const index = await tx.doc(Standing, ROOT_CONVERSATION_ID)
+        return (index.ultimate ??= target)
+      }, context)
+    },
     createChild: (tx: Tx, options: Parameters<SubagentsService['createChild']>[1]) =>
       createChild(host, tx, options),
   })

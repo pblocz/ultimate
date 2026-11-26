@@ -6,12 +6,21 @@ import { WandSparklesIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { api, definePoint, events, useAction, useConversations, useDocOf } from '@/sdk'
 import type { UltimateActions } from '@/sdk'
-import { DefaultDestinationAction, RunsDoc, StandingAction, StandingDoc } from './refs.ts'
+import {
+  CoordinatorDoc,
+  DefaultDestinationAction,
+  OpenCoordinatorAction,
+  RunsDoc,
+  StandingAction,
+  StandingDoc,
+} from './refs.ts'
 import type { Run } from './refs.ts'
 
 export {
   ClearConversationAction,
+  CoordinatorDoc,
   DefaultDestinationAction,
+  OpenCoordinatorAction,
   DefinitionAction,
   DefinitionsAction,
   ProfileDoc,
@@ -58,11 +67,18 @@ export function RunName({ id, label }: { id: number | undefined; label: ReactNod
   )
 }
 
-/** Show the primary agent's standing conversation on the Agent surface: @ultimate starts branches and keeps tallies. */
-export async function talkToUltimate(
+/** The active role and its current conversation, if it has been opened. */
+export function useCoordinator() {
+  const name = useDocOf(1, CoordinatorDoc)?.name
+  const standing = useDocOf(1, StandingDoc)
+  return name ? { name, id: standing?.[name] } : undefined
+}
+
+/** Explicitly open the active coordinator's standing conversation. */
+export async function talkToCoordinator(
   actions: Pick<UltimateActions, 'switchConversation' | 'showSurface'>,
 ) {
-  const id = await api.action(StandingAction, { name: 'ultimate' })
+  const id = await api.action(OpenCoordinatorAction, null)
   actions.switchConversation(id)
   actions.showSurface('agent')
 }

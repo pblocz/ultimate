@@ -4,7 +4,7 @@ import { cn, formatAgo, formatTokens, Provided, useAction, useDocOf, useEvents }
 import { MEMORY_SURFACE, MemoryDoc, TallyDoc, useOpenMemory } from '@ultimate/ext/lineage/ui.tsx'
 import { Committed } from '@ultimate/ext/coding-tools/ui.tsx'
 import { MessagesDoc, conversationState, emptyMessages } from '@ultimate/ext/messages/ui.tsx'
-import { StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
+import { useCoordinator } from '@ultimate/ext/subagents/ui.tsx'
 import {
   CommitCount,
   ProgressAction,
@@ -60,7 +60,7 @@ function useBranchState(
   const index = useWorkspaceIndex()
   const log = useDocOf(1, MessagesDoc) ?? emptyMessages
   const runState = useOverview()[conversation.id]?.runState
-  const primary = useDocOf(1, StandingDoc)?.ultimate
+  const primary = useCoordinator()?.id
   const concludedSince = useConcludedSince()(conversation.id)
   const queued = index.queue.find((item) => item.conversationId === conversation.id)
   if (queued?.state === 'landing') return { label: 'landing', tone: 'success' } as const

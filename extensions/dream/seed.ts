@@ -5,7 +5,7 @@ import type { ConversationId, Tx } from '@earendil-works/pi-durable'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { readJson, writeJson } from '@ultimate/lib/json-file.ts'
 import { openQuestion } from '@ultimate/lib/message-state.ts'
-import { Standing, SubagentsApi } from '@ultimate/ext/subagents/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import type { MemoryItem } from '@ultimate/ext/lineage/refs.ts'
 import type { Todo } from '@ultimate/ext/todos/refs.ts'
 import { Roots } from '@ultimate/ext/lineage/api.ts'
@@ -83,8 +83,8 @@ export async function buildSeed(host: ExtensionHost, prepared: Prepared): Promis
     const builtIn = automations.find((item) => item.id === own)
     const ownPause = (await tx.doc(PauseDoc, ROOT_CONVERSATION_ID)).id
     const builtInPause = automations.find((item) => item.id === ownPause)
-    const ultimate = (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
-    if (ultimate === undefined) throw new Error('@ultimate has no conversation yet')
+    const ultimate = (await host.want(SubagentsApi)?.coordinator(context, tx))?.id
+    if (ultimate === undefined) throw new Error('The standing coordinator has no conversation')
     const triggers = automations
       .filter(
         (item) =>
@@ -207,7 +207,10 @@ export async function applySeed(host: ExtensionHost) {
     return undefined
   }
   if (state?.applied === undefined) {
-    const ultimate = await host.need(SubagentsApi).standing('ultimate', context)
+    const subagents = host.want(SubagentsApi)
+    const role = await subagents?.coordinator(context)
+    if (!subagents || !role) return undefined
+    const ultimate = await subagents.standing(role.name, context)
     await harness.commit(async (tx) => {
       const receipt = await tx.doc(SeedState, ROOT_CONVERSATION_ID)
       if (receipt.applied !== undefined) return

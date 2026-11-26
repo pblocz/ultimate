@@ -159,16 +159,13 @@ export type MessagesWorkflowService = {
   servesLine(tx: Tx, from: Message['from'], to: Message['to']): Promise<string>
   /** Whether this conversation sees all user questions and the instruction for settling them. */
   questionContext(tx: Tx, id: ConversationId): Promise<{ all: boolean; settleHint?: string }>
-  /** Record the workflow's passive question notices in the message transaction. */
+  /** Publish workflow facts about a new message in its admission transaction. */
   posted(
     tx: Tx,
     message: Message,
     options: {
       answerId?: number
-      callId?: string
-      via?: Via
       dismiss?: boolean
-      primary?: ConversationId
     },
   ): Promise<void>
   /** Settle a user question through the existing acting-conversation and input checks. */

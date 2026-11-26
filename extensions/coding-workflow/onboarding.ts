@@ -66,9 +66,15 @@ async function modelLine(host: ExtensionHost, conversation: Conversation) {
 }
 
 export function onboardingWorkflow(host: ExtensionHost): OnboardingWorkflowService {
+  const subagents = () => host.need(SubagentsApi)
+  async function coordinator() {
+    const role = await subagents().coordinator(context)
+    if (!role) throw new Error('The standing coordinator is unavailable')
+    return role.name
+  }
   return {
     help: async (card) => {
-      const id = await host.need(SubagentsApi).standing('ultimate', context)
+      const id = await subagents().standing(await coordinator(), context)
       const conversation = (await host.harness().conversation(id, context))!
       await conversation.submit(
         {
@@ -84,6 +90,7 @@ export function onboardingWorkflow(host: ExtensionHost): OnboardingWorkflowServi
       return { id }
     },
     start: async (input, conversationId) => {
+      const name = await coordinator()
       const lineage = host.need(LineageApi)
       const root =
         input.root ??
@@ -118,7 +125,7 @@ export function onboardingWorkflow(host: ExtensionHost): OnboardingWorkflowServi
         return { id: existing }
       }
       if ((await lineage.rootOf(root, context)) !== root) throw new Error('Expected a project root')
-      const id = await host.need(SubagentsApi).standing('ultimate', context)
+      const id = await subagents().standing(name, context)
       const project = await host.projectSetup()
       const checkout = await isolatable(host.projectRoot)
       const facts = {
@@ -164,7 +171,7 @@ export function onboardingWorkflow(host: ExtensionHost): OnboardingWorkflowServi
       return { id }
     },
     walkthrough: async () => {
-      const id = await host.need(SubagentsApi).standing('ultimate', context)
+      const id = await subagents().standing(await coordinator(), context)
       const conversation = (await host.harness().conversation(id, context))!
       await conversation.submit(
         {

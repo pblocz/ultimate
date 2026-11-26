@@ -22,7 +22,7 @@ import {
   LiveDoc,
   ROOT_CONVERSATION_ID,
 } from '@earendil-works/pi-durable'
-import type { ConversationId, Task, TaskId } from '@earendil-works/pi-durable'
+import type { ConversationId, Task, TaskId, Tx } from '@earendil-works/pi-durable'
 import type { Context } from '@earendil-works/chord/context'
 import type { JsonValue } from '@earendil-works/chord/json'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -34,6 +34,9 @@ import { Metadata } from '@ultimate/server/metadata.ts'
 import { emit } from '@ultimate/server/events.ts'
 import messagesExtension, { actions } from '../server.ts'
 import codingWorkflow from '@ultimate/ext/coding-workflow/server.ts'
+import { subscribeToBranchQuestions } from '@ultimate/ext/supercoordinator/questions.ts'
+import { notice } from '@ultimate/ext/supercoordinator/notice.ts'
+import { BranchQuestionAsked, BranchQuestionResolved } from '@ultimate/shared/branch-questions.ts'
 import pauseExtension, { actions as pauseActions } from '@ultimate/ext/pause/server.ts'
 import { Messages, MessageSent } from '../api.ts'
 import { send as sendMessage } from '../send.ts'
@@ -105,6 +108,7 @@ async function fixture(
     conversation?: () => number
   },
   workflow = true,
+  subscriber = false,
 ) {
   /** Services other extensions implement here, by API name, such as pause's `messages.gate`. */
   const provided = new Map<string, unknown>()
@@ -127,12 +131,25 @@ async function fixture(
   let holding = false
   const openers: (() => Promise<void>)[] = []
   const closers: (() => Promise<void>)[] = []
+  const events = eventHost(() => opened.harness, 'supercoordinator')
+  openers.push(async () => {
+    await events.start()
+  })
+  closers.push(async () => {
+    await events.stop()
+  })
   const provider = ({ name }: { name: string }) =>
     provided.has(name)
       ? provided.get(name)
       : name === 'subagents'
         ? {
             residents: async () => [{ name: 'scout', description: 'Search' }],
+            coordinator: async (ctx: Context, tx?: Tx) => ({
+              name: 'ultimate',
+              id: tx
+                ? (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+                : (await opened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate,
+            }),
             // Like the real service: only resident names resolve.
             standing: async (agent: string) => {
               if (agent !== 'scout') throw new Error(`Unknown standing agent @${agent}`)
@@ -153,6 +170,7 @@ async function fixture(
     ...prepared,
     metadata: Metadata,
     emit,
+    react: events.react,
     harness: () => opened.harness,
     implement: (api: { name: string }, value: MessagesService) => {
       provided.set(api.name, value)
@@ -171,6 +189,10 @@ async function fixture(
   } as unknown as ExtensionHost
   let backend = messagesExtension(host)
   const workflowBackend = workflow ? codingWorkflow(host) : undefined
+  if (subscriber) {
+    subscribeToBranchQuestions(host)
+    prepared.registry.install(defineExtension({ name: 'supercoordinator', tasks: [notice(host)] }))
+  }
   const gateTools = (extension: typeof backend): typeof backend => {
     if (!sendGate) return extension
     return {
@@ -335,6 +357,7 @@ async function fixture(
   return {
     host,
     provided,
+    events,
     get opened() {
       return opened
     },
@@ -1040,11 +1063,20 @@ async function codemodeFixture() {
   await writeFile(
     join(home, 'extensions/core-stand-ins/server.ts'),
     `import { ConversationsApi } from ${JSON.stringify(resolve('extensions/conversations/api.ts'))}
-import { SubagentsApi } from ${JSON.stringify(resolve('extensions/subagents/api.ts'))}
+import { ROOT_CONVERSATION_ID } from '@earendil-works/pi-durable'
+import { Standing, SubagentsApi } from ${JSON.stringify(resolve('extensions/subagents/api.ts'))}
 import { WorkspacesApi } from ${JSON.stringify(resolve('extensions/workspaces/api.ts'))}
 import { Workspaces } from ${JSON.stringify(resolve('extensions/workspaces/workspaces.ts'))}
 export default (host) => {
-  host.implement(SubagentsApi, { residents: async () => [] })
+  host.implement(SubagentsApi, {
+    residents: async () => [],
+    coordinator: async (ctx, tx) => ({
+      name: 'ultimate',
+      id: tx
+        ? (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+        : (await host.harness().snapshot(Standing, ROOT_CONVERSATION_ID, ctx))?.ultimate,
+    }),
+  })
   host.implement(WorkspacesApi, { doc: Workspaces })
   host.implement(ConversationsApi, { concludedIn: async () => new Set() })
   return { name: 'core-stand-ins' }
@@ -1399,7 +1431,7 @@ async function branched(f: Awaited<ReturnType<typeof fixture>>, prompt = 'Explor
     await f.opened.harness.waitForIdle(context)
     await until(async () =>
       (await f.opened.harness.inspect(context)).tasks.every(
-        (t) => t.record.kind !== 'board.route' && t.record.kind !== 'board.delivery',
+        (t) => !['board.route', 'board.delivery', 'board.notice'].includes(t.record.kind),
       ),
     )
   }
@@ -1411,7 +1443,7 @@ async function branched(f: Awaited<ReturnType<typeof fixture>>, prompt = 'Explor
   return { id, branch, from, later, settled }
 }
 it('lets a branch ask the user directly and leaves passive question and answer notes for @ultimate', async () => {
-  const f = await fixture()
+  const f = await fixture(undefined, undefined, true, true)
   const b = await branched(f)
   const entries = async (kind: string) => {
     const view = await f.opened.root.context(context)
@@ -1466,6 +1498,89 @@ it('lets a branch ask the user directly and leaves passive question and answer n
   expect(await entries('board.asked')).toHaveLength(1)
   expect(await entries('board.answered')).toHaveLength(1)
 })
+it('keeps branch answers and starter reports when the subscriber is absent', async () => {
+  const f = await fixture()
+  const b = await branched(f)
+  await b.later('SEND ' + JSON.stringify({ to: 'user', text: 'Proceed?' }))
+  const question = (await b.from()).find((message) => message.to === 'user')!
+  await f.service().answer(question.id, 'Proceed', context)
+  await b.settled()
+  expect((await b.from()).find((message) => message.report)?.text).toContain('Proceed')
+  expect((await f.opened.root.context(context)).entries.map((entry) => entry.kind)).not.toContain(
+    'board.asked',
+  )
+  expect(await f.events.eventLog.recent({ events: [BranchQuestionAsked], limit: 1 })).toMatchObject(
+    [{ data: { branch: b.id, question: question.id } }],
+  )
+})
+
+it('resumes passive notices after restart, including a pruned dismissal and duplicate facts', async () => {
+  const f = await fixture(undefined, undefined, true, true)
+  const b = await branched(f)
+  await f.events.stop()
+  await b.later('SEND ' + JSON.stringify({ to: 'user', text: 'Text that will be pruned' }))
+  const question = (await b.from()).find((message) => message.to === 'user')!
+  const response = await f.service().dismiss(question.id, context)
+  await b.settled()
+  await f.opened.harness.commit(async (tx) => {
+    const log = await tx.doc(Messages, ROOT_CONVERSATION_ID)
+    log.messages = log.messages.filter(
+      (message) => message.id !== question.id && message.id !== response,
+    )
+    await emit(tx, BranchQuestionResolved, {
+      branch: b.id,
+      question: question.id,
+      response,
+      outcome: 'dismissed',
+    })
+  }, context)
+  await f.opened.close()
+  const reopened = await f.open()
+  const notices = async () =>
+    (await reopened.root.context(context)).entries.filter(
+      (entry) => entry.kind === 'board.asked' || entry.kind === 'board.answered',
+    )
+  await until(f.events.settled)
+  await b.settled()
+  expect(await notices()).toHaveLength(2)
+  expect(await notices()).toMatchObject([
+    {
+      kind: 'board.asked',
+      data: { message: question.id, from: b.id, summary: `asked you · message ${question.id}` },
+    },
+    { kind: 'board.answered', data: { message: question.id, from: b.id, dismissed: true } },
+  ])
+  expect(JSON.stringify(await notices())).not.toContain('Text that will be pruned')
+})
+
+it('skips notices without a bound coordinator and ignores answers to ordinary chats', async () => {
+  const f = await fixture(undefined, undefined, true, true)
+  const b = await branched(f)
+  await f.opened.harness.commit(async (tx) => {
+    delete (await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate
+  }, context)
+  await b.later('SEND ' + JSON.stringify({ to: 'user', text: 'Can you check?' }))
+  await until(f.events.settled)
+  expect(await f.opened.harness.snapshot(Standing, ROOT_CONVERSATION_ID, context)).toEqual({})
+  expect((await f.opened.root.context(context)).entries.map((entry) => entry.kind)).not.toContain(
+    'board.asked',
+  )
+
+  const question = await f.opened.harness.commit(async (tx) => {
+    ;(await tx.doc(Standing, ROOT_CONVERSATION_ID)).ultimate = ROOT_CONVERSATION_ID
+    return f.service().append(tx, {
+      from: f.recipient.id,
+      to: 'user',
+      text: 'Ordinary question',
+      reply: true,
+      state: 'delivered',
+    })
+  }, context)
+  await f.service().answer(question.id, 'Ordinary answer', context)
+  await until(f.events.settled)
+  expect(await f.events.eventLog.recent({ events: [BranchQuestionResolved] })).toEqual([])
+})
+
 it('forwards images into a new branch with its prompt', async () => {
   const f = await fixture()
   const tool = (await f.opened.root.agent(context)).deferred.find((t) => t.name === 'branch')!
@@ -1901,6 +2016,7 @@ async function primaryFixture() {
   const f = await fixture()
   f.provided.set('subagents', {
     residents: async () => [{ name: 'ultimate', description: 'Ultimate' }],
+    coordinator: async () => ({ name: 'ultimate', id: ROOT_CONVERSATION_ID }),
     standing: async () => ROOT_CONVERSATION_ID,
   })
   return f

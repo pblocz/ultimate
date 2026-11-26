@@ -9,6 +9,7 @@ import type { ConversationDocToken, Tx } from '@earendil-works/pi-durable'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import type { ExtensionHost } from '@ultimate/server/extensions.ts'
 import { AutomationsApi } from '@ultimate/ext/automations/api.ts'
+import { SubagentsApi } from '@ultimate/ext/subagents/api.ts'
 import type { Automation } from '@ultimate/ext/automations/refs.ts'
 import type { Goal } from './refs.ts'
 
@@ -59,10 +60,17 @@ export function reminderTask(host: ExtensionHost, Goals: Goals) {
     if (!own) {
       // One the user deleted in the Automations panel stays deleted.
       if (goal.reminder) return false
+      const role =
+        goal.conversation === undefined
+          ? await host.want(SubagentsApi)?.coordinator(context)
+          : undefined
+      const coordinator = goal.conversation ?? (role && `@${role.name}`)
+      // Without a goal conversation or an active coordinator, the goal runs without a reminder.
+      if (coordinator === undefined) return false
       await automations.create({
         name: reminderName(id),
         schedule: SCHEDULE,
-        subscribers: [goal.conversation ?? '@ultimate'],
+        subscribers: [coordinator],
         key: reminderKey(id),
       })
       return true

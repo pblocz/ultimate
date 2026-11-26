@@ -11,7 +11,7 @@ import { RunsDoc, StandingDoc } from './refs.ts'
 import type { DestinationAddress, Run } from './refs.ts'
 import type { createChild } from './children.ts'
 
-export { Started, StandingDoc } from './refs.ts'
+export { CoordinatorDoc, Started, StandingDoc } from './refs.ts'
 export type { Destination, DestinationAddress } from './refs.ts'
 
 /** Optional provider-owned details and operations for children. The subagent tool checks ownership first. */
@@ -87,10 +87,14 @@ export const Profile = defineDoc(profileDocument)
 export type SubagentsService = {
   /** Validate a destination and normalize its conversation address. Throws for invalid or unsupported delivery. */
   destinationAddress(value: unknown): DestinationAddress
-  /** Read the configured address or optional coding default. Does not open a conversation or send input. */
+  /** Read the configured address or the optional coordinator address. Does not open a conversation. */
   defaultDestination(ctx: Context): Promise<DestinationAddress | undefined>
   /** The existing conversation at that address. Use tx inside a transaction. Never creates a conversation. */
   defaultConversation(ctx: Context, tx?: Tx): Promise<ConversationId | undefined>
+  /** The optional coordinator address and its current binding, if any. Never opens a conversation. */
+  coordinator(ctx: Context, tx?: Tx): Promise<{ name: string; id?: ConversationId } | undefined>
+  /** Refresh active standing definitions and the browser role projection after a provider change. Opens no conversations. */
+  refreshStanding(ctx: Context): Promise<void>
   /** The standing agents that run in this home, by name and description; use it to list valid `@name` addresses. */
   residents(ctx: Context): Promise<{ name: string; description: string }[]>
   /** The conversation of standing agent `name`, created or refreshed from its definition; throws for unknown names. */
@@ -106,10 +110,14 @@ export type SubagentsService = {
 /** Child conversations and standing agents; `need` it where delegation is required, else `want` it. */
 export const SubagentsApi = defineApi<SubagentsService>()('subagents')
 export type SubagentsWorkflowService = {
-  /** The optional coding workflow's coordinator, not a gateway or channel default. */
+  /** The provider's standing name, independent of the display label. */
   coordinatorName?(): string | undefined
   /** Whether the owning workflow starts this resident only on demand; other residents start on open. */
   onDemand(name: string): boolean
+  /** Recover a previous binding only when there is no live binding at this address. */
+  restoreBinding?(tx: Tx, name: string): Promise<ConversationId | undefined>
+  /** Keep the current binding in the same transaction as an open, replacement, or startup adoption. */
+  saveBinding?(tx: Tx, name: string, id: ConversationId): Promise<void>
 }
 /** Optional workflow rules for residents; ordinary child agents do not require a provider. */
 export const SubagentsWorkflow = defineApi<SubagentsWorkflowService>()('subagents.workflow')

@@ -109,8 +109,8 @@ definition, fails to parse. So `addTools: []` with `title: Atlas` renames @ultim
 with `model` pins one agent, the exception to families. The setup check warns about user or project files that replace
 a built-in whole.
 
-**Shipped definitions:** `scout` stays in the global `agents/` folder. `coding-workflow/agents/` ships `ultimate`,
-`coordinator`, `worker`, `designer`, and `reviewer`. `dream/agents/` ships `dream-pass`, and
+**Shipped definitions:** `scout` stays in the global `agents/` folder. `supercoordinator/agents/` ships `ultimate`.
+`coding-workflow/agents/` ships `coordinator`, `worker`, `designer`, and `reviewer`. `dream/agents/` ships `dream-pass`, and
 `automations/agents/` ships `watcher`. A disabled owner removes its definitions from later discovery.
 
 **Review team.** The shipped `reviewer` reviews alone on the `review` family. Add `reviewer-<name>.md` definitions and
@@ -170,7 +170,16 @@ ordinary one.
 - `residents(ctx)` → `{name, description}[]`, read fresh.
 - `standing(name, ctx)` creates or returns the standing conversation and reconfigures it from the current definition;
   unknown and non-resident names fail with the available names. The `standing {name}` action does the same.
+- `coordinator(ctx, tx?)` → `{name, id?}` of the active standing coordinator, or `undefined` without a
+  `subagents.workflow` provider. It reads the binding and never opens or wakes a conversation. Use it for permissions
+  and role checks; use `standing` or the `openCoordinator` action only for an explicit open.
+- `refreshStanding(ctx)` retires standing agents whose definitions are gone and updates the `subagents.coordinator`
+  document. A provider calls it when it starts or stops.
 - `createChild(…)`: used by automations to start a run from a definition.
+
+The optional `subagents.workflow` provider names the coordinator and can keep a binding of its own. `restoreBinding`
+gives a previous conversation back when the address has no live binding. `saveBinding` records the current one in the
+same transaction as an open, a replacement, or a refresh.
 
 The `Standing` document (kind `ultimate.standing-agents`, on `ROOT_CONVERSATION_ID`) maps names to conversation ids.
 `ultimate.subagents` holds each conversation's children and actions. Each child's `ultimate.metadata` has `label` (the
