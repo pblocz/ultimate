@@ -91,8 +91,10 @@ block's brain) is.
 `N waiting on you` (reply-enabled messages to you still waiting on your answer, plus one for its current final
 answer when that asks you questions), and the age of its latest
 message. Clicking it opens @ultimate on the Agent surface through `subagents.openCoordinator`, also before
-its conversation exists. Below it, an Agents group lists the lander first, then the other ownerless top-level standing
-agents (label `agent`) by ID. These rows are never concluded or hidden and show no summary or feature:
+its conversation exists. Below it, an Agents group lists the lander first, then the other ownerless top-level
+conversations that the `Standing` document points to, by ID. The `agent` label alone does not pin a row: after
+**Clear conversation** the old conversation keeps the label and moves to Earlier. These rows are never concluded or
+hidden and show no summary or feature:
 @lander shows its state (`landing` or `idle`), `queue N` while submissions wait,
 and the age of its latest landing (what landed is its Landed section's first row); other agents show `working` or `idle` and the age. Their menu only
 compacts the context; they are never renamed, cleared or concluded.

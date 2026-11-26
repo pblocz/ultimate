@@ -16,7 +16,7 @@ import {
   useUltimate,
 } from '@/sdk'
 import type { CommandContribution } from '@/sdk'
-import { ClearConversationAction } from '@ultimate/ext/subagents/ui.tsx'
+import { ClearConversationAction, StandingDoc } from '@ultimate/ext/subagents/ui.tsx'
 import { PanelActions } from './panel-actions.tsx'
 
 /** The conversation in a centred column, with the sidebar and the right panel beside it. */
@@ -57,10 +57,22 @@ const commands: CommandContribution[] = [
       if (conversationId === undefined || conversationId === 1 || requested !== conversationId)
         return false
       const summary = conversations.find(({ id }) => id === conversationId)
+      if (
+        !summary ||
+        summary.parentConversationId !== undefined ||
+        summary.ownerTaskId !== undefined
+      )
+        return false
+      if (summary.label === 'chat') return true
+      // An `agent` label stays on a standing agent's old conversation after a clear: only the current one clears.
+      // Until the standing index streams, the server decides.
+      const standing = getState().docsOf[1]?.[StandingDoc.kind] as
+        | Readonly<Record<string, number>>
+        | null
+        | undefined
       return (
-        (summary?.label === 'chat' || summary?.label === 'agent') &&
-        summary.parentConversationId === undefined &&
-        summary.ownerTaskId === undefined
+        summary.label === 'agent' &&
+        (standing === undefined || Object.values(standing ?? {}).includes(summary.id))
       )
     },
     run: async ({ conversationId, switchConversation }) => {

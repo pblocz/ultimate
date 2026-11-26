@@ -185,11 +185,16 @@ function workingByTop(conversations: readonly ConversationSummary[]) {
 const byInput = (a: ConversationSummary, b: ConversationSummary) =>
   (b.inputAt ?? 0) - (a.inputAt ?? 0) || b.id - a.id
 
-const pinned = (conversation: ConversationSummary) =>
+/**
+ * The lander and the current standing agents. The `agent` label only says a conversation started as one: after Clear
+ * conversation the old one keeps it, so the standing index decides. Until the index streams, the label does.
+ */
+const pinned = (conversation: ConversationSummary, standing: ReadonlySet<number> | undefined) =>
   conversation.label === 'lander' ||
   (conversation.label === 'agent' &&
     conversation.parentConversationId === undefined &&
-    conversation.ownerTaskId === undefined)
+    conversation.ownerTaskId === undefined &&
+    (standing === undefined || standing.has(conversation.id)))
 
 /** The project tree, with owned subagents under each row and earlier/concluded work at the bottom. */
 export function Conversations() {
@@ -247,27 +252,29 @@ function Tree({
   const shownTop = topOf(shownId, conversations)
   const hiddenIds = hiddenConversationIds(conversations, concludedIds)
   const roots = new Set(useRoots())
+  const standingIds = useDocOf(1, StandingDoc)
+  const standing = standingIds === undefined ? undefined : new Set(Object.values(standingIds ?? {}))
+  const isPinned = (conversation: ConversationSummary) => pinned(conversation, standing)
   const summary =
-    shownTop && !pinned(shownTop) && !roots.has(shownTop.id) && !hiddenIds.has(shownTop.id)
+    shownTop && !isPinned(shownTop) && !roots.has(shownTop.id) && !hiddenIds.has(shownTop.id)
       ? overview[shownTop.id]
       : undefined
   const [expanded, setExpanded] = useSidebarState<number[]>('expanded', [])
   const working = workingByTop(conversations)
   const topLevel = topLevelRows(conversations, new Set(unlisted.flatMap((set) => [...set])))
   // @ultimate first, then the lander and other standing agents: pinned above the rest and never concluded.
-  const standingIds = useDocOf(1, StandingDoc)
   const coordinator = useCoordinator()
   const ultimateId = coordinator?.id
   const ultimate = topLevel.find((conversation) => conversation.id === ultimateId)
   const agents = topLevel
-    .filter((conversation) => pinned(conversation) && conversation.id !== ultimateId)
+    .filter((conversation) => isPinned(conversation) && conversation.id !== ultimateId)
     .toSorted((a, b) => Number(b.label === 'lander') - Number(a.label === 'lander') || a.id - b.id)
   const workspaceIndex = useWorkspaceIndex()
   const listed = topLevel
-    .filter((conversation) => !pinned(conversation) && !hiddenIds.has(conversation.id))
+    .filter((conversation) => !isPinned(conversation) && !hiddenIds.has(conversation.id))
     .toSorted(byInput)
   const hidden = topLevel
-    .filter((conversation) => !pinned(conversation) && hiddenIds.has(conversation.id))
+    .filter((conversation) => !isPinned(conversation) && hiddenIds.has(conversation.id))
     .toSorted(byInput)
   const branchesBySource = new Map<number, ConversationSummary[]>()
   for (const conversation of topLevel.toSorted(byInput)) {
@@ -293,7 +300,9 @@ function Tree({
     .toSorted(byInput)
   const rest = listed.filter(
     (conversation) =>
-      !roots.has(conversation.id) && !pinned(conversation) && !openBranches.includes(conversation),
+      !roots.has(conversation.id) &&
+      !isPinned(conversation) &&
+      !openBranches.includes(conversation),
   )
   // The rest, with branches nested under their source when it is there too.
   const earlier = rest.filter(
@@ -418,7 +427,7 @@ function Tree({
     )
   }
   const row = (conversation: ConversationSummary, shown = conversation.id === shownTop?.id) => {
-    if (pinned(conversation)) return standingRow(conversation)
+    if (isPinned(conversation)) return standingRow(conversation)
     if (roots.has(conversation.id))
       return (
         <MemoryRow

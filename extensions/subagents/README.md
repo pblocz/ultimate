@@ -163,6 +163,11 @@ level, then keeps what is chosen in it; a refresh changes model or thinking only
 standing agent whose definition is gone is retired, once every definition parses: its conversation stays readable as an
 ordinary one.
 
+**Clear conversation** on a standing agent (`replaceStanding`, or the `clearConversation` action) creates a fresh
+conversation and moves the `@name` address to it in one transaction. The old conversation keeps its history and its
+`agent` label. The label records how a conversation started, not whether it is standing now: read the `Standing`
+document for that.
+
 ## Contract
 
 `host.want(SubagentsApi)` (`api.ts`):
@@ -170,6 +175,8 @@ ordinary one.
 - `residents(ctx)` → `{name, description}[]`, read fresh.
 - `standing(name, ctx)` creates or returns the standing conversation and reconfigures it from the current definition;
   unknown and non-resident names fail with the available names. The `standing {name}` action does the same.
+- `replaceStanding(name, expected, ctx)` moves `@name` from conversation `expected` to a fresh one and returns its id.
+  It fails with a conflict when `@name` no longer points to `expected`.
 - `coordinator(ctx, tx?)` → `{name, id?}` of the active standing coordinator, or `undefined` without a
   `subagents.workflow` provider. It reads the binding and never opens or wakes a conversation. Use it for permissions
   and role checks; use `standing` or the `openCoordinator` action only for an explicit open.

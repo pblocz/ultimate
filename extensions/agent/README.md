@@ -10,3 +10,8 @@ It also brings the conversation's commands: stop the run (`agent.stop`, Escape, 
 inputs) on every surface.
 Compact the context (`agent.compact`), focus the composer (`agent.composer`), and show the main conversation
 (`agent.main`) are available on every surface.
+
+Clear conversation (`agent.clear`) shows for an open ordinary chat (`chat` label) and for an open current standing
+agent: a conversation that the `Standing` document points to. A standing agent's old conversation keeps its `agent`
+label after a clear, so the label alone does not show the command. Until the `Standing` document streams, the command
+shows for an `agent` conversation and the server decides.
