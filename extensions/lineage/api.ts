@@ -65,6 +65,5 @@ export type LineageService = {
 }
 export { Branched, Rooted } from './refs.ts'
 
-/** Trees, branches and notes; core, so `need` it. */
+/** Trees, branches and notes. Use `need` when required, `want` when optional. */
 export const LineageApi = defineApi<LineageService>()('lineage')
-export const tier = 'core'

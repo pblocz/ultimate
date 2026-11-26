@@ -261,7 +261,7 @@ const coreMessage = (optional: string) =>
   `conversations is core tier and imports optional ${optional}; declare a point in conversations that ${optional} provides, or react to an event.`
 
 it('keeps a core-tier extension to core-tier imports, runtime and type alike, and leaves optional ones free', () => {
-  // The tiers come from the repository's api.ts files: conversations, lineage and messages are core; phase and plan not.
+  // The tiers come from the repository's api.ts files. Conversations and messages are core; lineage is optional.
   const source = `import { LineageApi } from '../lineage/api.ts'
 import type { MessagesData } from '../messages/refs.ts'
 import { usePhase } from '../phase/ui.tsx'
@@ -270,6 +270,7 @@ export { TaskChip } from '../plan/ui.tsx'
 import { git } from '../../lib/git.ts'
 const later = () => import('../questions/web.tsx')`
   expect(lint('core-tier-deps', 'extensions/conversations/rows.tsx', source)).toEqual([
+    coreMessage('lineage'),
     coreMessage('phase'),
     coreMessage('plan'),
     coreMessage('plan'),
@@ -293,6 +294,7 @@ const later = () => import('@ultimate/ext/questions/server.ts')`
   const core = `import { LineageApi } from '@ultimate/ext/lineage/api.ts'
 import type { TaskLink } from '@ultimate/ext/plan/refs.ts'`
   expect(lint('core-tier-deps', 'extensions/conversations/rows.tsx', core)).toEqual([
+    coreMessage('lineage'),
     coreMessage('plan'),
   ])
   const contract = `/** Echo: says things back. */

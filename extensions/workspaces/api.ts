@@ -28,7 +28,7 @@ export type WorkspaceService = {
   /** Make the project folder a Git repository with a first commit, so worktrees and landing work. */
   setupGit(): Promise<void>
 }
-/** Worktrees and landing; core, so `need` it. */
+/** Worktrees and landing. Use `need` when required, `want` when optional. */
 export const WorkspacesApi = defineApi<WorkspaceService>()('workspaces')
 
 export { CheckRan, SubmissionFailed, SubmissionLanded } from './refs.ts'
@@ -41,4 +41,3 @@ export type BranchesService = {
 }
 /** What a landing asks about the branch it landed; messages provides it. `want` it. */
 export const Branches = defineApi<BranchesService>()('workspaces.branches')
-export const tier = 'core'

@@ -15,6 +15,7 @@ afterAll(async () => {
 const graph = extensionGraph(resolve('extensions'))
 const optional = [...graph].filter(([, entry]) => !entry.core).map(([name]) => name)
 const core = [...graph].filter(([, entry]) => entry.core).map(([name]) => name)
+const codingProviders = ['workspaces', 'lineage']
 
 /** A faux server on the built-ins with `disable` in the user's settings, and what it reports. */
 async function boot(disable: string[]) {
@@ -49,17 +50,36 @@ async function boot(disable: string[]) {
 
 it('knows optional extensions and the core tier', () => {
   expect(optional.length).toBeGreaterThan(10)
-  expect(core).toEqual(expect.arrayContaining(['conversations', 'subagents', 'workspaces']))
+  expect(core).toEqual(expect.arrayContaining(['conversations', 'subagents']))
+  expect(optional).toEqual(expect.arrayContaining(codingProviders))
 })
 
-it.concurrent.each(optional)('boots cleanly with %s disabled', async (name) => {
-  const state = await boot([name])
-  expect(state.enabled).not.toContain(name)
-  expect(state.errors).toEqual([])
-  expect(state.diagnostics).toEqual([])
-  expect(state.missing).toEqual([])
-  expect(state.tools).toContain('bash')
-})
+it.concurrent.each(optional.filter((name) => !codingProviders.includes(name)))(
+  'boots cleanly with %s disabled',
+  async (name) => {
+    const state = await boot([name])
+    expect(state.enabled).not.toContain(name)
+    expect(state.errors).toEqual([])
+    expect(state.diagnostics).toEqual([])
+    expect(state.missing).toEqual([])
+    expect(state.tools).toContain('bash')
+  },
+)
+
+it.concurrent.each(codingProviders)(
+  'reports the missing %s provider when coding-workflow stays enabled',
+  async (name) => {
+    const state = await boot([name])
+    expect(state.enabled).not.toContain(name)
+    expect(state.enabled).toContain('coding-workflow')
+    expect(state.errors).toEqual([])
+    expect(state.missing).toEqual([name])
+    expect(state.diagnostics).toContain(
+      `coding-workflow needs ${name}, which no enabled extension provides`,
+    )
+    expect(state.tools).toContain('bash')
+  },
+)
 
 it.concurrent('keeps every core-tier extension enabled when settings disable them all', async () => {
   const state = await boot(core)

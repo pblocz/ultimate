@@ -430,10 +430,10 @@ it.concurrent('lets extensions.disable turn off a user or project extension that
 it.concurrent('keeps a user or project replacement of a core built-in core, over extensions.disable', async () => {
   const find = await discoverCoreClaims([
     ['user', 'subagents'],
-    ['project', 'lineage'],
+    ['project', 'conversations'],
   ])
   expect(find('subagents')).toMatchObject({ source: 'user', core: true, enabled: true })
-  expect(find('lineage')).toMatchObject({ source: 'project', core: true, enabled: true })
+  expect(find('conversations')).toMatchObject({ source: 'project', core: true, enabled: true })
 })
 
 it.concurrent('enables every built-in by default except the default-off ones', async () => {
@@ -454,6 +454,11 @@ it.concurrent('enables every built-in by default except the default-off ones', a
   const off = info.filter((entry) => !entry.enabled).map((entry) => entry.name)
   expect(off.toSorted()).toEqual([...defaultOff].toSorted())
   expect(info.find((entry) => entry.name === 'sounds')).toMatchObject({ layer: 'default' })
+  for (const name of ['workspaces', 'lineage']) {
+    const entry = info.find((item) => item.name === name)
+    expect(entry).toMatchObject({ enabled: true, layer: 'default' })
+    expect(entry?.core).toBeUndefined()
+  }
   expect(info.every((entry) => !entry.server?.error)).toBe(true)
   expect(
     discovered

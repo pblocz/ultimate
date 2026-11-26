@@ -9,12 +9,12 @@ the line: a core-tier extension stays enabled whatever `extensions.disable` says
 ignored entry becomes an extension diagnostic), and `ExtensionInfo.core` marks it, so the first-run choices and the
 Extensions panel show it as `core` with a locked switch. Being always on, a core-tier service is there for every
 extension: consumers `need` it. `want` is for optional extensions' services and for extension points, which another
-extension fills. `test/e2e/disable-each.test.ts` boots with each optional extension disabled in turn and expects a
-clean catalogue.
+extension fills. An optional extension can still be a required provider for another optional extension. If the
+provider is disabled and its dependent stays enabled, the host reports the missing provider. It does not enable the
+provider automatically. `test/e2e/disable-each.test.ts` checks both cases.
 
 Today's core tier: agent, prompt, coding-tools, conversations, models, documents, notices, secrets, theme,
-workspaces, subagents, lineage, messages, onboarding (the first run, the Extensions panel and the `setup` tool) and
-sidebar.
+subagents, messages, onboarding (the first run, the Extensions panel and the `setup` tool), and sidebar.
 
 Dependencies point one way. A core-tier extension imports (runtime or type), needs and wants only core-tier
 extensions; lint's `core-tier-deps` enforces the imports, and the catalogue has no cycles. `pnpm deps`
@@ -25,13 +25,11 @@ extension depending on an optional one. The core layers, lowest first, each depe
 1. prompt, coding-tools, documents, notices, secrets, theme: stand alone.
 2. models.
 3. conversations: titles, summaries, overview, concluding; `ConversationRef`, `FeatureTag`, `AgentMark`.
-4. workspaces: worktrees and the lander.
-5. subagents: child conversations and standing agents.
-6. lineage: roots, branches, tallies, notes.
-7. messages: delivery, replies, and optional workflow points.
-8. onboarding and agent. Onboarding depends only on models and secrets; its coding parts come from `coding-workflow`.
-9. sidebar: the ordinary conversation list and the sidebar's points. It depends on no other extension; the coding
-   workflow adds the project tree and the @ultimate button.
+4. subagents: child conversations and standing agents.
+5. messages: delivery, replies, and optional workflow points.
+6. onboarding and agent. Onboarding depends only on models and secrets; its coding parts come from `coding-workflow`.
+7. sidebar: the ordinary conversation list and the sidebar's points. `coding-workflow` adds the project tree.
+   `supercoordinator` adds the title-bar shortcut.
 
 Where a lower extension needs something a higher one knows, it declares the contract and the higher one fills it:
 server extension points (`conversations.trees` and `conversations.release` from conversations, `workspaces.branches`
@@ -43,6 +41,9 @@ subagents, `onboarding.workflow` from onboarding), web points (`conversations.ph
 `coding-workflow` provide points and react to events; the core never imports them. A web point is `definePoint` in the owner's `ui.tsx`,
 rendered with `<Provided>` and filled by `provides` in another facet (see
 [Web points](contracts.md#web-points)).
+
+`workspaces` and `lineage` are optional and stay enabled by default in the full checkout. `lineage` requires
+`workspaces`, and `coding-workflow` requires both. Core requires neither.
 
 `workspaces` implements the shared `ultimate.persona-application` point for ordinary chats and children. It also
 implements `subagents.child-operations` for the legacy child tool routes. Neither caller imports `workspaces`. The
