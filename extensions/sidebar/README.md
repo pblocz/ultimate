@@ -4,7 +4,8 @@ separate section of the `sidebar` slot (`extensions/coding-workflow/README.md`).
 
 ## Ordinary conversations
 
-The list (`OrdinaryConversations`, `ordinary.tsx`) is the first section of the sidebar. It shows the conversations that
+The list (`OrdinaryConversations`, `ordinary.tsx`) is the last section of the sidebar, under the other sections: the
+coding workflow's project tree stretches above it. It shows the conversations that
 the user created as chats (`isChat`, `chats.ts`): the shared create operation marks them with the `chat` label, and a
 chat has no parent and is not a branch. Branches, subagents, side chats, standing agents and internal records do not
 show here. The latest activity (input or answer) comes first; empty new chats sort by their creation order.
@@ -12,6 +13,14 @@ show here. The latest activity (input or answer) comes first; empty new chats so
 Each row has a dot that pulses while the conversation works, its title (`Untitled conversation` until it has one) and
 the age of its latest activity. The shown row is marked with `aria-current="page"`; beside another surface (Memory) no
 row is marked. **New conversation** above the list runs the `ultimate.new` command: it creates a chat and shows it.
+
+Under it, the list folds into a collapsible **Conversations** header with the count (`Section`, `section.tsx`): open
+unless folded, the fold kept per user in `ext.conversations.closedSections`.
+
+## A folding section
+
+`section.tsx` is the sidebar's shared collapsible section: a quiet mono heading with a count bubble, and its rows. The
+coding workflow's In flight and Landed sections use it too (`@ultimate/ext/sidebar/section.tsx`).
 
 ## Where a page opens
 
