@@ -26,6 +26,7 @@ import { ConversationsApi } from '@ultimate/ext/conversations/api.ts'
 import type { ResponseReceipt } from '@ultimate/ext/conversations/summary.ts'
 import type { SummaryModel } from '@ultimate/ext/conversations/summary-model.ts'
 import { Started } from '@ultimate/ext/subagents/api.ts'
+import { randomUUID } from 'node:crypto'
 import { isAbsolute, relative } from 'node:path'
 import { getOrThrow } from '@earendil-works/pi-durable/env'
 import { NodeExecutionEnv } from '@earendil-works/pi-durable/env/node'
@@ -410,6 +411,10 @@ export function rewindTask(host: ExtensionHost) {
                     response: await runtime.memo<ResponseReceipt>('summary', ctx),
                     save: (received) => runtime.memo('summary', received, ctx),
                   },
+                  // A one-shot call like this has no chat session, and a session-scoped provider (opencode-go)
+                  // refuses one without an id, so give each call a disposable session of its own.
+                  undefined,
+                  randomUUID(),
                 )
                 .catch((error: unknown) => {
                   if (runtime.signal.aborted) throw error

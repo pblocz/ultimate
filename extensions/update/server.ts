@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { readFile, stat, writeFile } from 'node:fs/promises'
 import { realpath } from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import type { JsonValue } from '@earendil-works/chord/json'
@@ -328,6 +329,10 @@ async function ask(host: ExtensionHost, input: string) {
     input,
     AbortSignal.timeout(60_000),
     { model },
+    // Clone-level call with no conversation to borrow a session from: a disposable one satisfies the
+    // session header that session-scoped providers (opencode-go) require. `capture` stays unset.
+    undefined,
+    randomUUID(),
   )
   return response.stopReason === 'stop' ? response.text : undefined
 }

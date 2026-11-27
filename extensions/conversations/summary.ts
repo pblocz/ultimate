@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { copyJson } from '@earendil-works/chord/json'
 import {
   defineDoc,
@@ -781,9 +782,11 @@ export function summaryBehavior(host: SummaryHost, generate = generateSummary) {
         }
         try {
           if (!result && model) {
-            const providerSessionId = response
-              ? undefined
-              : (await runtime.snapshot(ProviderDoc, runtime.conversationId, context))?.sessionId
+            // Route every call under a session — the conversation's own, or a disposable one when the doc does not
+            // exist yet — so session-scoped providers (opencode-go) never see a headerless call.
+            const providerSessionId =
+              (await runtime.snapshot(ProviderDoc, runtime.conversationId, context))?.sessionId ??
+              randomUUID()
             result = await generate(
               runtime.models,
               checkpoint.input,

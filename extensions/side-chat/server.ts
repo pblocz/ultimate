@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context'
 import {
   defineDoc,
@@ -5,6 +6,7 @@ import {
   defineTask,
   GenerationTask,
   hook,
+  ProviderDoc,
   ToolTask,
 } from '@earendil-works/pi-durable'
 import type { ConversationId, Cursor, EntryId, TaskId, Tx } from '@earendil-works/pi-durable'
@@ -236,6 +238,11 @@ export function endTask(host: ExtensionHost) {
                 response: await runtime.memo<ResponseReceipt>('response', ctx),
                 save: (answer) => runtime.memo('response', answer, ctx),
               },
+              // Route under the side chat's own session (or a disposable one): session-scoped providers
+              // (opencode-go) refuse a headerless call. `capture` stays unset.
+              undefined,
+              (await runtime.snapshot(ProviderDoc, runtime.conversationId, ctx))?.sessionId ??
+                randomUUID(),
             )
             if (!['stop', 'length'].includes(response.stopReason) || !response.text.trim())
               throw new Error(

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { withAbortSignal } from '@earendil-works/chord/context'
 import type { Context } from '@earendil-works/chord/context'
 import type { JsonValue } from '@earendil-works/chord/json'
@@ -13,6 +14,7 @@ import {
   AgentDoc,
   InboxDoc,
   LiveDoc,
+  ProviderDoc,
   UsageDoc,
   defineDoc,
   defineExtension,
@@ -678,6 +680,11 @@ export default function codemode(host: ExtensionHost) {
               task.input.input,
               AbortSignal.any([runtime.signal, AbortSignal.timeout(60_000)]),
               { model, response, save: (received) => runtime.memo('response', received, ctx) },
+              // Route under this conversation's session (or a disposable one): session-scoped providers
+              // (opencode-go) refuse a headerless call. `capture` stays unset.
+              undefined,
+              (await runtime.snapshot(ProviderDoc, runtime.conversationId, ctx))?.sessionId ??
+                randomUUID(),
             )
             if (response.stopReason === 'stop') summary = parseSummary(response.text)
           }

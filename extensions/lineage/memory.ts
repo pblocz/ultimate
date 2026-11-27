@@ -2,6 +2,7 @@
  * Project memory: each root keeps durable decisions, facts and lessons by slug. Branches from a root with memories start
  * from a brief of its index and recent landings; each landing distils memory operations with the summary model.
  */
+import { randomUUID } from 'node:crypto'
 import {
   defineDoc,
   defineDocFamily,
@@ -393,6 +394,10 @@ export function memorizeTask(
           save: (received) => runtime.memo(memo, received, ctx),
           maxTokens: MEMORIZE_TOKENS,
         },
+        // A one-shot call like this has no chat session, and a session-scoped provider (opencode-go) refuses one
+        // without an id, so give each call a disposable session of its own.
+        undefined,
+        randomUUID(),
       )
     } catch (error) {
       if (runtime.signal.aborted) throw error
